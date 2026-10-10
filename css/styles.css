@@ -1,0 +1,869 @@
+/* Cubica3D — estilos */
+
+:root {
+  --bg: #f4f6fb;
+  --surface: #ffffff;
+  --surface-2: #f8fafc;
+  --border: #e2e8f0;
+  --text: #0f172a;
+  --muted: #64748b;
+  --primary: #4f46e5;
+  --primary-dark: #4338ca;
+  --primary-soft: #eef2ff;
+  --danger: #dc2626;
+  --warn: #b45309;
+  --radius: 14px;
+  --radius-sm: 10px;
+  --shadow: 0 1px 2px rgba(15, 23, 42, .06), 0 8px 24px -12px rgba(15, 23, 42, .18);
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+html, body { margin: 0; padding: 0; }
+
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, p, ul { margin: 0; }
+ul { list-style: none; padding: 0; }
+button { font-family: inherit; cursor: pointer; }
+
+/* ---------- Encabezado ---------- */
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px clamp(16px, 4vw, 40px);
+  background: rgba(255, 255, 255, .85);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--border);
+}
+
+.app-header__brand { display: flex; align-items: center; gap: 12px; }
+
+/* Logo de la marca (icons/cubica-logo.png: recortado y sin fondo). Va sobre una
+   placa blanca con borde para que el cubo se despegue del encabezado claro. */
+.app-header__logo-img {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  object-fit: cover;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+}
+
+.app-header__title { font-size: 1.05rem; font-weight: 700; }
+.app-header__subtitle { font-size: .78rem; color: var(--muted); }
+
+.tabs {
+  display: flex;
+  gap: 6px;
+  padding: 5px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+
+.tab {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: .9rem;
+  font-weight: 600;
+  transition: all .15s ease;
+}
+.tab:hover { color: var(--text); }
+.tab--active { background: var(--surface); color: var(--primary); box-shadow: var(--shadow); }
+
+/* Chip del carrito: visible desde cualquier pestaña, lleva al carrito */
+.cart-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  color: var(--text);
+  font-size: .88rem;
+  font-weight: 700;
+  transition: all .15s ease;
+}
+.cart-chip:hover { border-color: var(--primary); color: var(--primary); }
+.cart-chip__icon { font-size: .95rem; line-height: 1; }
+.cart-chip__sep { color: var(--muted); }
+.cart-chip__total { color: var(--primary); }
+.cart-chip--empty .cart-chip__count,
+.cart-chip--empty .cart-chip__total { color: var(--muted); }
+
+/* Acciones del encabezado: chip del carrito + engranito de Configuración */
+.app-header__actions { display: flex; align-items: center; gap: 10px; }
+
+/* Engranito: abre #/configuracion (Configuración ya no es una pestaña). Se
+   sobreescribe el hover rojo genérico de .icon-btn, que es solo para "quitar". */
+.icon-btn--gear {
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  font-size: 1rem;
+}
+.icon-btn--gear:hover,
+.icon-btn--gear.icon-btn--activo {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+/* ---------- Layout ---------- */
+.app-main { max-width: 1040px; margin: 0 auto; padding: clamp(16px, 4vw, 40px); }
+
+.page { display: flex; flex-direction: column; gap: 20px; }
+.page__head { display: flex; flex-direction: column; gap: 4px; }
+.page__title { font-size: 1.5rem; font-weight: 800; letter-spacing: -.02em; }
+.page__subtitle { font-size: .9rem; color: var(--muted); }
+
+/* ---------- Panel ---------- */
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+.panel--muted { background: var(--surface-2); box-shadow: none; }
+.panel__title { font-size: 1.05rem; font-weight: 700; }
+.panel__hint { font-size: .85rem; color: var(--muted); margin-top: -8px; }
+
+/* ---------- Productos ---------- */
+.product-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 14px;
+}
+
+.product-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 18px;
+  text-align: left;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  transition: all .15s ease;
+}
+.product-card:hover:not(:disabled) {
+  border-color: var(--primary);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px -14px rgba(79, 70, 229, .6);
+}
+.product-card--disabled { opacity: .6; cursor: not-allowed; }
+.product-card__emoji { font-size: 1.6rem; }
+.product-card__title { font-weight: 700; }
+.product-card__desc { font-size: .82rem; color: var(--muted); }
+
+.badge {
+  margin-top: 8px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+}
+.badge--soon { background: var(--surface-2); color: var(--muted); }
+
+/* ---------- Formularios ---------- */
+.form { display: flex; flex-direction: column; gap: 16px; }
+.form--inline { flex-direction: row; flex-wrap: wrap; align-items: flex-end; gap: 12px; }
+.form__row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field--grow { flex: 1 1 200px; }
+.field__label { font-size: .8rem; font-weight: 600; color: var(--muted); }
+.field__opt { font-style: normal; font-weight: 400; }
+
+.field__input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font-size: .95rem;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+.field__input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-soft);
+}
+.field__input:disabled { background: var(--surface-2); cursor: not-allowed; }
+.field__input--color { height: 42px; padding: 4px; cursor: pointer; }
+
+.field__row { display: flex; align-items: center; gap: 10px; }
+.field__row .field__input { flex: 1; }
+
+.swatch {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+}
+.swatch--sm { width: 22px; height: 22px; border-radius: 6px; }
+
+.form__footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.form__error { font-size: .85rem; font-weight: 600; color: var(--danger); }
+
+/* ---------- Botones ---------- */
+.btn {
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 10px 18px;
+  font-size: .9rem;
+  font-weight: 700;
+  transition: all .15s ease;
+}
+.btn--primary { background: var(--primary); color: #fff; }
+.btn--primary:hover:not(:disabled) { background: var(--primary-dark); }
+.btn--primary:disabled { opacity: .5; cursor: not-allowed; }
+.btn--ghost { background: var(--surface); border-color: var(--border); color: var(--text); }
+.btn--ghost:hover:not(:disabled) { border-color: var(--primary); color: var(--primary); }
+.btn--ghost:disabled { opacity: .5; cursor: not-allowed; }
+
+.icon-btn {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  font-size: .85rem;
+  transition: all .15s ease;
+}
+.icon-btn:hover { background: #fee2e2; color: var(--danger); }
+
+/* Botones chicos de las tarjetas del tablero (← → reimprimir ✕) */
+.icon-btn--mini {
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+  font-size: .8rem;
+}
+.icon-btn--mini:hover:not(:disabled) {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+.icon-btn--mini:disabled { opacity: .35; cursor: not-allowed; }
+.icon-btn--mini-danger:hover:not(:disabled) {
+  border-color: var(--danger);
+  background: #fee2e2;
+  color: var(--danger);
+}
+
+/* Botón "← Volver al menú": visible, arriba a la izquierda del formulario */
+.btn--back { align-self: flex-start; }
+
+/* ---------- Precio ---------- */
+.price-preview { display: flex; flex-direction: column; gap: 2px; }
+.price-preview__label {
+  font-size: .75rem;
+  font-weight: 600;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.price-preview__value { font-size: 1.5rem; font-weight: 800; color: var(--primary); }
+
+/* ---------- Cotización actual ---------- */
+.cart__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+
+.cart-line {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+.cart-line:last-of-type { border-bottom: 0; }
+.cart-line__info { flex: 1; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.cart-line__name { font-weight: 700; }
+.cart-line__type {
+  align-self: flex-start;
+  display: inline-block;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--primary);
+  font-size: .7rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+.cart-line__meta { display: flex; flex-wrap: wrap; gap: 12px; font-size: .8rem; color: var(--muted); }
+.meta-tag { display: inline-flex; align-items: center; gap: 6px; }
+.dot {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1px solid rgba(15, 23, 42, .15);
+}
+.cart-line__price { font-weight: 800; white-space: nowrap; }
+
+.cart-total {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 14px;
+  margin-top: 6px;
+  border-top: 2px solid var(--border);
+  font-size: 1.05rem;
+}
+.cart-total strong { font-size: 1.4rem; color: var(--primary); }
+
+.empty { padding: 8px 0; font-size: .9rem; color: var(--muted); }
+
+/* ---------- Carrito: página de desglose (#/carrito) ---------- */
+.page__head--row {
+  flex-direction: row;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.toolbar, .cart__actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.cart__count { font-size: .82rem; font-weight: 700; color: var(--muted); }
+.cart-line__cant { margin-right: 6px; font-size: .78rem; font-weight: 600; color: var(--muted); }
+
+.q-table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+.q-table th {
+  padding: 0 8px 8px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  font-size: .7rem;
+  font-weight: 700;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.q-table td { padding: 12px 8px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.q-table tr:last-child td { border-bottom: 0; }
+.q-table .ta-c { text-align: center; }
+.q-table .ta-r { text-align: right; white-space: nowrap; }
+.q-table .cart-line__meta { margin-top: 6px; }
+.q-item__name { display: block; margin-top: 6px; font-weight: 700; }
+
+.qty { display: inline-flex; align-items: center; gap: 2px; }
+.qty__value { min-width: 26px; text-align: center; font-weight: 700; }
+.icon-btn--qty {
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 1rem;
+  font-weight: 700;
+}
+.icon-btn--qty:hover:not(:disabled) { border-color: var(--primary); background: var(--primary-soft); color: var(--primary); }
+.icon-btn--qty:disabled { opacity: .4; cursor: not-allowed; }
+
+.empty-state { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 28px 16px; text-align: center; }
+.empty-state__emoji { font-size: 2rem; }
+.empty-state p { font-size: .9rem; color: var(--muted); }
+
+/* ---------- Proceso: tablero kanban (#/proceso) ---------- */
+.kanban {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  align-items: start;
+}
+
+.kanban__col {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+
+.kanban__head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.kanban__title { font-size: .95rem; font-weight: 700; }
+.kanban__count { font-size: .78rem; font-weight: 700; color: var(--muted); white-space: nowrap; }
+
+/* Lista de tarjetas de una columna. */
+.kanban__body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 120px;
+  padding: 6px;
+  border-radius: var(--radius-sm);
+}
+.kanban__empty { padding: 18px 6px; font-size: .82rem; color: var(--muted); text-align: center; }
+
+.tarjeta {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--primary);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  transition: border-color .15s ease;
+}
+.tarjeta:hover { border-color: var(--primary); }
+.tarjeta:focus-visible { outline: 3px solid var(--primary-soft); outline-offset: 1px; }
+.tarjeta--realizado { border-left-color: #15803d; }
+
+.tarjeta__top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.tarjeta__folio {
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.tarjeta__total { font-weight: 800; color: var(--primary); white-space: nowrap; }
+.tarjeta__cliente { font-weight: 700; }
+.tarjeta__sin-cliente { font-weight: 400; font-style: italic; color: var(--muted); }
+.tarjeta__meta { font-size: .78rem; color: var(--muted); }
+.tarjeta__resumen { font-size: .8rem; color: #334155; }
+/* Botones que mueven la tarjeta de columna. Llevan el nombre de la columna a la
+   que van (y su flecha), así en el móvil se ve a dónde se mueve sin adivinar. */
+.tarjeta__acciones {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 6px;
+  margin-top: 4px;
+}
+.btn-mover {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  font-size: .8rem;
+  font-weight: 600;
+  touch-action: manipulation;   /* pulsar sin esperar al doble toque */
+  transition: all .15s ease;
+}
+.btn-mover:hover:not(:disabled) {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+.btn-mover:disabled { opacity: .35; cursor: not-allowed; }
+/* min-width:0 deja que un nombre largo de columna se recorte con puntos suspensivos */
+.btn-mover__texto { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tarjeta__iconos { display: flex; gap: 6px; margin-left: auto; }
+/* Botón «Ver» de la tarjeta: abre la cotización completa en pantalla. Va con
+   los iconos, pero con texto, porque en el móvil no hay tooltip que valga. */
+.btn-ver {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 9px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .02em;
+  touch-action: manipulation;
+  transition: all .15s ease;
+}
+.btn-ver:hover {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+.tarjeta__detalle { font-size: .82rem; }
+.tarjeta__detalle > summary { cursor: pointer; font-weight: 600; color: var(--primary); }
+.tarjeta__notas { margin-top: 6px; }
+.tarjeta__pie { margin-top: 6px; font-size: .72rem; color: var(--muted); }
+
+.t-lineas { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.t-linea {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.t-linea:last-child { border-bottom: 0; padding-bottom: 0; }
+.t-linea__cant { font-weight: 800; color: var(--primary); white-space: nowrap; }
+.t-linea__info { flex: 1; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.t-linea__tipo {
+  font-size: .7rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.t-linea__nombre { font-weight: 700; }
+.t-linea__precio { font-weight: 700; white-space: nowrap; }
+
+.doc-preview {
+  overflow-x: auto;
+  padding: 10px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+
+/* ---------- La hoja: documento A4 (se imprime tal cual se ve) ----------
+   Todo lo visual de la cotización se define aquí. Las reglas de impresión solo
+   la "desnudan" (sin bordes, sombra ni relleno) para que @page ponga los
+   márgenes; así en pantalla y en el PDF se ve igual. */
+.hoja {
+  width: 210mm;
+  min-height: 297mm;
+  margin: 0 auto;
+  padding: 14mm;
+  background: #fff;
+  color: #0f172a;
+  font-size: 10.5pt;
+  line-height: 1.4;
+  box-shadow: 0 8px 26px -14px rgba(15, 23, 42, .45);
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+.hoja__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 10px;
+  border-bottom: 3px solid var(--primary);
+}
+.hoja__marca { display: flex; align-items: center; gap: 10px; }
+.hoja__logo {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  background: var(--primary);
+  color: #fff;
+  font-size: 14pt;
+  font-weight: 800;
+  letter-spacing: .5px;
+}
+/* Logo de la marca en la hoja: mide un poco más que el texto que acompaña. */
+.hoja__logo-img { width: 54px; height: 54px; object-fit: contain; }
+.hoja__nombre { margin: 0; font-size: 15pt; font-weight: 800; }
+.hoja__slogan { margin: 0; font-size: 9pt; color: #64748b; }
+.hoja__folio { text-align: right; }
+.hoja__folio-label {
+  display: block;
+  font-size: 7.5pt;
+  font-weight: 700;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+.hoja__folio-num { display: block; font-size: 13pt; font-weight: 800; color: var(--primary); }
+.hoja__folio-fecha { font-size: 9.5pt; color: #334155; }
+.hoja__bloque {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px 24px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+.hoja__bloque-der { text-align: right; }
+.hoja__label {
+  display: block;
+  font-size: 7.5pt;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+.hoja__cliente { font-weight: 700; }
+.hoja__tabla { width: 100%; border-collapse: collapse; margin-top: 14px; font-size: 9.5pt; }
+.hoja__tabla th {
+  padding: 7px 8px;
+  background: var(--primary-soft);
+  color: var(--primary-dark);
+  text-align: left;
+  font-size: 7.5pt;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+.hoja__tabla td { padding: 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.hoja__tabla .ta-c { text-align: center; }
+.hoja__tabla .ta-r { text-align: right; white-space: nowrap; }
+.hoja__celda-prod { width: 30%; }
+.hoja__detalle-nombre { display: block; margin-bottom: 2px; font-weight: 700; }
+.hoja__color { display: inline-flex; align-items: center; gap: 4px; margin-right: 10px; font-size: 8.5pt; color: #475569; }
+.hoja__dot { display: inline-block; width: 9px; height: 9px; border: 1px solid rgba(15, 23, 42, .25); border-radius: 50%; }
+.hoja__vacio { margin-top: 16px; font-size: 9.5pt; color: #64748b; }
+.hoja__totales { display: flex; justify-content: flex-end; margin-top: 12px; }
+.hoja__total-caja { min-width: 62mm; padding: 10px 12px; border-radius: 8px; background: var(--primary-soft); }
+.hoja__total-row { display: flex; justify-content: space-between; gap: 16px; }
+.hoja__total-row--sub { font-size: 9pt; color: #4338ca; }
+.hoja__total-row:last-child { margin-top: 4px; font-size: 12pt; font-weight: 800; color: var(--primary-dark); }
+.hoja__notas { margin-top: 16px; font-size: 9.5pt; }
+.hoja__notas p { margin-top: 2px; white-space: pre-wrap; }
+.hoja__pie {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 16px;
+  margin-top: 18px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  font-size: 8.5pt;
+  color: #64748b;
+}
+.hoja__contacto { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+
+/* ---------- Configuración: colores ---------- */
+.color-list { display: flex; flex-direction: column; gap: 8px; }
+.color-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+.color-item__name { font-weight: 600; }
+.color-item__hex {
+  margin-left: auto;
+  font-size: .8rem;
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* ---------- Aviso ---------- */
+.alert { padding: 12px 14px; border-radius: var(--radius-sm); font-size: .87rem; }
+.alert--warn { background: #fffbeb; border: 1px solid #fde68a; color: var(--warn); }
+
+/* ---------- Próximamente ---------- */
+.soon {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 40px 16px;
+  text-align: center;
+}
+.soon__emoji { font-size: 2.4rem; }
+.soon h3 { font-size: 1.2rem; }
+.soon p { font-size: .9rem; color: var(--muted); }
+
+/* ---------- Toast ---------- */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  z-index: 40;
+  transform: translate(-50%, 20px);
+  padding: 12px 20px;
+  border-radius: 999px;
+  background: #0f172a;
+  color: #fff;
+  font-size: .87rem;
+  font-weight: 600;
+  box-shadow: 0 12px 30px -10px rgba(15, 23, 42, .6);
+  opacity: 0;
+  pointer-events: none;
+  transition: all .25s ease;
+}
+.toast--show { opacity: 1; transform: translate(-50%, 0); }
+.toast--success { background: #15803d; }
+.toast--error { background: #b91c1c; }
+
+/* ---------- Visor: la cotización completa en pantalla, sin descargar ----------
+   Es la misma hoja A4 de siempre (PDF.documento) dentro de un <dialog>: se
+   encoge para entrar entera (ver PDF.ver/ajustarVisor) y desde aquí mismo se
+   puede sacar el PDF. */
+.visor {
+  width: min(920px, 96vw);
+  max-width: none;
+  max-height: 92vh;
+  margin: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 30px 70px -24px rgba(15, 23, 42, .6);
+  overflow: hidden;
+}
+.visor[open] { display: flex; flex-direction: column; }
+.visor::backdrop { background: rgba(15, 23, 42, .55); }
+.visor__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.visor__title { margin: 0; font-size: 1rem; font-weight: 800; }
+.visor__meta { margin: 0; font-size: .8rem; color: var(--muted); }
+.visor__cerrar { margin-left: auto; }
+.visor__lienzo {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px;
+  background: var(--surface-2);
+}
+/* El marco reserva el hueco ya escalado; la hoja se encoge desde su esquina. */
+.visor__marco { position: relative; margin: 0 auto; }
+.visor__hoja { position: absolute; top: 0; left: 0; transform-origin: 0 0; }
+.visor__pie {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: flex-end;
+  padding: 10px 14px;
+  border-top: 1px solid var(--border);
+}
+.visor__pista { display: none; }
+
+/* ---------- Impresión: solo la hoja de la cotización ----------
+   Dos caminos:
+   1) PDF.imprimir() deja la hoja lista en #print-root y marca body.app-print:
+      al imprimir se oculta TODO lo demás y sale solo esa hoja (funciona desde
+      cualquier pestaña: el carrito, el tablero de Proceso).
+   2) Ctrl+P del navegador: se oculta el marco de la app y, en el carrito, se
+      imprime la vista previa tal cual.
+   @page pone los márgenes y el CSS de la hoja los quita para que no se sumen. */
+#print-root { position: absolute; top: 0; left: -300%; }
+
+@media print {
+  @page { size: A4; margin: 12mm; }
+
+  html, body { background: #fff; }
+
+  /* Camino 1: hoja preparada por la app. */
+  body.app-print > *:not(#print-root) { display: none !important; }
+  body.app-print #print-root { position: static; left: 0; }
+
+  /* Camino 2: impresión del navegador. */
+  body:not(.app-print) .app-header,
+  body:not(.app-print) .toast,
+  body:not(.app-print) #print-root { display: none !important; }
+  body:not(.app-print) .app-main { max-width: none; padding: 0; }
+  body:not(.app-print) .page > *:not(#carrito-doc-panel) { display: none !important; }
+  body:not(.app-print) .panel--doc { padding: 0; border: 0; background: none; box-shadow: none; }
+  body:not(.app-print) .panel--doc .cart__head { display: none; }
+  body:not(.app-print) .doc-preview { padding: 0; overflow: visible; background: none; }
+
+  /* El visor nunca sale en el papel: lo que se imprime es #print-root. */
+  .visor { display: none !important; }
+
+  .hoja {
+    width: auto;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    box-shadow: none;
+  }
+
+  /* Que las filas y los bloques no se partan entre páginas. */
+  .hoja__tabla tr,
+  .hoja__totales,
+  .hoja__notas,
+  .hoja__pie { page-break-inside: avoid; }
+  .hoja__head { page-break-after: avoid; }
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 900px) {
+  /* El tablero se apila; cada tarjeta se mueve con sus botones ← / →. */
+  .kanban { grid-template-columns: 1fr; }
+}
+
+/* Pantallas táctiles: el dedo es más ancho que el puntero, así que los botones
+   de las tarjetas (sobre todo los de mover) crecen y se pulsan sin apuntar. */
+@media (hover: none) {
+  .icon-btn--mini { width: 40px; height: 40px; font-size: 1rem; }
+  .btn-mover { min-height: 44px; font-size: .84rem; }
+  .btn-ver { height: 40px; padding: 0 12px; font-size: .8rem; }
+  .tarjeta__acciones { gap: 10px; }
+}
+
+@media (max-width: 640px) {
+  .form__row { grid-template-columns: 1fr; }
+  .app-header { justify-content: center; }
+  .tabs { width: 100%; justify-content: center; }
+  .app-header__actions { width: 100%; }
+  .cart-chip { flex: 1; justify-content: center; }
+  .page__head--row { flex-direction: column; align-items: stretch; }
+  .toolbar { width: 100%; }
+  .toolbar .btn { flex: 1 1 auto; }
+  .q-table { font-size: .82rem; }
+  .q-table td { padding: 10px 6px; }
+
+  /* En el móvil el visor pone los botones uno debajo de otro, a lo ancho. */
+  .visor__pie { flex-direction: column-reverse; align-items: stretch; }
+  .visor__pie .btn { width: 100%; }
+  .visor__pista { display: block; margin: 0; text-align: center; font-size: .78rem; color: var(--muted); }
+}
+
+

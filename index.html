@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cubica3D · Cotizador</title>
+  <link rel="icon" type="image/png" href="icons/cubica-logo.png" />
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <header class="app-header">
+    <div class="app-header__brand">
+      <img class="app-header__logo-img" src="icons/cubica-logo.png" alt="Cubica3D" width="42" height="42" />
+      <div>
+        <h1 class="app-header__title">Cubica3D</h1>
+        <p class="app-header__subtitle">Cotizador de impresión 3D</p>
+      </div>
+    </div>
+    <nav class="tabs" id="tabs" role="tablist">
+      <button class="tab" type="button" role="tab" data-route="productos">Productos</button>
+      <button class="tab" type="button" role="tab" data-route="proceso">Proceso</button>
+    </nav>
+    <div class="app-header__actions">
+      <button class="cart-chip" type="button" id="cart-chip" title="Ir al carrito de cotización">
+        <span class="cart-chip__icon" aria-hidden="true">🛒</span>
+        <span class="cart-chip__count" id="cart-count">0</span>
+        <span class="cart-chip__sep" aria-hidden="true">·</span>
+        <span class="cart-chip__total" id="cart-total">$0.00</span>
+      </button>
+      <button class="icon-btn icon-btn--gear" type="button" id="btn-config"
+        title="Configuración" aria-label="Configuración">⚙️</button>
+    </div>
+  </header>
+
+  <main class="app-main" id="view"></main>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <!-- Motor de impresión: PDF.imprimir() dibuja aquí la hoja A4 (fuera de la
+       pantalla) para que el PDF salga igual desde cualquier pestaña. -->
+  <div id="print-root" aria-hidden="true"></div>
+
+  <!-- Orden importante: utils -> store -> cart -> proceso -> pdf -> vistas -> app -->
+  <script src="js/utils.js"></script>
+  <script src="js/store.js"></script>
+  <script src="js/cart.js"></script>
+  <script src="js/proceso.js"></script>
+  <script src="js/pdf.js"></script>
+  <script src="js/views/productos.js"></script>
+  <script src="js/views/carrito.js"></script>
+  <script src="js/views/proceso.js"></script>
+  <script src="js/views/configuracion.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

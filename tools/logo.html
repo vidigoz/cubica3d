@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Optimizador de logo — Cubica3D</title>
+  <link rel="stylesheet" href="../css/styles.css" />
+  <style>
+    .tool { max-width: 720px; margin: 32px auto; padding: 0 16px 48px; }
+    .tool__pasos { margin: 14px 0 0; padding-left: 20px; list-style: disc; color: var(--muted); font-size: .9rem; }
+    .tool__pasos li { margin-bottom: 6px; }
+    .tool__lienzos { display: flex; flex-wrap: wrap; gap: 20px; margin-top: 20px; }
+    .tool__caja { text-align: center; }
+    .tool__muestra {
+      display: grid;
+      place-items: center;
+      width: 160px;
+      height: 160px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background-image: linear-gradient(45deg, #eef2f7 25%, transparent 25%, transparent 75%, #eef2f7 75%),
+        linear-gradient(45deg, #eef2f7 25%, transparent 25%, transparent 75%, #eef2f7 75%);
+      background-size: 16px 16px;
+      background-position: 0 0, 8px 8px;
+    }
+    .tool__muestra img { max-width: 100%; max-height: 100%; }
+    .tool__nota { display: block; margin-top: 8px; font-size: .78rem; color: var(--muted); }
+    .tool__info { margin-top: 20px; font-size: .9rem; }
+  </style>
+</head>
+<body>
+  <header class="app-header">
+    <div class="app-header__brand">
+      <img class="app-header__logo-img" src="../icons/cubica-logo.png" alt="" width="42" height="42" />
+      <div>
+        <h1 class="app-header__title">Optimizador de logo</h1>
+        <p class="app-header__subtitle">Herramienta de desarrollo, no forma parte de la app</p>
+      </div>
+    </div>
+  </header>
+
+  <main class="tool">
+    <p>
+      Toma el logo maestro <code>icons/cubica.png</code>, le quita el fondo blanco, recorta los
+      márgenes y lo guarda a 320&nbsp;px para que el PDF de cada cotización pese unos kilobytes en
+      vez de ~1&nbsp;MB.
+    </p>
+    <ol class="tool__pasos">
+      <li>Ábrelo con un servidor local (el navegador no deja leer archivos con <code>file://</code>):
+        <code>python3 -m http.server 8000</code> y entra a <code>localhost:8000/tools/logo.html</code>.</li>
+      <li>Pulsa <b>Descargar</b> y guarda el archivo como <code>icons/cubica-logo.png</code>
+        (reemplaza al existente).</li>
+      <li>Recarga la app: el encabezado, el favicon y el PDF ya usan ese archivo.</li>
+    </ol>
+
+    <div class="tool__lienzos">
+      <div class="tool__caja">
+        <div class="tool__muestra"><img id="prev-entrada" src="../icons/cubica.png" alt="" /></div>
+        <span class="tool__nota">Maestro (icons/cubica.png)</span>
+      </div>
+      <div class="tool__caja">
+        <div class="tool__muestra"><img id="prev-salida" alt="" /></div>
+        <span class="tool__nota">Optimizado (icons/cubica-logo.png)</span>
+      </div>
+    </div>
+
+    <p class="tool__info" id="info">Procesando…</p>
+    <p><a class="btn btn--primary" id="descargar" download="cubica-logo.png" href="#" hidden>Descargar</a></p>
+  </main>
+
+  <script src="logo.js"></script>
+</body>
+</html>

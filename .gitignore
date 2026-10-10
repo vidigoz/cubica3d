@@ -1,0 +1,7 @@
+.DS_Store
+*.log
+
+# Archivos de prueba que se generan dentro del proyecto al validar en el
+# navegador (baterías, páginas de captura, volcados del DOM).
+__*.html
+__*.js
