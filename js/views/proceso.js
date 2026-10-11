@@ -12,6 +12,7 @@
   var Utils = window.Utils;
   var Proceso = window.Proceso;
   var PDF = window.PDF;
+  var PO = window.PO;
 
   var rootEl = null;
   var boundEl = null;   // el contenedor de la app es siempre el mismo: se engancha una vez
@@ -95,8 +96,36 @@
       '</button>';
   }
 
+  // La orden de producción de una tarjeta, ya agrupada por window.PO. Sólo se
+  // arma cuando la cotización salió de la columna «Cotización»: mientras está
+  // ahí todavía se está cotizando y no hay nada que fabricar.
+  function poDe(t) {
+    if (!PO || t.columna === Proceso.COLUMNAS[0].id) return null;
+    var po = PO.leer(t.items);
+    return po.vacia ? null : po;
+  }
+
+  // «7 bases · 7 teclas + 7 letras · 3 llaveros · 4 grupos»: lo que hay que
+  // fabricar, en corto, para verlo en la tarjeta sin abrir la hoja.
+  function poResumenTexto(totales) {
+    function plural(n, singular, plural_) {
+      return n + ' ' + (n === 1 ? singular : plural_);
+    }
+    var partes = [];
+    if (totales.bases) partes.push(plural(totales.bases, 'base', 'bases'));
+    if (totales.teclas) {
+      partes.push(plural(totales.teclas, 'tecla', 'teclas') + ' + ' +
+        plural(totales.letras, 'letra', 'letras'));
+    }
+    if (totales.llaveros) partes.push(plural(totales.llaveros, 'llavero', 'llaveros'));
+    if (totales.otros) partes.push(plural(totales.otros, 'otro producto', 'otros productos'));
+    partes.push(plural(totales.grupos, 'grupo', 'grupos'));
+    return partes.join(' \u00b7 ');
+  }
+
   function tarjetaTemplate(t) {
     var indice = Proceso.indiceColumna(t.columna);
+    var po = poDe(t);
 
     return '' +
       '<article class="tarjeta' + (t.columna === 'realizado' ? ' tarjeta--realizado' : '') + '"' +
@@ -116,10 +145,19 @@
           t.items.length + (t.items.length === 1 ? ' l\u00ednea' : ' l\u00edneas') +
         '</p>' +
         '<p class="tarjeta__resumen">' + Utils.escapeHtml(resumenProductos(t.items)) + '</p>' +
+        (po
+          ? '<p class="tarjeta__po"><b>PO:</b> ' +
+              Utils.escapeHtml(poResumenTexto(po.totales)) + '</p>'
+          : '') +
         '<div class="tarjeta__acciones">' +
           moverBotonTemplate(indice, -1) +
           moverBotonTemplate(indice, 1) +
           '<span class="tarjeta__iconos">' +
+            (po
+              ? '<button class="btn-po" type="button" data-po ' +
+                  'title="Orden de producci\u00f3n: qu\u00e9 fabricar, agrupado por color y por ' +
+                  'orden de colores" aria-label="Ver la orden de producci\u00f3n">PO</button>'
+              : '') +
             '<button class="btn-ver" type="button" data-ver ' +
               'title="Ver la cotizaci\u00f3n completa, sin descargar nada" ' +
               'aria-label="Ver la cotizaci\u00f3n completa">' +
@@ -235,6 +273,19 @@
       if (e.target.closest('[data-ver]')) {
         var c = Proceso.getTarjeta(id);
         if (c) PDF.ver({ meta: c, items: c.items });
+        return;
+      }
+
+      // La orden de producción: la hoja con lo que hay que fabricar, agrupado
+      // por color (y por orden de colores). Se arma al vuelo desde la tarjeta.
+      if (e.target.closest('[data-po]')) {
+        var p = Proceso.getTarjeta(id);
+        if (!p) return;
+        PDF.verPO({
+          meta: p,
+          items: p.items,
+          etapa: Proceso.getColumna(p.columna).nombre
+        });
         return;
       }
 

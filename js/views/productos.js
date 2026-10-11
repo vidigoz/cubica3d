@@ -1,4 +1,4 @@
-/* Vista de Productos: menú de productos (Llaveros de Nombre / Clicer de Nombre),
+/* Vista de Productos: menú de productos (Llaveros de Nombre / Clicker de Nombre),
  * el formulario de cada producto y el carrito de cotización compartido
  * (window.Cart). Rutas: #/productos/llaveros y #/productos/clicers.
  * Se expone como window.Views.productos */
@@ -13,10 +13,33 @@
   var rootEl = null;
   var currentSub = null;   // null = menú · 'llaveros' · 'clicers' = formulario
 
-  // Color elegido para cada tecla del clicer, uno por letra del nombre. Se
-  // mantiene mientras se escribe (y mientras cambia la cantidad de letras) y se
-  // pierde al salir del formulario.
-  var clicerTeclas = [];
+  // Lo elegido letra por letra en el clicker, una lista por pieza (base, acabado,
+  // tecla y letra), alineada con las letras del nombre. Se mantiene mientras se
+  // escribe (y mientras cambia la cantidad de letras) y se pierde al salir del
+  // formulario. Vacío = todavía sigue a los menús «todas».
+  var clicerBase = [];        // color de la base, uno por letra
+  var clicerAcabados = [];    // acabado de la base (Corrugado / Liso), uno por letra
+  var clicerTeclas = [];      // color de la tecla, uno por letra
+  var clicerLetras = [];      // color de la letra impresa, uno por letra
+
+  // Piezas del clicker que se eligen letra por letra: cada una es un menú por
+  // letra. El id es el mismo que usa js/clicer.js y el que va en los data-* de
+  // cada fila; la lista de lo elegido sale de listaDeClicer().
+  var PIEZAS_CLICER = ['base', 'acabado', 'tecla', 'letra'];
+
+  function limpiarPiezasClicer() {
+    clicerBase = [];
+    clicerAcabados = [];
+    clicerTeclas = [];
+    clicerLetras = [];
+  }
+
+  function listaDeClicer(pieza) {
+    return pieza === 'base' ? clicerBase
+      : pieza === 'acabado' ? clicerAcabados
+      : pieza === 'tecla' ? clicerTeclas
+      : clicerLetras;
+  }
 
   /* ---------------------------- Plantillas ---------------------------- */
 
@@ -50,8 +73,8 @@
         '<div class="product-grid">' +
           productCard('llaveros', 'productos/llaveros', '🔑', 'Llaveros de Nombre',
             'Elige el color de la base y del nombre. Precio con o sin apellido.', false) +
-          productCard('clicers', 'productos/clicers', '🖱️', 'Clicer de Nombre',
-            'Base corrugada o lisa y una tecla por letra, cada una de su color.', false) +
+          productCard('clicers', 'productos/clicers', '🖱️', 'Clicker de Nombre',
+            'Cada letra con su base (color y acabado), su tecla y su letra; todo igual o letra por letra.', false) +
         '</div>' +
       '</section>';
   }
@@ -114,54 +137,63 @@
       '</section>';
   }
 
-  // Formulario del Clicer de Nombre: se escribe el nombre y sus letras se
-  // reparten como teclas, cada una con su color. La base es de un solo color.
+  // Formulario del Clicker de Nombre: cada letra del nombre lleva TRES piezas
+  // (base con su color y su acabado, tecla y letra) y cada pieza lleva su color.
+  // Arriba hay un menú «todas» por pieza (el nombre entero igual) y abajo una
+  // fila por letra para cambiar sólo esa letra.
   function clicerTemplate() {
     var config = Store.getConfig();
     var sinColores = config.colores.length === 0;
     var options = colorOptions(config.colores);
+    var opcionesAcabado = Clicer.acabados().map(function (a) {
+      return '<option value="' + Utils.escapeHtml(a.id) + '">' + Utils.escapeHtml(a.nombre) + '</option>';
+    }).join('');
     var dis = sinColores ? ' disabled' : '';
 
     return '' +
       '<section class="panel">' +
         '<button class="btn btn--ghost btn--back" type="button" data-action="back">← Volver al menú</button>' +
-        '<h3 class="panel__title">Clicer de Nombre</h3>' +
+        '<h3 class="panel__title">Clicker de Nombre</h3>' +
         (sinColores
           ? '<p class="alert alert--warn">No hay colores en stock. Agrégalos en <b>⚙️ Configuración</b> (arriba a la derecha) para poder cotizar.</p>'
           : '') +
-        '<p class="panel__hint">Lleva una tecla por cada letra del nombre. La base es de un solo color, con acabado corrugado o liso; las teclas pueden ser todas del mismo color o una distinta por letra.</p>' +
+        '<p class="panel__hint">Cada letra del nombre lleva una <b>base</b> (con su color y su acabado, corrugado o liso), una <b>tecla</b> y una <b>letra</b>. Con los menús de «todas» queda el nombre entero igual; si querés, abajo cambiás una letra suelta.</p>' +
         '<form class="form" id="form-clicer" novalidate>' +
           '<div class="form__row form__row--tres">' +
             '<label class="field field--grow">' +
               '<span class="field__label">Nombre</span>' +
-              '<input class="field__input" type="text" id="f-clicer-nombre" placeholder="Ej. Victor" autocomplete="off"' + dis + ' />' +
-            '</label>' +
-            '<label class="field field--grow">' +
-              '<span class="field__label">Acabado de la Base</span>' +
-              '<select class="field__input" id="f-clicer-acabado"' + dis + '>' +
-                Clicer.acabados().map(function (a) {
-                  return '<option value="' + Utils.escapeHtml(a.id) + '">' + Utils.escapeHtml(a.nombre) + '</option>';
-                }).join('') +
-              '</select>' +
+              '<input class="field__input" type="text" id="f-clicer-nombre" placeholder="Ej. Ali" autocomplete="off"' + dis + ' />' +
             '</label>' +
             '<div class="field field--grow">' +
-              '<span class="field__label">Color de la Base</span>' +
+              '<span class="field__label">Base · Acabado de todas</span>' +
+              '<select class="field__input" id="f-clicer-acabado"' + dis + '>' + opcionesAcabado + '</select>' +
+            '</div>' +
+            '<div class="field field--grow">' +
+              '<span class="field__label">Base · Color de todas</span>' +
               '<div class="field__row">' +
                 '<select class="field__input" id="f-clicer-base"' + dis + '>' + options + '</select>' +
                 '<span class="swatch" id="swatch-clicer-base"></span>' +
               '</div>' +
             '</div>' +
           '</div>' +
-          '<div class="field">' +
-            '<span class="field__label">Teclas · Mismo color para todas</span>' +
-            '<div class="field__row">' +
-              '<select class="field__input" id="f-clicer-todas"' + dis + '>' + options + '</select>' +
-              '<span class="swatch" id="swatch-clicer-todas"></span>' +
+          '<div class="form__row">' +
+            '<div class="field">' +
+              '<span class="field__label">Tecla · Color de todas</span>' +
+              '<div class="field__row">' +
+                '<select class="field__input" id="f-clicer-tecla-todas"' + dis + '>' + options + '</select>' +
+                '<span class="swatch" id="swatch-clicer-tecla"></span>' +
+              '</div>' +
             '</div>' +
-            '<span class="field__opt">Si querés una letra de otro color, cambiala abajo en «Color de cada tecla».</span>' +
+            '<div class="field">' +
+              '<span class="field__label">Letra · Color de todas</span>' +
+              '<div class="field__row">' +
+                '<select class="field__input" id="f-clicer-letra-todas"' + dis + '>' + options + '</select>' +
+                '<span class="swatch" id="swatch-clicer-letra"></span>' +
+              '</div>' +
+            '</div>' +
           '</div>' +
           '<div class="field">' +
-            '<span class="field__label">Color de cada tecla <em class="field__opt">(una por letra del nombre)</em></span>' +
+            '<span class="field__label">Letra por letra <em class="field__opt">(base, tecla y letra de cada una)</em></span>' +
             '<div class="teclas" id="clicer-teclas"></div>' +
             '<span class="field__opt" id="clicer-cuenta"></span>' +
           '</div>' +
@@ -220,7 +252,7 @@
     }
 
     if (currentSub === 'clicers') {
-      clicerTeclas = [];           // formulario recién montado: todo con el color de «todas»
+      limpiarPiezasClicer();       // formulario recién montado: todo con lo de «todas»
       updateSwatchesClicer();
       pintarTeclas();
       updateClicerPrecio();
@@ -263,8 +295,8 @@
       if (nomSel) nomSel.addEventListener('change', updateSwatches);
     }
 
-    // Formulario del clicer: base (acabado + color), «todas las teclas» y una
-    // tecla por letra del nombre.
+    // Formulario del clicker: los menús «todas» (base con su acabado, tecla y
+    // letra) y una fila por letra del nombre.
     var clicerForm = container.querySelector('#form-clicer');
     if (clicerForm) {
       clicerForm.addEventListener('submit', function (e) {
@@ -280,27 +312,28 @@
         });
       }
 
-      var todasSel = container.querySelector('#f-clicer-todas');
-      if (todasSel) {
-        todasSel.addEventListener('change', function () {
-          // Un solo color para todas las teclas: se olvida lo elegido letra por letra.
-          clicerTeclas = [];
-          pintarTeclas();
-          updateSwatchesClicer();
+      // Los cuatro menús «todas» valen para el nombre entero: al cambiar uno se
+      // olvida lo elegido letra por letra y todas las letras vuelven a seguirlo.
+      ['#f-clicer-base', '#f-clicer-acabado', '#f-clicer-tecla-todas', '#f-clicer-letra-todas']
+        .forEach(function (selector) {
+          var sel = container.querySelector(selector);
+          if (!sel) return;
+          sel.addEventListener('change', function () {
+            limpiarPiezasClicer();
+            pintarTeclas();
+            updateSwatchesClicer();
+          });
         });
-      }
 
-      var baseClicer = container.querySelector('#f-clicer-base');
-      if (baseClicer) baseClicer.addEventListener('change', updateSwatchesClicer);
-
-      // Los menús de cada tecla salen y entran con cada letra del nombre: el
+      // Los menús de cada letra salen y entran con cada letra del nombre: el
       // listener va en el contenedor y se reengancha solo.
       var letrasEl = container.querySelector('#clicer-teclas');
       if (letrasEl) {
         letrasEl.addEventListener('change', function (e) {
-          var sel = e.target.closest('[data-tecla]');
+          var sel = e.target.closest('select[data-pieza]');
           if (!sel) return;
-          clicerTeclas[Number(sel.getAttribute('data-tecla'))] = sel.value;
+          var i = Number(sel.getAttribute('data-letra'));
+          listaDeClicer(sel.getAttribute('data-pieza'))[i] = sel.value;
           updateSwatchesClicer();
         });
       }
@@ -425,25 +458,48 @@
     window.App.toast('Agregado al carrito', 'success');
   }
 
-  /* ------------------------- Clicer de Nombre ------------------------- */
+  /* ------------------------- Clicker de Nombre ------------------------- */
 
-  // Colores de las teclas alineados con las letras que hay ahora en el campo:
-  // lo ya elegido se conserva por posición y lo que falta toma el color de
-  // «todas las teclas». Devuelve ese color de referencia.
-  function teclasDelNombre(config, letras) {
-    var todasSel = rootEl.querySelector('#f-clicer-todas');
-    var todas = (todasSel && todasSel.value) || (config.colores[0] || {}).id || '';
-    var elegidos = [];
-    letras.forEach(function (_, i) {
-      elegidos.push(clicerTeclas[i] || todas);
-    });
-    clicerTeclas = elegidos;
-    return todas;
+  // Lo que dicen los cuatro menús «todas»: el punto de partida de cada letra y
+  // lo que toma una letra nueva. Con eso el nombre entero queda igual de una vez.
+  function todasLasPiezas(config) {
+    var primero = (config.colores[0] || {}).id || '';
+    return {
+      base: valorDe('#f-clicer-base') || primero,
+      acabado: valorDe('#f-clicer-acabado') || (Clicer.ACABADOS[0] || {}).id || '',
+      tecla: valorDe('#f-clicer-tecla-todas') || primero,
+      letra: valorDe('#f-clicer-letra-todas') || primero
+    };
   }
 
-  // Reparte el nombre en teclas: un renglón por letra con su menú de color.
-  // Se vuelve a llamar con cada tecla que se escribe, así que cada letra
-  // conserva el color que ya tenía.
+  // El valor de un control del formulario ('' si no está en pantalla).
+  function valorDe(selector) {
+    var el = rootEl && rootEl.querySelector(selector);
+    return el ? el.value : '';
+  }
+
+  // Un menú de una pieza de una letra, con su rótulo y (si es un color) su
+  // muestra. Los data-pieza / data-letra dicen a quién pertenece, así el cambio
+  // se puede leer desde el contenedor.
+  function piezaTemplate(pieza, rotulo, i, letra, opciones, dis, conMuestra) {
+    return '' +
+      '<label class="tecla__campo">' +
+        '<span class="tecla__rotulo">' + Utils.escapeHtml(rotulo) + '</span>' +
+        '<span class="field__row">' +
+          '<select class="field__input" data-pieza="' + pieza + '" data-letra="' + i + '" ' +
+            'aria-label="' + Utils.escapeHtml(rotulo + ' de la ' + letra) + '"' + dis + '>' +
+            opciones +
+          '</select>' +
+          (conMuestra
+            ? '<span class="swatch swatch--sm" data-muestra="' + pieza + '" data-letra="' + i + '"></span>'
+            : '') +
+        '</span>' +
+      '</label>';
+  }
+
+  // Reparte el nombre en filas: una por letra, con la base (color y acabado), la
+  // tecla y la letra que le tocaron. Se vuelve a llamar con cada letra que se
+  // escribe, así que cada letra conserva lo que ya tenía elegido.
   function pintarTeclas() {
     if (!rootEl) return;
     var cont = rootEl.querySelector('#clicer-teclas');
@@ -455,59 +511,70 @@
     var cuenta = rootEl.querySelector('#clicer-cuenta');
 
     if (!res.ok) {
-      clicerTeclas = [];
+      limpiarPiezasClicer();
       cont.innerHTML = '<p class="empty">' + Utils.escapeHtml(res.error) + '</p>';
       if (cuenta) cuenta.textContent = '';
       return;
     }
 
-    teclasDelNombre(config, res.letras);
+    // Lo elegido se conserva por posición; lo que falta toma lo de «todas».
+    var todas = todasLasPiezas(config);
+    var cuantas = res.letras.length;
+    clicerBase = Clicer.alinear(cuantas, clicerBase, todas.base);
+    clicerAcabados = Clicer.alinear(cuantas, clicerAcabados, todas.acabado);
+    clicerTeclas = Clicer.alinear(cuantas, clicerTeclas, todas.tecla);
+    clicerLetras = Clicer.alinear(cuantas, clicerLetras, todas.letra);
+
     var options = colorOptions(config.colores);
+    var opcionesAcabado = Clicer.acabados().map(function (a) {
+      return '<option value="' + Utils.escapeHtml(a.id) + '">' + Utils.escapeHtml(a.nombre) + '</option>';
+    }).join('');
     var dis = config.colores.length ? '' : ' disabled';
 
     cont.innerHTML = res.letras.map(function (letra, i) {
       return '' +
         '<div class="tecla">' +
           '<span class="tecla__letra">' + Utils.escapeHtml(letra) + '</span>' +
-          '<select class="field__input" data-tecla="' + i + '" ' +
-            'aria-label="Color de la tecla ' + (i + 1) + ' (' + Utils.escapeHtml(letra) + ')"' + dis + '>' +
-            options +
-          '</select>' +
-          '<span class="swatch swatch--sm" data-swatch-tecla="' + i + '"></span>' +
+          piezaTemplate('base', 'Base', i, letra, options, dis, true) +
+          piezaTemplate('acabado', 'Acabado', i, letra, opcionesAcabado, dis, false) +
+          piezaTemplate('tecla', 'Tecla', i, letra, options, dis, true) +
+          piezaTemplate('letra', 'Letra', i, letra, options, dis, true) +
         '</div>';
     }).join('');
 
-    // Cada menú queda en el color que le toca (el elegido o el de «todas»).
+    // Cada menú queda en lo que le toca (lo elegido para esa letra o lo de «todas»).
     res.letras.forEach(function (_, i) {
-      var sel = cont.querySelector('[data-tecla="' + i + '"]');
-      if (sel) sel.value = clicerTeclas[i];
+      PIEZAS_CLICER.forEach(function (pieza) {
+        var sel = cont.querySelector('[data-pieza="' + pieza + '"][data-letra="' + i + '"]');
+        if (sel) sel.value = listaDeClicer(pieza)[i];
+      });
     });
 
     if (cuenta) {
-      cuenta.textContent = res.letras.length + (res.letras.length === 1 ? ' tecla' : ' teclas') +
-        ' · una por cada letra del nombre';
+      var teclas = res.letras.length;
+      cuenta.textContent = teclas + (teclas === 1 ? ' tecla' : ' teclas') +
+        ' · ' + (teclas * 3) + ' piezas (base, tecla y letra por letra)';
     }
 
     updateSwatchesClicer();
   }
 
-  // Muestras de color de la base, de «todas las teclas» y de cada tecla.
+  // Muestras de color: las de los menús «todas» y las tres de cada letra.
   function updateSwatchesClicer() {
     if (!rootEl) return;
     var colores = Store.getConfig().colores;
 
-    var baseSel = rootEl.querySelector('#f-clicer-base');
-    pintarSwatch(rootEl.querySelector('#swatch-clicer-base'), hexDe(colores, baseSel && baseSel.value));
-
-    var todasSel = rootEl.querySelector('#f-clicer-todas');
-    pintarSwatch(rootEl.querySelector('#swatch-clicer-todas'), hexDe(colores, todasSel && todasSel.value));
+    pintarSwatch(rootEl.querySelector('#swatch-clicer-base'), hexDe(colores, valorDe('#f-clicer-base')));
+    pintarSwatch(rootEl.querySelector('#swatch-clicer-tecla'), hexDe(colores, valorDe('#f-clicer-tecla-todas')));
+    pintarSwatch(rootEl.querySelector('#swatch-clicer-letra'), hexDe(colores, valorDe('#f-clicer-letra-todas')));
 
     var cont = rootEl.querySelector('#clicer-teclas');
     if (!cont) return;
-    cont.querySelectorAll('[data-swatch-tecla]').forEach(function (sw) {
-      var i = Number(sw.getAttribute('data-swatch-tecla'));
-      var sel = cont.querySelector('[data-tecla="' + i + '"]');
-      pintarSwatch(sw, hexDe(colores, (sel && sel.value) || clicerTeclas[i]));
+    cont.querySelectorAll('[data-muestra]').forEach(function (sw) {
+      var pieza = sw.getAttribute('data-muestra');
+      var i = Number(sw.getAttribute('data-letra'));
+      var sel = cont.querySelector('[data-pieza="' + pieza + '"][data-letra="' + i + '"]');
+      pintarSwatch(sw, hexDe(colores, (sel && sel.value) || listaDeClicer(pieza)[i]));
     });
   }
 
@@ -520,7 +587,7 @@
     return c ? c.hex : '';
   }
 
-  // Precio del clicer: por letra, con el tramo corto o el largo según la
+  // Precio del clicker: por letra, con el tramo corto o el largo según la
   // configuración de Configuración → Precios. Bajo el número se ve la cuenta.
   function updateClicerPrecio() {
     if (!rootEl) return;
@@ -546,8 +613,8 @@
     }
   }
 
-  // Agrega el clicer al carrito compartido (window.Cart), con el desglose
-  // completo: base (color + acabado) y cada tecla con su letra y su color, que
+  // Agrega el clicker al carrito compartido (window.Cart), con el desglose
+  // completo de CADA letra: su base (color y acabado), su tecla y su letra, que
   // es lo que se necesita para fabricarlo.
   function addClicerToCart() {
     if (!rootEl) return;
@@ -559,45 +626,45 @@
       return;
     }
 
-    var baseSel = rootEl.querySelector('#f-clicer-base');
-    var base = findColor(config.colores, baseSel && baseSel.value);
-    if (!base) {
-      showFormError('Selecciona el color de la base.', '#clicer-error');
+    // Lo que quedó en cada menú: el de la fila de la letra o, si no se tocó, el
+    // de «todas». Los acabados vienen por id ('corrugado' / 'liso') y las filas
+    // de los colores por id de color.
+    var eleccion = { base: [], acabado: [], tecla: [], letra: [] };
+    res.letras.forEach(function (_, i) {
+      PIEZAS_CLICER.forEach(function (pieza) {
+        var sel = rootEl.querySelector('[data-pieza="' + pieza + '"][data-letra="' + i + '"]');
+        eleccion[pieza].push((sel && sel.value) || listaDeClicer(pieza)[i] || '');
+      });
+    });
+
+    var base = eleccion.base.map(function (id) { return findColor(config.colores, id); });
+    var tecla = eleccion.tecla.map(function (id) { return findColor(config.colores, id); });
+    var letra = eleccion.letra.map(function (id) { return findColor(config.colores, id); });
+    var acabado = eleccion.acabado.map(function (id) {
+      var a = Clicer.buscarAcabado(id);
+      return a ? a.nombre : '';
+    });
+
+    if (base.concat(tecla, letra).some(function (c) { return !c; }) ||
+        acabado.some(function (a) { return !a; })) {
+      showFormError('Elige el color de la base, de la tecla y de la letra de cada letra (y el acabado de la base).', '#clicer-error');
       return;
-    }
-
-    var acabadoSel = rootEl.querySelector('#f-clicer-acabado');
-    var acabado = Clicer.buscarAcabado(acabadoSel && acabadoSel.value);
-
-    // Una tecla por letra, con el color que quedó en su menú.
-    var teclas = [];
-    for (var i = 0; i < res.letras.length; i++) {
-      var sel = rootEl.querySelector('[data-tecla="' + i + '"]');
-      var color = findColor(config.colores, (sel && sel.value) || clicerTeclas[i]);
-      if (!color) {
-        showFormError('Elige el color de cada tecla.', '#clicer-error');
-        return;
-      }
-      teclas.push(color);
     }
 
     var precio = Clicer.precioDe(config, res.letras.length);
 
     Cart.add({
-      tipo: 'Clicer de Nombre',
+      tipo: 'Clicker de Nombre',
       titulo: res.nombre,
-      detalles: Clicer.detallesDe({
-        base: base,
-        acabado: acabado ? acabado.nombre : '',
-        letras: res.letras,
-        teclas: teclas
-      }),
+      detalles: Clicer.detallesDe(Clicer.piezasDe(res.letras, {
+        base: base, acabado: acabado, tecla: tecla, letra: letra
+      })),
       precio: precio.total
     });
 
     hideFormError('#clicer-error');
     campo.value = '';
-    clicerTeclas = [];
+    limpiarPiezasClicer();
     pintarTeclas();
     updateClicerPrecio();
     campo.focus();

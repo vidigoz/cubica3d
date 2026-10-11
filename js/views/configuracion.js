@@ -57,7 +57,7 @@
     return '' +
       '<section class="panel">' +
         '<h3 class="panel__title">Precios</h3>' +
-        '<p class="panel__hint">Los llaveros cambian según si llevan apellido; los clicers, según cuántas letras tenga el nombre (llevan una tecla por letra).</p>' +
+        '<p class="panel__hint">Los llaveros cambian según si llevan apellido; los clickers, según cuántas letras tenga el nombre (cada letra lleva base, tecla y letra).</p>' +
         '<form class="form" id="form-precios">' +
           '<div class="form__row">' +
             '<label class="field field--grow">' +
@@ -71,15 +71,15 @@
           '</div>' +
           '<div class="form__row form__row--tres">' +
             '<label class="field field--grow">' +
-              '<span class="field__label">Clicer · Precio por letra (hasta ' + corte + ' letras)</span>' +
+              '<span class="field__label">Clicker · Precio por letra (hasta ' + corte + ' letras)</span>' +
               '<input class="field__input" type="number" min="0" step="1" id="p-clicer-corto" value="' + config.precios.clicer.porLetraCorto + '" />' +
             '</label>' +
             '<label class="field field--grow">' +
-              '<span class="field__label">Clicer · Precio por letra (' + (corte + 1) + ' letras o más)</span>' +
+              '<span class="field__label">Clicker · Precio por letra (' + (corte + 1) + ' letras o más)</span>' +
               '<input class="field__input" type="number" min="0" step="1" id="p-clicer-largo" value="' + config.precios.clicer.porLetraLargo + '" />' +
             '</label>' +
             '<label class="field field--grow">' +
-              '<span class="field__label">Clicer · El precio corto aplica hasta (letras)</span>' +
+              '<span class="field__label">Clicker · El precio corto aplica hasta (letras)</span>' +
               '<input class="field__input" type="number" min="1" step="1" id="p-clicer-corte" value="' + corte + '" />' +
             '</label>' +
           '</div>' +
@@ -185,15 +185,15 @@
         return;
       }
       if (!isFinite(clicerCorto) || clicerCorto < 0) {
-        showError(container, '#precio-error', 'El precio por letra del clicer (tramo corto) debe ser un número mayor o igual a 0.');
+        showError(container, '#precio-error', 'El precio por letra del clicker (tramo corto) debe ser un número mayor o igual a 0.');
         return;
       }
       if (!isFinite(clicerLargo) || clicerLargo < 0) {
-        showError(container, '#precio-error', 'El precio por letra del clicer (tramo largo) debe ser un número mayor o igual a 0.');
+        showError(container, '#precio-error', 'El precio por letra del clicker (tramo largo) debe ser un número mayor o igual a 0.');
         return;
       }
       if (!isFinite(clicerCorte) || clicerCorte < 1) {
-        showError(container, '#precio-error', 'El corte del clicer debe ser 1 letra o más.');
+        showError(container, '#precio-error', 'El corte del clicker debe ser 1 letra o más.');
         return;
       }
 

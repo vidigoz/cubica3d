@@ -130,14 +130,21 @@ async function principal() {
     notas: "La genera api/tools/probar-frontend.js"
   };
 
-  // El clicer: base + una tecla por letra, cada una de un color. El precio y el
-  // desglose salen de la MISMA función que usa la vista (js/clicer.js), así que lo
-  // que se manda acá es exactamente lo que se manda al cotizar en la app.
+  // El clicker: cada letra con sus TRES piezas (base con su acabado, tecla y
+  // letra) y cada pieza con su color. El precio y el desglose salen de las MISMAS
+  // funciones que usa la vista (js/clicer.js), así que lo que se manda acá es
+  // exactamente lo que se manda al cotizar en la app.
   const nombreClicer = "Victor";
   const letras = Clicer.letrasDe(nombreClicer).letras;
   const colores = Store.getConfig().colores;
   const colorDe = (i) => colores[i % colores.length] || { nombre: "Negro", hex: "#111111" };
   const precioClicer = Clicer.precioDe(Store.getConfig(), letras.length).total;
+  const detallesClicer = Clicer.detallesDe(Clicer.piezasDe(letras, {
+    base: letras.map((_, i) => colorDe(i)),
+    acabado: letras.map((_, i) => (i % 2 ? "Liso" : "Corrugado")),
+    tecla: letras.map((_, i) => colorDe(i + 1)),
+    letra: letras.map((_, i) => colorDe(i + 2))
+  }));
 
   const creada = await Proceso.crear({
     clientId: clientId,
@@ -147,28 +154,30 @@ async function principal() {
         detalles: [{ label: "Base", nombre: "Negro", hex: "#111111" },
                    { label: "Nombre", nombre: "Rojo", hex: "#D32F2F" }] },
       { tipo: "Llavero de Nombre", titulo: "Luis Prueba", precio: 60, cantidad: 1, detalles: [] },
-      { tipo: "Clicer de Nombre", titulo: nombreClicer, precio: precioClicer, cantidad: 1,
-        detalles: Clicer.detallesDe({ base: colorDe(0), acabado: "Corrugado", letras: letras,
-          teclas: letras.map((_, i) => colorDe(i + 1)) }) }
+      { tipo: "Clicker de Nombre", titulo: nombreClicer, precio: precioClicer, cantidad: 1,
+        detalles: detallesClicer }
     ]
   });
 
   const tarjeta = creada.tarjeta;
   console.log("  ·     tarjeta creada: folio " + tarjeta.folio + "  ·  id " + tarjeta.id);
-  console.log("  ·     clicer «" + nombreClicer + "»: " + letras.length + " teclas, $" + precioClicer +
+  console.log("  ·     clicker «" + nombreClicer + "»: " + letras.length + " letras × 3 piezas, $" + precioClicer +
     " (precio por letra de Configuración → Precios)");
   console.log("  ·     total que calculó el servidor: $" + tarjeta.total + " por " + tarjeta.unidades + " pieza(s)");
-  afirmar(tarjeta.unidades === 4, "el servidor contó las 4 piezas: 2 + 1 llaveros y 1 clicer");
+  afirmar(tarjeta.unidades === 4, "el servidor contó las 4 piezas: 2 + 1 llaveros y 1 clicker");
   afirmar(Number(tarjeta.total) === 260 + precioClicer,
-    "el servidor calculó el total (2 x 100 + 1 x 60 + " + precioClicer + " del clicer)");
+    "el servidor calculó el total (2 x 100 + 1 x 60 + " + precioClicer + " del clicker)");
   afirmar(tarjeta.columna === "cotizacion", "entró a la columna «Cotización»");
 
-  // Y el desglose tiene que volver de la base: la base y CADA tecla con su letra.
-  const clicerGuardado = (tarjeta.items || []).filter((it) => it.tipo === "Clicer de Nombre")[0];
-  afirmar(!!clicerGuardado && clicerGuardado.detalles.length === letras.length + 1,
-    "la base y las " + letras.length + " teclas del clicer quedaron guardadas (jsonb)");
-  afirmar(!!clicerGuardado && clicerGuardado.detalles[1].label === "Tecla 1 (" + letras[0] + ")",
-    "cada tecla guarda su letra: «" + (clicerGuardado ? clicerGuardado.detalles[1].label : "?") + "»");
+  // Y el desglose tiene que volver de la base: las tres piezas de CADA letra.
+  const clicerGuardado = (tarjeta.items || []).filter((it) => it.tipo === "Clicker de Nombre")[0];
+  afirmar(!!clicerGuardado && clicerGuardado.detalles.length === letras.length * 3,
+    "las 3 piezas de cada una de las " + letras.length + " letras quedaron guardadas (jsonb)");
+  afirmar(!!clicerGuardado && clicerGuardado.detalles[0].label === letras[0] + " · Base",
+    "cada letra guarda su base con su acabado: «" +
+    (clicerGuardado ? clicerGuardado.detalles[0].nombre : "?") + "»");
+  afirmar(!!clicerGuardado && clicerGuardado.detalles[2].label === letras[0] + " · Letra",
+    "y su letra: «" + (clicerGuardado ? clicerGuardado.detalles[2].nombre : "?") + "»");
 
   titulo("6) El tablero reparte las tarjetas: cada una en su columna, una sola vez");
   // Esta es la comprobación que atrapa el bug de «la misma tarjeta en las tres

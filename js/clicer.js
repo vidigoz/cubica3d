@@ -1,10 +1,14 @@
-/* Lógica del producto «Clicer de Nombre».
+/* Lógica del producto «Clicker de Nombre».
  *
- * Un clicer lleva base (con acabado corrugado o liso y de un solo color) y una
- * tecla por cada letra del nombre; cada tecla puede ser de un color distinto.
- * El precio sale de la configuración del negocio (Configuración → Precios), por
- * letra, con dos tramos: el corto hasta `letrasCorte` letras y el largo de ahí
- * en adelante.
+ * En un clicker el nombre se arma con teclas: cada letra del nombre lleva TRES
+ * piezas y cada pieza lleva su color (la base además lleva acabado):
+ *   · la base  — color + acabado (Corrugado o Liso),
+ *   · la tecla — color,
+ *   · la letra — color de la letra impresa.
+ * Todo se puede poner igual para el nombre entero (los menús «todas») o letra
+ * por letra. El precio sale de la configuración del negocio (Configuración →
+ * Precios), por letra, con dos tramos: el corto hasta `letrasCorte` letras y el
+ * largo de ahí en adelante.
  *
  * Vive aparte de la vista para que el precio y el desglose se calculen en un
  * solo lugar y se puedan probar sin navegador (ver __prueba-clicer.mjs).
@@ -23,6 +27,15 @@
   var ACABADOS = [
     { id: 'corrugado', nombre: 'Corrugado' },
     { id: 'liso', nombre: 'Liso' }
+  ];
+
+  // Las tres piezas que lleva CADA letra del nombre, en el orden en que se
+  // eligen (y en el que salen en el desglose): la base con su acabado, la tecla
+  // y la letra.
+  var PIEZAS = [
+    { id: 'base', nombre: 'Base' },
+    { id: 'tecla', nombre: 'Tecla' },
+    { id: 'letra', nombre: 'Letra' }
   ];
 
   // Si la base todavía no tiene precios de clicer (una base vieja, sin esta
@@ -82,25 +95,66 @@
     };
   }
 
-  // Desglose que viaja al carrito, al tablero y al PDF: la base (color +
-  // acabado) y una entrada por tecla con su letra y su color. Va completo
-  // porque es lo que se necesita para fabricar.
-  function detallesDe(opciones) {
-    var o = opciones || {};
+  // Alinea una lista de elecciones (colores o acabados) con las letras que hay
+  // ahora en el campo: lo ya elegido se conserva por posición y lo que falta
+  // toma el valor de «todas» (el menú que vale para el nombre entero).
+  function alinear(cantidad, elegidas, porDefecto) {
     var lista = [];
-    if (o.base) {
-      lista.push({
-        label: 'Base',
-        nombre: o.base.nombre + (o.acabado ? ' (' + o.acabado + ')' : ''),
-        hex: o.base.hex
-      });
+    var previas = elegidas || [];
+    for (var i = 0; i < cantidad; i++) {
+      var valor = previas[i];
+      lista.push(valor == null || valor === '' ? porDefecto : valor);
     }
-    (o.letras || []).forEach(function (letra, i) {
-      var color = (o.teclas || [])[i];
+    return lista;
+  }
+
+  // Arma las piezas del nombre, una por letra:
+  //   { caracter: 'A', base: <color>, acabado: 'Corrugado', tecla: <color>, letra: <color> }
+  // `eleccion` trae una lista por pieza —{ base, acabado, tecla, letra }— ya
+  // alineada con las letras (ver alinear). Es la forma en la que la vista tiene
+  // todo lo elegido antes de armar el desglose.
+  function piezasDe(letras, eleccion) {
+    var e = eleccion || {};
+    return (letras || []).map(function (caracter, i) {
+      return {
+        caracter: caracter,
+        base: (e.base || [])[i] || null,
+        acabado: (e.acabado || [])[i] || '',
+        tecla: (e.tecla || [])[i] || null,
+        letra: (e.letra || [])[i] || null
+      };
+    });
+  }
+
+  // "Negro (Corrugado)": el color de la base con su acabado, que es como se
+  // pide al proveedor.
+  function nombreConAcabado(color, acabado) {
+    if (!color) return acabado || '';
+    return color.nombre + (acabado ? ' (' + acabado + ')' : '');
+  }
+
+  // Desglose que viaja al carrito, al tablero y al PDF: por CADA letra del
+  // nombre, sus tres piezas con su color (y la base con su acabado). Va completo
+  // porque es lo que se necesita para fabricar sin preguntar nada.
+  function detallesDe(piezas) {
+    var lista = [];
+    (piezas || []).forEach(function (p) {
+      var pieza = p || {};
+      var caracter = pieza.caracter || '';
       lista.push({
-        label: 'Tecla ' + (i + 1) + ' (' + letra + ')',
-        nombre: color ? color.nombre : '',
-        hex: color ? color.hex : ''
+        label: caracter + ' · Base',
+        nombre: nombreConAcabado(pieza.base, pieza.acabado),
+        hex: pieza.base ? pieza.base.hex : ''
+      });
+      lista.push({
+        label: caracter + ' · Tecla',
+        nombre: pieza.tecla ? pieza.tecla.nombre : '',
+        hex: pieza.tecla ? pieza.tecla.hex : ''
+      });
+      lista.push({
+        label: caracter + ' · Letra',
+        nombre: pieza.letra ? pieza.letra.nombre : '',
+        hex: pieza.letra ? pieza.letra.hex : ''
       });
     });
     return lista;
@@ -108,10 +162,13 @@
 
   window.Clicer = {
     ACABADOS: acabados(),
+    PIEZAS: PIEZAS.map(function (p) { return { id: p.id, nombre: p.nombre }; }),
     PRECIOS_POR_DEFECTO: PRECIOS_POR_DEFECTO,
     acabados: acabados,
     buscarAcabado: buscarAcabado,
     letrasDe: letrasDe,
+    alinear: alinear,
+    piezasDe: piezasDe,
     preciosDe: preciosDe,
     precioDe: precioDe,
     detallesDe: detallesDe

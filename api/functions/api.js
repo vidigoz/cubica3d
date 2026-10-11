@@ -147,9 +147,9 @@ function coloresValidos(lista) {
     }));
 }
 
-// Precios del Clicer de Nombre: es un producto de nombre por letras (una tecla
-// por letra), así que se cobra POR LETRA en dos tramos —el corto hasta
-// `letrasCorte` letras y el largo de ahí en adelante—.
+// Precios del Clicker de Nombre: es un producto de nombre por letras (cada letra
+// lleva base, tecla y letra), así que se cobra POR LETRA en dos tramos —el corto
+// hasta `letrasCorte` letras y el largo de ahí en adelante—.
 // Si una base vieja todavía no los tiene, se guardan los valores por defecto
 // (los mismos que js/clicer.js): así el producto nunca cotiza en cero por
 // faltar el dato.

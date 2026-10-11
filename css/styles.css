@@ -201,7 +201,7 @@ button { font-family: inherit; cursor: pointer; }
 .form { display: flex; flex-direction: column; gap: 16px; }
 .form--inline { flex-direction: row; flex-wrap: wrap; align-items: flex-end; gap: 12px; }
 .form__row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-/* Tres columnas: los precios del clicer (dos tramos por letra + el corte). */
+/* Tres columnas: los precios del clicker (dos tramos por letra + el corte). */
 .form__row--tres { grid-template-columns: repeat(3, 1fr); }
 
 .field { display: flex; flex-direction: column; gap: 6px; }
@@ -313,28 +313,39 @@ button { font-family: inherit; cursor: pointer; }
   color: var(--muted);
 }
 .price-preview__value { font-size: 1.5rem; font-weight: 800; color: var(--primary); }
-/* La cuenta del clicer bajo el precio: "6 letras × $30.00 (precio de 6 letras o más)". */
+/* La cuenta del clicker bajo el precio: "6 letras × $30.00 (precio de 6 letras o más)". */
 .price-preview__nota { font-size: .78rem; color: var(--muted); }
 
-/* ---------- Clicer: una tecla por letra del nombre ---------- */
-.teclas { display: flex; flex-wrap: wrap; gap: 8px; }
+/* ---------- Clicker: una fila por letra (base + acabado + tecla + letra) ---------- */
+.teclas { display: flex; flex-direction: column; gap: 8px; }
 .tecla {
-  display: flex;
-  align-items: center;
+  display: grid;
+  grid-template-columns: 26px repeat(4, minmax(0, 1fr));
+  align-items: end;
   gap: 8px;
-  padding: 6px 10px;
+  padding: 8px 10px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--surface-2);
 }
 .tecla__letra {
-  width: 22px;
   text-align: center;
-  font-size: 1.05rem;
+  font-size: 1.15rem;
   font-weight: 800;
   color: var(--primary);
+  padding-bottom: 8px;
 }
-.tecla .field__input { width: auto; min-width: 130px; padding: 6px 8px; font-size: .88rem; }
+/* Cada pieza de la letra: su rótulo arriba y su menú (con la muestra) debajo. */
+.tecla__campo { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.tecla__rotulo {
+  font-size: .68rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.tecla .field__row { gap: 6px; }
+.tecla .field__input { width: 100%; min-width: 0; padding: 6px 8px; font-size: .85rem; }
 
 /* ---------- Cotización actual ---------- */
 .cart__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
@@ -556,6 +567,32 @@ button { font-family: inherit; cursor: pointer; }
   background: var(--primary-soft);
   color: var(--primary);
 }
+/* Botón «PO» (orden de producción): aparece cuando la cotización ya salió de
+   la columna «Cotización», o sea cuando hay algo que fabricar. */
+.btn-po {
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  padding: 0 9px;
+  border: 1px solid var(--primary-dark);
+  border-radius: 8px;
+  background: var(--primary-dark);
+  color: #fff;
+  font: inherit;
+  font-size: .72rem;
+  font-weight: 800;
+  letter-spacing: .04em;
+  touch-action: manipulation;
+  transition: all .15s ease;
+}
+.btn-po:hover { background: var(--primary); border-color: var(--primary); }
+
+/* Resumen de la orden de producción en la tarjeta (qué hay que fabricar). */
+.tarjeta__po {
+  margin-top: 2px;
+  font-size: .78rem;
+  color: var(--primary-dark);
+}
 
 .tarjeta__detalle { font-size: .82rem; }
 .tarjeta__detalle > summary { cursor: pointer; font-weight: 600; color: var(--primary); }
@@ -701,6 +738,43 @@ button { font-family: inherit; cursor: pointer; }
   color: #64748b;
 }
 .hoja__contacto { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+
+/* ---------- Hoja de la orden de producción ----------
+   Misma hoja que la cotización, pero con las tandas de producción: una sección
+   por tipo de pieza, cada grupo con su cantidad grande para leerlo de lejos. */
+.po-totales { display: flex; justify-content: flex-end; margin-top: 10px; }
+.hoja__sec { margin-top: 16px; }
+.hoja__sec-title {
+  margin: 0;
+  padding-bottom: 4px;
+  border-bottom: 2px solid var(--primary-soft);
+  font-size: 9.5pt;
+  font-weight: 800;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--primary-dark);
+}
+.hoja__sec-nota { margin-top: 4px; font-size: 8pt; color: #64748b; }
+.hoja__sec .hoja__tabla { margin-top: 8px; }
+/* En la orden de producción la cantidad va primero y no se mueve de ancho, así
+   las columnas de color y de letras quedan alineadas de una tanda a la otra. */
+.hoja--po .hoja__tabla th:first-child,
+.hoja--po .hoja__tabla td:first-child { width: 14mm; }
+/* La cantidad, en grande: es lo primero que se lee en la hoja del taller. */
+.po-cant { font-size: 12pt; font-weight: 800; color: var(--text); }
+.po-acabado {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  font-size: 7.5pt;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: #334155;
+}
+.po-formas { font-size: 8.5pt; color: #475569; letter-spacing: .02em; }
 
 /* ---------- Configuración: colores ---------- */
 .color-list { display: flex; flex-direction: column; gap: 8px; }
@@ -852,9 +926,12 @@ button { font-family: inherit; cursor: pointer; }
   /* Que las filas y los bloques no se partan entre páginas. */
   .hoja__tabla tr,
   .hoja__totales,
+  .po-totales,
   .hoja__notas,
   .hoja__pie { page-break-inside: avoid; }
   .hoja__head { page-break-after: avoid; }
+  /* En la orden de producción, cada título va pegado a su tabla. */
+  .hoja__sec-title { page-break-after: avoid; }
 }
 
 /* ---------- Responsive ---------- */
@@ -869,11 +946,16 @@ button { font-family: inherit; cursor: pointer; }
   .icon-btn--mini { width: 40px; height: 40px; font-size: 1rem; }
   .btn-mover { min-height: 44px; font-size: .84rem; }
   .btn-ver { height: 40px; padding: 0 12px; font-size: .8rem; }
+  .btn-po { height: 40px; padding: 0 14px; font-size: .8rem; }
   .tarjeta__acciones { gap: 10px; }
 }
 
 @media (max-width: 640px) {
   .form__row { grid-template-columns: 1fr; }
+
+  /* El clicker en el móvil: la letra arriba y sus cuatro piezas en dos columnas. */
+  .tecla { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tecla__letra { grid-column: 1 / -1; padding-bottom: 0; text-align: left; }
   .app-header { justify-content: center; }
   .tabs { width: 100%; justify-content: center; }
   .app-header__actions { width: 100%; }

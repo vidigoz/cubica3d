@@ -82,7 +82,7 @@ de Productos, así que esa pestaña sigue activa.
 | Producto | Estado |
 |---|---|
 | **Llaveros de Nombre** | ✅ Funcional |
-| **Clicer de Nombre** | ✅ Funcional |
+| **Clicker de Nombre** | ✅ Funcional |
 
 ### Producto "Llaveros de Nombre"
 
@@ -96,23 +96,28 @@ de Productos, así que esa pestaña sigue activa.
 - Botón **Ver desglose** → abre `#/carrito` para capturar los datos y exportar el PDF.
 - Botón **← Volver al menú** para regresar a la página de productos.
 
-### Producto "Clicer de Nombre"
+### Producto "Clicker de Nombre"
 
-Un clicer lleva **base** (de un solo color, con acabado **Corrugado** o **Liso**) y **una tecla por
-cada letra del nombre**; cada tecla puede ser de un color distinto.
+Cada **letra** del nombre lleva **tres piezas**: la **base** (color + acabado **Corrugado** o **Liso**),
+la **tecla** y la **letra** impresa. Las tres se eligen de los colores en stock y se pueden poner
+**iguales para todo el nombre** o **letra por letra**.
 
 - Campo **Nombre** (obligatorio): una sola palabra, sólo letras (acentos y Ñ incluidos). Con cada
-  letra que escribes aparece **una tecla nueva** debajo, así se ve enseguida en cuántas se va.
-- Menú **Color de la base** y menú **Acabado de la base**.
-- **Color de todas las teclas**: elige uno y se aplica a todas de una vez. Cada tecla tiene además su
-  propio menú, para cambiar sólo la que quieras (la muestra de color se actualiza al instante).
+  letra que escribes aparece **una fila nueva** debajo (base + acabado + tecla + letra de esa letra),
+  así se ve enseguida en cuántas se va.
+- **Menús «de todas»** (arriba): *Base · Acabado de todas*, *Base · Color de todas*,
+  *Tecla · Color de todas* y *Letra · Color de todas*. Con eso queda el nombre entero igual de una
+  vez; al mover cualquiera de los cuatro, todas las letras vuelven a seguir ese menú.
+- **Letra por letra** (abajo): cada fila tiene los cuatro menús de su letra, así se cambia sólo la
+  que quieras sin tocar las demás. Lo elegido se conserva al seguir escribiendo el nombre (y se
+  recorta si borras letras). La muestra de color se actualiza al instante.
 - **Precio por letra**, con dos tramos (se configuran en *Configuración → Precios*, ver abajo):
   - Hasta *N* letras (por defecto **5**) → precio **por letra corto**.
   - De *N+1* letras en adelante → precio **por letra largo**.
   - Debajo del precio se ve la cuenta (`6 letras × $30.00 (precio de 6 letras o más)`).
-- Botón **Agregar al carrito** → entra con **cantidad 1** y un **desglose completo** (base + acabado y
-  cada tecla con su letra y su color), que es lo que viaja al carrito, al PDF y al tablero: con eso
-  se fabrica sin tener que preguntar nada.
+- Botón **Agregar al carrito** → entra con **cantidad 1** y un **desglose completo** (por cada letra:
+  `A · Base`, `A · Tecla`, `A · Letra`, cada pieza con su color y la base con su acabado), que es lo
+  que viaja al carrito, al PDF y al tablero: con eso se fabrica sin tener que preguntar nada.
 
 ## Carrito de cotización
 
@@ -172,6 +177,18 @@ Tablero **Kanban** con tres columnas, que son el flujo de trabajo: **Cotización
 - **Ver** abre la **cotización completa en pantalla**: la misma hoja A4 que se le envió al cliente,
   sin generar ni descargar nada (útil para enseñarla en el mostrador o compartir pantalla). Desde
   ahí, **🖨️ Descargar PDF** la saca en PDF y **Cerrar** (o **Esc**) vuelve al tablero.
+- **PO** aparece en cuanto la tarjeta sale de **Cotización** (o sea, cuando ya hay algo que
+  fabricar) y abre la **orden de producción**: otra hoja A4, sin precios, con lo que hay que hacer,
+  agrupado por **tandas de producción** (las cuentas las hace `js/po.js`):
+  - las **bases del clicker** se juntan por color y acabado, y cada tanda dice qué letras lleva;
+  - las **teclas con su letra** se juntan por el **par ordenado** tecla → letra: una tecla roja con
+    letra blanca no es la misma tanda que una tecla blanca con letra roja;
+  - los **llaveros**, por la combinación ordenada cuerpo → nombre impreso, con los nombres adentro;
+  - y abajo, los **materiales por color** (cuántas piezas de cada color hay que imprimir).
+  La tarjeta muestra el resumen en corto (**18 bases · 18 teclas + 18 letras · 3 llaveros ·
+  5 grupos**) para no tener que abrir la hoja. Lo que no se agrupa solo (una cotización vieja de
+  clicker, o cualquier otro producto) cae en **Otros productos** por su combinación de colores:
+  la orden nunca deja una línea afuera.
 - **Ver detalle** despliega las líneas de la cotización y **🖨 PDF** reimprime esa hoja tal como se
   envió (mismo diseño que la vista previa del carrito).
 - **Quitar** borra la tarjeta, con confirmación.
@@ -185,10 +202,10 @@ Tablero **Kanban** con tres columnas, que son el flujo de trabajo: **Cotización
 - **Colores en stock:** agrega (nombre + selector de color) y quita colores. Los cambios se ven al instante en los menús de la cotización.
 - **Precios:**
   - *Llavero · Solo nombre* y *Llavero · Nombre + Apellido*.
-  - *Clicer · Precio por letra (hasta N letras)*, *Clicer · Precio por letra (N+1 letras o más)* y
-    *Clicer · El precio corto aplica hasta (letras)* (por defecto **5**). Al lado hay un ejemplo con
+  - *Clicker · Precio por letra (hasta N letras)*, *Clicker · Precio por letra (N+1 letras o más)* y
+    *Clicker · El precio corto aplica hasta (letras)* (por defecto **5**). Al lado hay un ejemplo con
     el precio ya calculado, así se ve el efecto del corte sin tener que cotizar.
-- **Restaurar valores por defecto.** Vuelve a Negro, Blanco y Rojo, y a $60 / $100 y al clicer
+- **Restaurar valores por defecto.** Vuelve a Negro, Blanco y Rojo, y a $60 / $100 y al clicker
   $15 / $30 por letra con corte en 5.
 
 Todo se guarda en el `localStorage` del navegador (clave `cotizador.config.v1`).
@@ -304,13 +321,14 @@ cotizador/
     ├── utils.js                # helpers: uuid, moneda, escape
     ├── api.js                  # cliente del API: la única puerta del navegador hacia la base
     ├── store.js                # configuración del negocio: colores en stock y precios (por el API)
-    ├── clicer.js               # producto Clicer de Nombre: letras, precio por letra y desglose
+    ├── clicer.js               # producto Clicker de Nombre: letras, piezas por letra, precio y desglose
+    ├── po.js                   # orden de producción: agrupa lo vendido en tandas por color y orden
     ├── cart.js                 # carrito + datos de la cotización (borrador de este navegador)
     ├── proceso.js              # tablero Kanban: tarjetas congeladas (por el API)
-    ├── pdf.js                  # plantilla A4 de la cotización + visor en pantalla + impresión/PDF
+    ├── pdf.js                  # plantilla A4 de la cotización y de la PO + visor + impresión/PDF
     ├── acceso.js               # aviso de arranque: entra sola, y si no puede, dice por qué
     ├── views/
-    │   ├── productos.js        # menú de productos + formularios Llaveros y Clicer + carrito
+    │   ├── productos.js        # menú de productos + formularios Llaveros y Clicker + carrito
     │   ├── carrito.js          # desglose: cantidades, datos, vista previa A4 y envío al tablero
     │   ├── proceso.js          # tablero Kanban: columnas, tarjetas y botones ← / →
     │   └── configuracion.js    # colores + precios
@@ -323,8 +341,8 @@ cotizador/
 - El API vive aparte, en `api/`, con su propio `package.json` (Node) y un envuelto de seis líneas
   en `netlify/functions/api.mjs` para publicarlo junto al sitio: el frontend **no** ganó
   dependencias ni pasos de armado. Abrir `index.html` con doble clic sigue funcionando igual.
-- Orden de carga en `index.html`: `utils` → `api` → `store` → `clicer` → `cart` → `proceso` → `pdf`
-  → `acceso` → `views` → `app`.
+- Orden de carga en `index.html`: `utils` → `api` → `store` → `clicer` → `po` → `cart` → `proceso`
+  → `pdf` → `acceso` → `views` → `app`.
 - El enrutador soporta sub-rutas (`#/productos/llaveros`, `#/productos/clicers`), así el botón **atrás**
   del navegador funciona; `ALIASES` traduce las rutas viejas (`cotizacion`, `trabajos`) a las nuevas.
 - `Cart.setMeta()` **no** avisa a los suscriptores a propósito: son datos de cabecera, no líneas del
@@ -342,3 +360,15 @@ cotizador/
   `<body>`, no de la vista, para que el repintado del tablero no se lo lleve por delante, y
   `@media print` lo oculta: imprimir desde dentro del visor sigue sacando la hoja de `#print-root`.
   Si el navegador no soporta `<dialog>`, `PDF.ver` cae en `PDF.imprimir`.
+- La **orden de producción** se arma en `js/po.js`: `PO.leer(items)` devuelve las tandas ya agrupadas
+  (bases, teclas con su letra, llaveros, otros, materiales) y los totales, y `PO.resumen(items)`
+  devuelve sólo los totales, que es lo que muestra el chip de la tarjeta. Se pinta con
+  `PDF.documentoPO({ meta, items, etapa })`: la misma hoja A4 que la cotización, con las secciones de
+  fabricación en lugar de los precios. `PDF.verPO()` y `PDF.imprimirPO()` son el equivalente de
+  `PDF.ver()` y `PDF.imprimir()` para esa hoja, y el archivo se sugiere como
+  `Produccion-0007-Cliente`. Si no hay nada que fabricar, `documentoPO` devuelve `''` y no se abre
+  ni el visor ni el diálogo de impresión. La PO **no toca precios**: la plata sigue en la cotización.
+- Las agrupaciones son por **clave ordenada**, no por conjuntos: tecla roja con letra blanca y tecla
+  blanca con letra roja son dos tandas, igual que base blanca con letras negras y base negra con
+  letras blancas. La clave de un color es `hex|nombre`, así que dos colores con el mismo hex pero
+  distinto nombre no se mezclan.

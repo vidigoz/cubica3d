@@ -169,10 +169,6 @@
     var items = origen.items || window.Cart.getItems();
     var meta = origen.meta || window.Cart.getMeta();
 
-    var contacto = NEGOCIO.contacto.map(function (c) {
-      return '<span>' + Utils.escapeHtml(c) + '</span>';
-    }).join('');
-
     return '' +
       '<article class="hoja" id="' + Utils.escapeHtml(idHoja || 'cotizacion-hoja') + '">' +
         '<header class="hoja__head">' +
@@ -207,16 +203,279 @@
             '</section>'
           : '') +
 
-        '<footer class="hoja__pie">' +
-          '<span>' + Utils.escapeHtml(NEGOCIO.pie) + '</span>' +
-          '<span class="hoja__contacto">' + contacto + '</span>' +
-        '</footer>' +
+        pieTemplate() +
       '</article>';
   }
 
+  // Pie de la hoja (contacto y agradecimiento): igual en las dos hojas.
+  function pieTemplate() {
+    var contacto = NEGOCIO.contacto.map(function (c) {
+      return '<span>' + Utils.escapeHtml(c) + '</span>';
+    }).join('');
+    return '' +
+      '<footer class="hoja__pie">' +
+        '<span>' + Utils.escapeHtml(NEGOCIO.pie) + '</span>' +
+        '<span class="hoja__contacto">' + contacto + '</span>' +
+      '</footer>';
+  }
+
+  /* ------------------ Hoja de la orden de producción ------------------
+     Es la misma hoja A4 que la cotización (marca, folio, pie y estilos), pero
+     con lo que se fabrica: los productos vendidos y, debajo, las tandas ya
+     agrupadas por window.PO. Sin precios.
+     fuente: { meta, items, etapa } — `etapa` es la columna del tablero
+     («Trabajo», «Realizado»), para saber de dónde salió la orden. */
+  function documentoPO(fuente, idHoja) {
+    var origen = fuente || {};
+    var items = origen.items || [];
+    var meta = origen.meta || {};
+    var etapa = Utils.normalize(origen.etapa);
+    if (!window.PO) return '';
+    var po = window.PO.leer(items);
+    if (po.vacia) return '';
+
+    return '' +
+      '<article class="hoja hoja--po" id="' + Utils.escapeHtml(idHoja || 'po-hoja') + '">' +
+        '<header class="hoja__head">' +
+          marcaTemplate() +
+          '<div class="hoja__folio">' +
+            '<span class="hoja__folio-label">Orden de producci\u00f3n</span>' +
+            '<span class="hoja__folio-num">' + Utils.escapeHtml(folioTexto(meta.folio)) + '</span>' +
+            '<span class="hoja__folio-fecha">' + Utils.escapeHtml(fechaTexto(meta.fecha)) + '</span>' +
+          '</div>' +
+        '</header>' +
+
+        '<section class="hoja__bloque">' +
+          '<div>' +
+            '<span class="hoja__label">Cliente</span>' +
+            '<span class="hoja__cliente">' +
+              (meta.cliente ? Utils.escapeHtml(meta.cliente) : '&mdash;') +
+            '</span>' +
+          '</div>' +
+          (etapa
+            ? '<div><span class="hoja__label">Etapa</span><span>' +
+              Utils.escapeHtml(etapa) + '</span></div>'
+            : '') +
+          '<div class="hoja__bloque-der">' +
+            '<span class="hoja__label">A fabricar</span>' +
+            '<span><b>' + po.totales.piezas + '</b> piezas \u00b7 ' +
+              po.totales.grupos + ' grupos</span>' +
+          '</div>' +
+        '</section>' +
+
+        poTotalesTemplate(po.totales) +
+        poProductosTemplate(items) +
+        poBasesTemplate(po.bases) +
+        poTeclasTemplate(po.teclas) +
+        poLlaverosTemplate(po.llaveros) +
+        poOtrosTemplate(po.otros) +
+        poMaterialesTemplate(po.materiales) +
+
+        (meta.notas
+          ? '<section class="hoja__notas">' +
+              '<span class="hoja__label">Notas</span>' +
+              '<p>' + Utils.escapeHtml(meta.notas) + '</p>' +
+            '</section>'
+          : '') +
+
+        pieTemplate() +
+      '</article>';
+  }
+
+  /* ------------------- Orden de producción (PO) -------------------
+     Misma hoja A4 y misma marca que la cotización, pero con el contenido del
+     taller: qué se fabrica, agrupado por tanda (las cuentas las hace window.PO).
+     Se ve en el visor con PDF.verPO() y sale en papel con PDF.imprimirPO(),
+     igual que la cotización. No lleva precios: la plata está en la cotización. */
+
+  // «● Verde» con su nombre, como en la cotización.
+  function poColorTemplate(pieza) {
+    return '<span class="hoja__color">' +
+      (pieza.label ? Utils.escapeHtml(pieza.label) + ' ' : '') +
+      '<i class="hoja__dot" style="background:' + Utils.escapeHtml(pieza.hex) + '"></i>' +
+      Utils.escapeHtml(pieza.nombre) + '</span>';
+  }
+
+  function poColoresTemplate(piezas) {
+    return (piezas || []).map(poColorTemplate).join('');
+  }
+
+  // «A ×2 · L · I» — las formas que entran en la tanda (cuántas «A» imprimir).
+  function poFormasTemplate(formas) {
+    return (formas || []).map(function (f) {
+      return Utils.escapeHtml(f.caracter) + (f.cantidad > 1 ? ' \u00d7' + f.cantidad : '');
+    }).join(' \u00b7 ');
+  }
+
+  // «Luis ×2, Ana» — de qué líneas sale el grupo.
+  function poTitulosTemplate(titulos) {
+    return (titulos || []).map(function (t) {
+      return Utils.escapeHtml(t.nombre) + (t.cantidad > 1 ? ' \u00d7' + t.cantidad : '');
+    }).join(', ');
+  }
+
+  // Una tanda: título con cuántas piezas, una nota de qué agrupa y su tabla.
+  function poSeccionTemplate(titulo, nota, encabezados, filas) {
+    if (!filas.length) return '';
+    return '' +
+      '<section class="hoja__sec">' +
+        '<h2 class="hoja__sec-title">' + Utils.escapeHtml(titulo) + '</h2>' +
+        (nota ? '<p class="hoja__sec-nota">' + Utils.escapeHtml(nota) + '</p>' : '') +
+        '<table class="hoja__tabla">' +
+          '<thead><tr>' + encabezados.map(function (e) {
+            return '<th' + (e.clase ? ' class="' + e.clase + '"' : '') + '>' +
+              Utils.escapeHtml(e.texto) + '</th>';
+          }).join('') + '</tr></thead>' +
+          '<tbody>' + filas.join('') + '</tbody>' +
+        '</table>' +
+      '</section>';
+  }
+
+  // Lo que se vendió, línea por línea: el «qué» de la orden (el «cómo» son las
+  // tandas de abajo). Los colores van en el orden en que se eligieron.
+  function poProductosTemplate(items) {
+    var filas = (items || []).map(function (item) {
+      return '' +
+        '<tr>' +
+          '<td class="ta-c">' + cantidadDe(item) + '</td>' +
+          '<td class="hoja__celda-prod"><b>' + Utils.escapeHtml(item.tipo) + '</b></td>' +
+          '<td>' + (item.titulo ? Utils.escapeHtml(item.titulo) : '') + '</td>' +
+          '<td>' + poColoresTemplate(item.detalles) + '</td>' +
+        '</tr>';
+    });
+    return poSeccionTemplate('Productos a fabricar',
+      'Una l\u00ednea por producto vendido, con sus colores en orden.',
+      [{ texto: 'Cant.', clase: 'ta-c' }, { texto: 'Producto' }, { texto: 'Nombre' },
+        { texto: 'Colores' }],
+      filas);
+  }
+  // Cuántas piezas suman los grupos (va en el título de cada tanda).
+  function poSuma(grupos) {
+    return (grupos || []).reduce(function (suma, g) { return suma + g.cantidad; }, 0);
+  }
+
+  // Tandas de BASES del clicker: mismo color y acabado = mismo cuerpo y misma
+  // impresión. La columna «Letras» dice qué formas entran (cuántas «A», etc.).
+  function poBasesTemplate(grupos) {
+    var filas = (grupos || []).map(function (g) {
+      return '' +
+        '<tr>' +
+          '<td class="ta-c po-cant">' + g.cantidad + '</td>' +
+          '<td>' +
+            poColorTemplate({ label: '', nombre: g.nombre, hex: g.hex }) +
+            (g.acabado ? '<span class="po-acabado">' + Utils.escapeHtml(g.acabado) + '</span>' : '') +
+          '</td>' +
+          '<td class="po-formas">' + poFormasTemplate(g.formas) + '</td>' +
+        '</tr>';
+    });
+    return poSeccionTemplate('Bases del clicker (' + poSuma(grupos) + ')',
+      'Todas las bases del mismo color y acabado se imprimen juntas.',
+      [{ texto: 'Cant.', clase: 'ta-c' }, { texto: 'Base' }, { texto: 'Letras que lleva' }],
+      filas);
+  }
+
+  // Tandas de TECLAS CON SU LETRA: la tecla y la letra de arriba van juntas, y
+  // en ese orden. Una tecla roja con letra blanca y una blanca con letra roja
+  // son dos tandas distintas.
+  function poTeclasTemplate(grupos) {
+    var filas = (grupos || []).map(function (g) {
+      return '' +
+        '<tr>' +
+          '<td class="ta-c po-cant">' + g.cantidad + '</td>' +
+          '<td>' +
+            poColorTemplate({ label: 'Tecla', nombre: g.tecla.nombre, hex: g.tecla.hex }) +
+            poColorTemplate({ label: 'Letra', nombre: g.letra.nombre, hex: g.letra.hex }) +
+          '</td>' +
+          '<td class="po-formas">' + poFormasTemplate(g.formas) + '</td>' +
+        '</tr>';
+    });
+    return poSeccionTemplate('Teclas con su letra (' + poSuma(grupos) + ')',
+      'La tecla y la letra de arriba son una sola tanda: se agrupan por el par, en ese orden.',
+      [{ texto: 'Cant.', clase: 'ta-c' }, { texto: 'Tecla y letra' },
+        { texto: 'Letras que lleva' }],
+      filas);
+  }
+
+  // Grupos de LLAVEROS: mismo cuerpo y mismo nombre impreso = misma producción.
+  // Adentro del grupo se listan los nombres que caen en esa combinación.
+  function poLlaverosTemplate(grupos) {
+    var filas = (grupos || []).map(function (g) {
+      return '' +
+        '<tr>' +
+          '<td class="ta-c po-cant">' + g.cantidad + '</td>' +
+          '<td>' + poColoresTemplate(g.piezas) + '</td>' +
+          '<td>' + poTitulosTemplate(g.titulos) + '</td>' +
+        '</tr>';
+    });
+    return poSeccionTemplate('Llaveros (' + poSuma(grupos) + ')',
+      'Mismo cuerpo y mismo nombre impreso = misma producción. Los que comparten la combinación se hacen juntos.',
+      [{ texto: 'Cant.', clase: 'ta-c' }, { texto: 'Combinación (en orden)' },
+        { texto: 'Nombres' }],
+      filas);
+  }
+
+  // Productos sin agrupación propia: se agrupan por su combinación de colores.
+  function poOtrosTemplate(grupos) {
+    var filas = (grupos || []).map(function (g) {
+      return '' +
+        '<tr>' +
+          '<td class="ta-c po-cant">' + g.cantidad + '</td>' +
+          '<td class="hoja__celda-prod"><b>' + Utils.escapeHtml(g.tipo) + '</b></td>' +
+          '<td>' + poColoresTemplate(g.piezas) + '</td>' +
+          '<td>' + poTitulosTemplate(g.titulos) + '</td>' +
+        '</tr>';
+    });
+    return poSeccionTemplate('Otros productos (' + poSuma(grupos) + ')',
+      'Se agrupan por su combinación de colores, tal como se cotizaron.',
+      [{ texto: 'Cant.', clase: 'ta-c' }, { texto: 'Producto' }, { texto: 'Combinación' },
+        { texto: 'Nombres' }],
+      filas);
+  }
+
+  // Cuántas piezas de cada color: la lista para preparar los filamentos.
+  function poMaterialesTemplate(materiales) {
+    var filas = (materiales || []).map(function (m) {
+      return '' +
+        '<tr>' +
+          '<td class="hoja__celda-prod">' + Utils.escapeHtml(m.producto) + '</td>' +
+          '<td>' + Utils.escapeHtml(m.pieza) + '</td>' +
+          '<td>' + poColorTemplate({ label: '', nombre: m.nombre, hex: m.hex }) + '</td>' +
+          '<td class="ta-c po-cant">' + m.cantidad + '</td>' +
+        '</tr>';
+    });
+    return poSeccionTemplate('Materiales por color',
+      'Cuántas piezas de cada color hay que imprimir, sumando todos los grupos.',
+      [{ texto: 'Producto' }, { texto: 'Pieza' }, { texto: 'Color' },
+        { texto: 'Cant.', clase: 'ta-c' }],
+      filas);
+  }
+
+  // Los números gruesos de la orden, arriba de todo.
+  function poTotalesTemplate(totales) {
+    function fila(etiqueta, valor, sub) {
+      return '<div class="hoja__total-row' + (sub ? ' hoja__total-row--sub' : '') + '">' +
+        '<span>' + Utils.escapeHtml(etiqueta) + '</span><span>' + valor + '</span></div>';
+    }
+    return '' +
+      '<section class="po-totales">' +
+        '<div class="hoja__total-caja">' +
+          fila('Llaveros', totales.llaveros, true) +
+          fila('Bases del clicker', totales.bases, true) +
+          fila('Teclas con su letra', totales.teclas, true) +
+          (totales.otros ? fila('Otros productos', totales.otros, true) : '') +
+          fila('Grupos de producción', totales.grupos, true) +
+          fila('Piezas a fabricar', totales.piezas, false) +
+        '</div>' +
+      '</section>';
+  }
+
+
+
+
   /* -------------------- Visor en pantalla --------------------
-     Enseña la cotización completa sin descargar ni generar nada: es la misma
-     hoja A4 de documento(), encogida para que entre entera en la ventana.
+     Enseña una hoja entera sin descargar ni generar nada: es la misma hoja A4
+     de documento(), encogida para que entre completa en la ventana. Sirve para
+     la cotización y para la orden de producción (ver abrirVisor).
      El visor cuelga del <body> (como #print-root) y no de la vista, para que
      no se lo lleve por delante el repintado del tablero de Proceso. */
 
@@ -277,17 +536,18 @@
     window.removeEventListener('resize', ajustarVisor);
   }
 
-  // Abre el visor con la cotización que se le pase; sin argumentos, la del
-  // carrito. Devuelve false si no hay nada que enseñar.
-  function ver(fuente) {
-    var origen = fuente || {};
-    var items = origen.items || window.Cart.getItems();
-    var meta = origen.meta || window.Cart.getMeta();
-    if (!items.length) return false;
+  // Abre el visor con una hoja ya dibujada: el mismo diálogo sirve para la
+  // cotización y para la orden de producción.
+  //   opciones = { meta, html, titulo, etiqueta, imprimir }
+  // `imprimir` es lo que hace el botón «Descargar PDF» del visor.
+  // Devuelve false si el navegador no tiene <dialog> (ahí se imprime directo).
+  function abrirVisor(opciones) {
+    var o = opciones || {};
+    var meta = o.meta || {};
 
     // Navegadores sin <dialog>: se cae al diálogo de impresión de siempre.
     if (typeof document.createElement('dialog').showModal !== 'function') {
-      return imprimir({ meta: meta, items: items });
+      return o.imprimir ? !!o.imprimir() : false;
     }
 
     cerrarVisor();
@@ -295,11 +555,11 @@
     var dlg = document.createElement('dialog');
     visorEl = dlg;
     dlg.className = 'visor';
-    dlg.setAttribute('aria-label', 'Cotización ' + folioTexto(meta.folio));
+    dlg.setAttribute('aria-label', o.etiqueta || o.titulo || 'Hoja');
     dlg.innerHTML =
       '<header class="visor__head">' +
         '<div>' +
-          '<h2 class="visor__title">Cotización ' + Utils.escapeHtml(folioTexto(meta.folio)) + '</h2>' +
+          '<h2 class="visor__title">' + Utils.escapeHtml(o.titulo || '') + '</h2>' +
           '<p class="visor__meta">' +
             Utils.escapeHtml(meta.cliente || 'Sin cliente') + ' \u00b7 ' +
             Utils.escapeHtml(fechaTexto(meta.fecha)) +
@@ -310,7 +570,7 @@
       '</header>' +
       '<div class="visor__lienzo">' +
         '<div class="visor__marco"><div class="visor__hoja">' +
-          documento({ meta: meta, items: items }, 'cotizacion-hoja-ver') +
+          (o.html || '') +
         '</div></div>' +
       '</div>' +
       '<footer class="visor__pie">' +
@@ -322,7 +582,7 @@
 
     dlg.addEventListener('click', function (e) {
       if (e.target.closest('[data-cerrar]')) { cerrarVisor(); return; }
-      if (e.target.closest('[data-imprimir]')) { imprimir({ meta: meta, items: items }); return; }
+      if (e.target.closest('[data-imprimir]')) { if (o.imprimir) o.imprimir(); return; }
       if (e.target === dlg) cerrarVisor();   // clic en el fondo oscuro
     });
     // Esc y el cierre del navegador pasan por aquí: se limpia el visor del DOM.
@@ -334,6 +594,45 @@
     window.addEventListener('resize', ajustarVisor);
     return true;
   }
+
+  // Abre el visor con la cotización que se le pase; sin argumentos, la del
+  // carrito. Devuelve false si no hay nada que enseñar.
+  function ver(fuente) {
+    var origen = fuente || {};
+    var items = origen.items || window.Cart.getItems();
+    var meta = origen.meta || window.Cart.getMeta();
+    if (!items.length) return false;
+
+    return abrirVisor({
+      meta: meta,
+      etiqueta: 'Cotización ' + folioTexto(meta.folio),
+      titulo: 'Cotización ' + folioTexto(meta.folio),
+      html: documento({ meta: meta, items: items }, 'cotizacion-hoja-ver'),
+      imprimir: function () { return imprimir({ meta: meta, items: items }); }
+    });
+  }
+
+  // Lo mismo, con la orden de producción de una tarjeta del tablero: qué hay
+  // que fabricar, ya agrupado (las cuentas las hace window.PO).
+  function verPO(fuente) {
+    var origen = fuente || {};
+    var items = origen.items || [];
+    var meta = origen.meta || {};
+    if (!window.PO || !items.length) return false;
+
+    var args = { meta: meta, items: items, etapa: Utils.normalize(origen.etapa) };
+    var html = documentoPO(args, 'po-hoja-ver');
+    if (!html) return false;
+
+    return abrirVisor({
+      meta: meta,
+      etiqueta: 'Orden de producción ' + folioTexto(meta.folio),
+      titulo: 'Orden de producción ' + folioTexto(meta.folio),
+      html: html,
+      imprimir: function () { return imprimirPO(args); }
+    });
+  }
+
 
   /* -------------------------- Impresión -------------------------- */
 
@@ -351,8 +650,38 @@
     var meta = origen.meta || window.Cart.getMeta();
     if (!items.length) return false;
 
+    return imprimirHoja(documento({ meta: meta, items: items }, 'cotizacion-hoja-print'),
+      nombreArchivo(meta));
+  }
+
+  // Nombre sugerido del PDF de la orden de producción: Produccion-0001-Cliente.
+  function nombreArchivoPO(metaFuente) {
+    var meta = metaFuente || {};
+    var partes = ['Produccion', folioTexto(meta.folio).replace(/\D/g, '')];
+    var quien = slug(meta.cliente);
+    if (quien) partes.push(quien);
+    return partes.join('-');
+  }
+
+  // La orden de producción se imprime con el mismo motor que la cotización: lo
+  // único que cambia es la hoja y el nombre del archivo.
+  function imprimirPO(fuente) {
+    var origen = fuente || {};
+    var meta = origen.meta || {};
+    var html = documentoPO({
+      meta: meta,
+      items: origen.items || [],
+      etapa: Utils.normalize(origen.etapa)
+    }, 'po-hoja-print');
+    if (!html) return false;
+    return imprimirHoja(html, nombreArchivoPO(meta));
+  }
+
+  // Deja UNA hoja lista en #print-root (body.app-print le dice al CSS que lo
+  // único que debe salir en el papel es esa hoja) y abre el diálogo de impresión.
+  function imprimirHoja(html, nombre) {
     var raiz = document.getElementById('print-root');
-    if (raiz) raiz.innerHTML = documento({ meta: meta, items: items }, 'cotizacion-hoja-print');
+    if (raiz) raiz.innerHTML = html;
 
     var restaurado = false;
 
@@ -370,7 +699,7 @@
     // body.app-print le dice al CSS de impresión que lo único que debe salir en
     // el papel es la hoja de #print-root.
     document.body.classList.add('app-print');
-    document.title = nombreArchivo(meta);
+    document.title = nombre;
     window.addEventListener('afterprint', restaurar);
     window.print();
     // Chrome bloquea hasta cerrar el diálogo; Safari no lo hace. Los dos caminos
@@ -382,10 +711,15 @@
   window.PDF = {
     getNegocio: getNegocio,
     documento: documento,
+    documentoPO: documentoPO,
     ver: ver,
+    verPO: verPO,
     imprimir: imprimir,
+    imprimirPO: imprimirPO,
     nombreArchivo: nombreArchivo,
+    nombreArchivoPO: nombreArchivoPO,
     folioTexto: folioTexto,
     fechaTexto: fechaTexto
   };
+
 })();
