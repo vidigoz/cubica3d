@@ -1,14 +1,22 @@
-/* Conexión a Postgres para los utilitarios de línea de comandos.
+/* Devuelve `{ query, cerrar, motor }` con la base que corresponda:
  *
- * El runtime de Neon inyecta DATABASE_URL sola en la función desplegada; acá
- * (en tu máquina) hay que leerla del .env que deja `neon env pull` o que
- * completaste a mano.
- * Sin dependencias: se leen api/.env y api/.env.local (en ese orden) y lo que
- * ya esté exportado en el entorno tiene prioridad (podés hacer
- * `export DATABASE_URL=...` y se usa eso). */
+ *   · con DATABASE_URL (o DATABASE_URL_UNPOOLED) en el .env o en el entorno ->
+ *     Postgres de Neon/remoto, como siempre;
+ *   · sin ninguna de las dos -> la base local del proyecto (api/datos), que
+ *     levanta base-local.js: es Postgres igual (PGlite) y se crea sola la primera
+ *     vez, así que todos los comandos funcionan sin nube y sin tocar nada.
+ *
+ * `query(sql, parametros)` es idéntico en los dos casos, que es justo lo que
+ * necesitan los utilitarios.
+ *
+ * Sin dependencias para leer la configuración: se leen api/.env y api/.env.local
+ * (en ese orden) y lo que ya esté exportado en el entorno tiene prioridad (podés
+ * hacer `export DATABASE_URL=...` y se usa eso). */
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+
+import { abrirBaseLocal, usarBaseLocal } from "./base-local.js";
 
 const AQUI = dirname(fileURLToPath(import.meta.url));
 
@@ -44,17 +52,25 @@ export function cargarEnv() {
 
 export async function conectar() {
   cargarEnv();
-  const cadena = process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL;
-  if (!cadena) {
-    console.error("Falta DATABASE_URL. Corré `neon env pull` dentro de api/ o exportá la variable.");
-    process.exit(1);
+
+  if (usarBaseLocal()) {
+    // BASE_LOCAL puesta, o no hay DATABASE_URL: la base vive en el proyecto.
+    const base = await abrirBaseLocal();
+    console.log("Base: local (" + base.carpeta + ")" +
+      (base.nueva ? " — la creé recién con db/schema.sql" : "") +
+      "   ·   para usar Neon, sacá BASE_LOCAL y poné DATABASE_URL en api/.env");
+    return { query: base.query, cerrar: base.cerrar, motor: "local" };
   }
+
+  const cadena = process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL;
+
   const pg = (await import("pg")).default;
   // connectionTimeoutMillis: sin esto, una cadena mal pegada deja el comando
   // colgado para siempre en vez de avisar que no pudo conectar.
   const pool = new pg.Pool({ connectionString: cadena, max: 2, connectionTimeoutMillis: 15000 });
   return {
     query: (sql, parametros) => pool.query(sql, parametros),
-    cerrar: () => pool.end()
+    cerrar: () => pool.end(),
+    motor: "postgres"
   };
 }

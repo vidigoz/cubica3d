@@ -1,14 +1,16 @@
 /* Tablero de proceso (Kanban) de las cotizaciones enviadas.
  * Cotización -> Trabajo -> Realizado.
  *
- * Cada tarjeta es una COPIA CONGELADA de la cotización tal como se envió: aquí
- * vive el historial de lo que ya se le mandó al cliente, así que editar el
- * carrito después no altera nada de lo guardado.
+ * Las tarjetas viven en Postgres y viajan por el API: lo que se envía desde
+ * cualquier navegador aparece acá (y al revés). El servidor guarda cada
+ * cotización como COPIA CONGELADA dentro de la misma transacción que le da el
+ * folio, así que editar el carrito después no altera nada de lo guardado.
+ *
+ * Cada movimiento se pinta al instante y se manda al servidor por atrás; si
+ * falla, el tablero vuelve a como estaba y se recarga desde la base.
  * Se expone como window.Proceso */
 (function () {
   'use strict';
-
-  var STORAGE_KEY = 'cotizador.proceso.v1';
 
   // Las columnas del tablero, en orden. El orden ES el flujo de trabajo.
   var COLUMNAS = [
@@ -21,6 +23,9 @@
   //             columna, creada, movida }
   var tarjetas = [];
   var listeners = [];
+  var folioSiguiente = 1;   // lo lleva el servidor: nunca se repite un folio
+  var sello = '';           // 'actualizado' de la última carga (para no repintar de gusto)
+  var enVuelo = 0;          // escrituras sin confirmar: el sondeo las espera
 
   function clone(obj) { return JSON.parse(JSON.stringify(obj)); }
 
@@ -91,61 +96,68 @@
     return items.reduce(function (sum, item) { return sum + lineTotal(item); }, 0);
   }
 
-  /* --------------------------- Persistencia --------------------------- */
-
-  function persist() {
-    try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ tarjetas: tarjetas }));
-    } catch (e) {
-      /* Si el almacenamiento no está disponible, se sigue trabajando en memoria. */
-    }
+  // Deja una tarjeta del servidor con la misma forma que usa el frontend.
+  function sanearTarjeta(fila) {
+    fila = fila || {};
+    var items = itemsValidos(fila.items);
+    return {
+      id: String(fila.id || ''),
+      folio: String(fila.folio == null ? '' : fila.folio),
+      fecha: String(fila.fecha || ''),
+      cliente: String(fila.cliente || ''),
+      notas: String(fila.notas || ''),
+      items: items,
+      unidades: items.length ? unidadesDe(items) : window.Utils.parseNumber(fila.unidades, 0),
+      total: items.length ? totalDe(items) : window.Utils.parseNumber(fila.total, 0),
+      columna: fila.columna || primeraColumna(),
+      creada: fila.creada || ahoraISO(),
+      movida: fila.movida || fila.creada || ahoraISO(),
+      creadaPor: String(fila.creadaPor || ''),
+      movidaPor: String(fila.movidaPor || '')
+    };
   }
 
-  // Carga lo guardado y lo sanea; si algo viene mal, arranca vacío.
-  function cargar() {
-    var guardado = null;
-    try {
-      var raw = window.localStorage.getItem(STORAGE_KEY);
-      if (raw) guardado = JSON.parse(raw);
-    } catch (e) {
-      guardado = null;
-    }
 
-    if (!guardado || !Array.isArray(guardado.tarjetas)) return;
+  /* --------------------------- Enlace con el API --------------------------- */
 
-    tarjetas = guardado.tarjetas.filter(function (t) {
-      return t && typeof t === 'object';
-    }).map(function (t) {
-      var items = itemsValidos(t.items);
-      // La columna guardada tiene que existir en el tablero actual.
-      var columna = getColumna(t.columna) ? t.columna : primeraColumna();
-      return {
-        id: t.id || window.Utils.uid(),
-        folio: (t.folio === '' || t.folio == null) ? '1' : String(t.folio),
-        fecha: t.fecha == null ? '' : String(t.fecha),
-        cliente: t.cliente == null ? '' : String(t.cliente),
-        notas: t.notas == null ? '' : String(t.notas),
-        items: items,
-        unidades: unidadesDe(items),   // se recalculan: siempre cuadran con las líneas
-        total: totalDe(items),
-        columna: columna,
-        creada: t.creada == null ? ahoraISO() : String(t.creada),
-        movida: t.movida == null ? String(t.creada || ahoraISO()) : String(t.movida)
-      };
+  function notify() {
+    listeners.forEach(function (fn) { fn(getTarjetas()); });
+  }
+
+  // Reemplaza el tablero con lo que hay en la base y avisa sólo si cambió algo.
+  function aplicar(lista, actualizado) {
+    var nuevas = (Array.isArray(lista) ? lista : []).map(sanearTarjeta);
+    var igual = !!actualizado && actualizado === sello && nuevas.length === tarjetas.length;
+    tarjetas = nuevas;
+    if (actualizado) sello = actualizado;
+    if (!igual) notify();
+    return !igual;
+  }
+
+  // Trae el tablero de nuevo. La usa el sondeo cada 15 s y también cuando una
+  // escritura falla. Es silenciosa: si no hay red, se queda con lo que tiene.
+  function recargar() {
+    if (enVuelo) return Promise.resolve(false);   // no se pisa una escritura en curso
+    return window.Api.tablero().then(function (datos) {
+      return aplicar(datos.cotizaciones, datos.actualizado);
+    }, function () {
+      return false;
     });
   }
 
-  cargar();
+  // Carga lo que vino en el bootstrap (una sola llamada trae todo).
+  function init(datos) {
+    datos = datos || {};
+    folioSiguiente = window.Utils.parseNumber(datos.folioSiguiente, 1) || 1;
+    aplicar(datos.cotizaciones, '');
+  }
 
   /* ---------------------------- Lectura ---------------------------- */
 
-  // Devuelve copias profundas: nadie de fuera puede alterar el tablero.
-  // Sin argumento devuelve todas las tarjetas (más recientes primero).
-  function getTarjetas(columna) {
-    var lista = columna
-      ? tarjetas.filter(function (t) { return t.columna === columna; })
-      : tarjetas.slice();
-    return clone(lista);
+  // Devuelve copias profundas: nadie de fuera puede alterar el tablero por
+  // accidente (los objetos originales quedan protegidos).
+  function getTarjetas() {
+    return clone(tarjetas);
   }
 
   function getTarjeta(id) {
@@ -155,29 +167,17 @@
     return null;
   }
 
-  // Cantidad de tarjetas por columna: { cotizacion: 0, trabajo: 0, realizado: 0 }
   function contar() {
     var cuenta = {};
-    COLUMNAS.forEach(function (col) { cuenta[col.id] = 0; });
+    COLUMNAS.forEach(function (c) { cuenta[c.id] = 0; });
     tarjetas.forEach(function (t) { cuenta[t.columna] += 1; });
     return cuenta;
   }
 
-  // Folio que sigue según el tablero. Sirve para que el carrito nuevo nunca
-  // repita un folio ya enviado (aunque se borre el almacenamiento del navegador).
+  // Folio que sigue según el servidor. Así el carrito nuevo nunca repite un
+  // folio ya usado, aunque se borre el almacenamiento del navegador.
   function siguienteFolio() {
-    var max = 0;
-    tarjetas.forEach(function (t) {
-      var n = parseInt(t.folio, 10);
-      if (isFinite(n) && n > max) max = n;
-    });
-    return String(max + 1);
-  }
-
-  /* --------------------------- Escritura --------------------------- */
-
-  function notify() {
-    listeners.forEach(function (fn) { fn(getTarjetas()); });
+    return String(folioSiguiente);
   }
 
   // Posición donde debe entrar una tarjeta para quedar ARRIBA de su columna.
@@ -188,65 +188,109 @@
     return tarjetas.length;
   }
 
-  // Guarda una cotización enviada. Recibe { meta, items } del carrito.
-  // Devuelve la tarjeta creada (o null si no hay nada que guardar).
-  function add(fuente) {
+  function indiceDe(id) {
+    for (var i = 0; i < tarjetas.length; i++) {
+      if (tarjetas[i].id === id) return i;
+    }
+    return -1;
+  }
+
+  /* --------------------------- Escritura --------------------------- */
+
+  function terminar() { enVuelo--; }
+
+  // Guarda una cotización en la base y la pone arriba de «Cotización».
+  // Recibe { clientId, meta, items } del carrito y devuelve una promesa con
+  // { tarjeta, folioReasignado, folioSiguiente, repetida }.
+  // El clientId hace idempotente el envío: si se reintenta (doble clic, red que
+  // se corta), el servidor devuelve la misma tarjeta en vez de duplicarla.
+  function crear(fuente) {
     fuente = fuente || {};
-    var meta = fuente.meta || {};
     var items = itemsValidos(fuente.items);
-    if (!items.length) return null;
+    if (!items.length) return Promise.reject(new Error('La cotización no tiene productos.'));
 
-    var sello = ahoraISO();
-    var tarjeta = {
-      id: window.Utils.uid(),
-      folio: (meta.folio === '' || meta.folio == null) ? '1' : String(meta.folio),
-      fecha: meta.fecha == null ? '' : String(meta.fecha),
-      cliente: meta.cliente == null ? '' : String(meta.cliente),
-      notas: meta.notas == null ? '' : String(meta.notas),
-      items: items,
-      unidades: unidadesDe(items),
-      total: totalDe(items),
-      columna: primeraColumna(),
-      creada: sello,
-      movida: sello
-    };
-
-    tarjetas.unshift(tarjeta);   // la más reciente hasta arriba
-    persist();
-    notify();
-    return clone(tarjeta);
+    enVuelo++;
+    return window.Api.crearCotizacion({
+      clientId: fuente.clientId,
+      meta: fuente.meta || {},
+      items: items
+    }).then(function (datos) {
+      var tarjeta = sanearTarjeta(datos.cotizacion);
+      var repetida = indiceDe(tarjeta.id);
+      if (repetida >= 0) tarjetas.splice(repetida, 1);   // reintento: no se duplica
+      tarjetas.unshift(tarjeta);                         // la más reciente hasta arriba
+      if (datos.folioSiguiente) {
+        folioSiguiente = window.Utils.parseNumber(datos.folioSiguiente, folioSiguiente);
+      }
+      notify();
+      return {
+        tarjeta: tarjeta,
+        folioReasignado: !!datos.folioReasignado,
+        folioSiguiente: String(folioSiguiente),
+        repetida: !!datos.repetida
+      };
+    }).then(function (res) {
+      terminar();
+      return res;
+    }, function (error) {
+      terminar();
+      throw error;
+    });
   }
 
   // Mueve una tarjeta a otra columna. Devuelve la tarjeta ya movida, o null si
   // no existe, la columna no es válida o ya estaba en esa columna.
+  // Se pinta primero y se manda después: si el servidor rechaza el cambio, el
+  // tablero vuelve a como estaba y se avisa.
   function mover(id, columna) {
     var destino = getColumna(columna);
     if (!destino) return null;
 
-    for (var i = 0; i < tarjetas.length; i++) {
-      if (tarjetas[i].id !== id) continue;
+    var antes = indiceDe(id);
+    if (antes < 0 || tarjetas[antes].columna === destino.id) return null;   // ya está ahí
 
-      var t = tarjetas[i];
-      if (t.columna === destino.id) return null;   // ya está ahí: nada que hacer
+    var respaldo = clone(tarjetas);
+    var t = tarjetas.splice(antes, 1)[0];
+    t.columna = destino.id;
+    t.movida = ahoraISO();
+    tarjetas.splice(indiceArribaDe(destino.id), 0, t);   // entra arriba de su columna
+    notify();
 
-      tarjetas.splice(i, 1);
-      t.columna = destino.id;
-      t.movida = ahoraISO();
-      tarjetas.splice(indiceArribaDe(destino.id), 0, t);   // entra arriba de su columna
-
-      persist();
+    enVuelo++;
+    window.Api.moverCotizacion(id, destino.id).then(function (datos) {
+      // La confirmación trae la posición real: se adopta sin repintar.
+      if (datos && datos.cotizacion) {
+        var i = indiceDe(id);
+        if (i >= 0) tarjetas[i] = sanearTarjeta(datos.cotizacion);
+      }
+      terminar();
+    }, function (error) {
+      tarjetas = respaldo;
       notify();
-      return clone(t);
-    }
-    return null;
+      terminar();
+      window.App.toast('No se pudo mover la tarjeta: ' + error.message, 'error');
+      recargar();
+    });
+
+    return clone(t);
   }
 
+  // Quita una tarjeta del tablero. El servidor la marca como borrada (borrado
+  // suave): sale de la vista pero la historia y la bitácora quedan en la base.
   function remove(id) {
     var antes = tarjetas.length;
+    var respaldo = clone(tarjetas);
     tarjetas = tarjetas.filter(function (t) { return t.id !== id; });
     if (tarjetas.length === antes) return false;
-    persist();
     notify();
+
+    enVuelo++;
+    window.Api.borrarCotizacion(id).then(terminar, function (error) {
+      tarjetas = respaldo;
+      notify();
+      terminar();
+      window.App.toast('No se pudo quitar la tarjeta: ' + error.message, 'error');
+    });
     return true;
   }
 
@@ -258,16 +302,21 @@
     };
   }
 
+  // ¿Hay escrituras sin confirmar? El sondeo espera a que terminen.
+  function ocupado() { return enVuelo > 0; }
+
   window.Proceso = {
-    STORAGE_KEY: STORAGE_KEY,
     COLUMNAS: clone(COLUMNAS),
+    init: init,
+    recargar: recargar,
+    ocupado: ocupado,
     getColumna: getColumna,
     indiceColumna: indiceColumna,
     getTarjetas: getTarjetas,
     getTarjeta: getTarjeta,
     contar: contar,
     siguienteFolio: siguienteFolio,
-    add: add,
+    crear: crear,
     mover: mover,
     remove: remove,
     subscribe: subscribe

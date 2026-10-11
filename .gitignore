@@ -29,3 +29,9 @@ deno.lock
 respaldo*.json
 api/.runtime
 
+# Base local del proyecto (`npm run server` sin DATABASE_URL): es Postgres
+# guardado en una carpeta, o sea DATOS del negocio, no código. Y los volcados
+# que deja `npm run base-local -- --respaldo`.
+api/datos/
+api/respaldos/
+

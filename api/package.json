@@ -11,10 +11,13 @@
     "test:db2": "node __migrar.pglite.test.js",
     "schema": "node tools/aplicar-schema.js",
     "usuario": "node tools/crear-usuario.js",
+    "acceso": "node tools/asegurar-acceso.js",
     "migrar": "node tools/migrar.js",
     "revisar": "node tools/revisar.js",
     "server": "node tools/servidor-local.js",
-    "humo": "node tools/humo.js"
+    "base-local": "node tools/base-local.js",
+    "humo": "node tools/humo.js",
+    "probar-frontend": "node tools/probar-frontend.js"
   },
   "dependencies": {
     "pg": "^8.23.1"

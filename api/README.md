@@ -80,6 +80,55 @@ npm run server
 
 Y con el CLI de Neon, `npm run dev` sirve la misma función con recarga automática.
 
+### Sin Neon: la base adentro del proyecto
+
+Si preferís que los datos **no salgan de tu máquina**, el proyecto trae una base propia: es el
+mismo Postgres (PGlite, el motor compilado a WebAssembly) guardado en la carpeta `api/datos/`, con
+el **mismo `db/schema.sql`** que usa Neon, así que no hay dos SQL que mantener.
+
+```bash
+cd api
+npm run base-local          # la crea la primera vez y muestra cómo va
+npm run server              # levanta el sitio Y el API en http://localhost:8787
+```
+
+`npm run server` sirve también el frontend (`index.html`, `css/`, `js/`, `icons/`) desde el mismo
+puerto y el mismo origen, así que no hacen falta CORS, ni un segundo servidor de archivos, ni
+`netlify dev`: se abre <http://localhost:8787> y ya está andando. Desde otra PC del taller se entra
+por `http://<IP-de-esta-PC>:8787`; esos orígenes se habilitan solos, no hay que tocar `APP_ORIGEN`.
+
+¿Cuál usa? La regla es una sola:
+
+| En `api/.env` | Base que se usa |
+|---|---|
+| `BASE_LOCAL="true"` (o una ruta: `BASE_LOCAL="/Volumes/Disco/cotiza"`) | **la local** (`api/datos/`), aunque haya `DATABASE_URL` |
+| sin `BASE_LOCAL`, con `DATABASE_URL` | **Neon** |
+| sin ninguna de las dos | **la local** |
+
+Los utilitarios (`usuario`, `acceso`, `schema`, `revisar`, `migrar`) respetan la misma regla: con
+`BASE_LOCAL` o sin cadena trabajan sobre la base del proyecto, y con `DATABASE_URL` sobre Neon.
+
+**Respaldar** (es tu única copia: vale la pena hacerlo seguido):
+
+```bash
+npm run base-local -- --respaldo      # deja api/respaldos/base-AAAAMMDD-HHMM.tar.gz
+```
+
+o se copia la carpeta `api/datos/` entera (con el servidor apagado). Para volver a esa copia: se
+reemplaza la carpeta por la descomprimida.
+
+**Dos límites, para no llevarse sorpresas:**
+
+- **Un solo proceso por vez** sobre `api/datos/`. PGlite no tiene el candado de un Postgres de
+  verdad, así que si el servidor está abierto y corrés un utilitario, éste avisa en vez de
+  arriesgar los datos: cortá el servidor (`Ctrl+C`) y volvé a intentar.
+- **No se puede desplegar.** En una función de Netlify el disco es efímero y por instancia: lo que
+  se escriba ahí se pierde y cada copia de la función vería datos distintos. La base local es para
+  la(s) máquina(s) del taller (una sola, que sirve a las demás); el sitio desplegado sigue
+  necesitando una base de verdad como Neon. Si querés el sitio de Netlify con los datos en tu
+  máquina, el camino es apuntar el frontend al servidor del taller con `window.CUBICA_API` (ver el
+  README de la raíz) y exponer ese servidor con un túnel HTTPS.
+
 Para no probar a mano, la prueba de humo recorre el camino completo (salud, login, bootstrap,
 folio, guardar config, crear la cotización, moverla de columna, sacarla del tablero y cerrar
 sesión): 14 comprobaciones, y no ensucia los datos porque la configuración se vuelve a guardar
@@ -154,6 +203,7 @@ del archivo. Si cambiás de rama: `neon link && neon env pull`.
 |---|---|---|
 | `GET` | `/api` | Saludo; sirve para verificar que la función está viva (en local y en Neon también contesta en `/`) |
 | `POST` | `/api/login` | `{ email, password }` → `{ token, usuario }` |
+| `POST` | `/api/acceso` | Sin cuerpo: entra solo si el servidor tiene prendido el acceso automático → `{ automatico: true, token, usuario }`; si está apagado, `{ automatico: false }` |
 | `POST` | `/api/logout` | Invalida el token |
 | `GET` | `/api/bootstrap` | Config + tablero + folio siguiente + quién sos (una sola llamada al abrir la app) |
 | `GET` | `/api/tablero` | Sólo las tarjetas (lo que consulta el refresco periódico) |
@@ -163,7 +213,9 @@ del archivo. Si cambiás de rama: `neon link && neon env pull`.
 | `PATCH` | `/api/cotizaciones/:id` | `{ columna }` → mueve la tarjeta (entra arriba del destino) |
 | `DELETE` | `/api/cotizaciones/:id` | Borrado suave: sale del tablero, queda la historia |
 
-Todo menos `/api` y `/api/login` exige `Authorization: Bearer <token>`.
+Todo menos `/api`, `/api/login` y `/api/acceso` exige `Authorization: Bearer <token>`. Las tres
+son públicas a propósito: las dos primeras son la puerta de entrada y la tercera **no entrega una
+sesión** salvo que el dueño del servidor haya prendido el acceso automático en su `.env`.
 
 ## Cómo se guardan las cosas
 
@@ -180,6 +232,31 @@ Todo menos `/api` y `/api/login` exige `Authorization: Bearer <token>`.
   usuario y hora.
 - **Sesiones:** se guarda el SHA-256 del token, nunca el token. Duran 30 días.
 - **Contraseñas:** `scrypt` (N=16384) con sal por usuario, comparadas en tiempo constante.
+
+## Acceso automático (que la app entre sola)
+
+Para el taller: con cuatro variables —en `api/.env` o en las del sitio, si está en Netlify— la app
+**no pide la pantalla de acceso** y entra con esa cuenta al abrirse.
+
+```bash
+ACCESO_AUTOMATICO="true"
+ACCESO_NOMBRE="Victor"
+ACCESO_EMAIL="correo@cubica3d.com"
+ACCESO_CLAVE="una-clave-larga"
+
+cd api && npm run acceso        # crea/actualiza esa cuenta en la base (no se toca a mano)
+```
+
+- La clave **nunca viaja al navegador**: el navegador llama `POST /api/acceso` sin datos, el servidor
+  la compara contra el hash guardado y, si coincide, devuelve un token igual que cualquier login
+  (dura 30 días, como todo).
+- Apagado (`ACCESO_AUTOMATICO="false"`, vacío o sin la cuenta creada), `/api/acceso` contesta
+  `{ automatico: false }` y la app muestra el login de siempre. La misma cuenta sirve para entrar a
+  mano.
+- **"Salir" sigue existiendo**: cierra la sesión y muestra el login; al recargar la página vuelve a
+  entrar sola, porque el acceso automático sigue prendido.
+- En el sitio desplegado las cuatro van en **Site configuration → Environment variables** de Netlify
+  (el `.env` es sólo para tu máquina y para `netlify dev`).
 
 ## Pruebas
 
@@ -215,8 +292,11 @@ número más alto del respaldo.
 ```bash
 npm run usuario -- "otro@cubica3d.com" "Bea" "otra-clave-larga"   # crear usuario
 npm run usuario -- "bea@cubica3d.com" "Bea" "clave-nueva"         # cambiar contraseña
+npm run acceso                                                    # la cuenta del acceso automático, al día
 npm run schema                                                    # reaplicar el esquema (es idempotente)
 npm run revisar                                                   # estado de todo: .env, base, tablas, usuarios
+npm run base-local                                                # estado de la base local (api/datos)
+npm run base-local -- --respaldo                                  # copia de la base local en api/respaldos/
 npm run humo -- <dirección-del-API> correo "clave"                # el API responde de punta a punta
 npx netlify logs --function api                                   # ver errores
 ```
@@ -225,22 +305,28 @@ npx netlify logs --function api                                   # ver errores
   dejan de valer en la siguiente consulta.
 - **Respaldos:** Neon guarda la historia de la rama; desde el panel se puede restaurar a un
   punto en el tiempo. Además, en cualquier momento: `pg_dump "$DATABASE_URL_UNPOOLED" > copia.sql`.
+- **Respaldos de la base local:** `npm run base-local -- --respaldo` (o copiar `api/datos/` con el
+  servidor apagado). No hay historia: si el archivo se rompe, se vuelve a la última copia.
 
 ## Archivos
 
 ```
 api/
 ├── neon.ts                 # declara la función para el CLI de Neon (`neon dev` / `neon deploy`)
-├── package.json            # dependencias y atajos (dev, deploy, test, schema, usuario, migrar, revisar, server, humo)
+├── package.json            # dependencias y atajos (dev, deploy, test, schema, usuario, acceso, migrar, revisar, server, base-local, humo)
 ├── .env.example            # qué variables hacen falta (el .env real está en .gitignore)
 ├── functions/
 │   └── api.js              # TODO el API en un archivo: se despliega tal cual, sin armado previo
+├── datos/                  # la base local (Postgres en una carpeta): NO va al repo
+├── respaldos/              # volcados de la base local (`npm run base-local -- --respaldo`)
 ├── tools/
-│   ├── conectar.js         # conexión a Postgres para los utilitarios (lee api/.env)
+│   ├── conectar.js         # la base que corresponda: Neon si hay DATABASE_URL, si no la local
+│   ├── base-local.js       # la base del proyecto (PGlite en api/datos), con candado y respaldo
 │   ├── aplicar-schema.js   # npm run schema
 │   ├── crear-usuario.js    # npm run usuario (scrypt, mismo formato que api.js)
+│   ├── asegurar-acceso.js  # npm run acceso: cuenta del acceso automático desde el .env
 │   ├── revisar.js          # npm run revisar: diagnóstico de .env, base, tablas y usuarios
-│   ├── servidor-local.js   # npm run server: el API en tu máquina, con las variables de api/.env
+│   ├── servidor-local.js   # npm run server: el sitio y el API en tu máquina, en un solo puerto
 │   ├── humo.js             # npm run humo: recorrido completo contra un API que ya corre
 │   └── migrar.js           # npm run migrar
 └── __*.test.js             # baterías (están en .gitignore: son herramientas, no app)

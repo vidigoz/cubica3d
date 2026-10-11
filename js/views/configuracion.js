@@ -83,8 +83,18 @@
 
   /* ---------------------------- Render ---------------------------- */
 
+  // Firma de lo último pintado: si la configuración no cambió, no se repinta
+  // (repintar mientras alguien escribe en un campo le borraría el foco).
+  var ultimoPintado = null;
+
   function render(container) {
     var config = Store.getConfig();
+    var firma = JSON.stringify(config);
+
+    // Al navegar, `App` vacía el contenedor: ahí siempre hay que pintar de nuevo.
+    if (firma === ultimoPintado && container.firstChild) return;
+
+    ultimoPintado = firma;
 
     container.innerHTML =
       '<div class="page">' +
@@ -96,6 +106,14 @@
 
     bind(container);
   }
+
+  // La configuración es compartida (vive en la base): si cambia desde acá o
+  // desde otro navegador, la pantalla se actualiza sola.
+  Store.subscribe(function () {
+    var container = document.getElementById('view');
+    if (!container || !container.querySelector('#form-precios')) return;   // no es esta vista
+    render(container);
+  });
 
   function bind(container) {
     // Agregar color

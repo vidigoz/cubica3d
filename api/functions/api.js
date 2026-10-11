@@ -5,6 +5,8 @@
  * El navegador NUNCA ve la cadena de conexión: sólo habla con esta API.
  *
  *   POST   /api/login                 { email, password }          -> { token, usuario }
+ *   POST   /api/acceso                (sin cuerpo)                 -> { automatico:true, token, usuario }
+ *                                                                       o { automatico:false }
  *   POST   /api/logout                                               -> { ok }
  *   GET    /api/bootstrap                                            -> config + tablero + folio
  *   GET    /api/tablero                                              -> sólo las tarjetas
@@ -14,7 +16,22 @@
  *   PATCH  /api/cotizaciones/:id      { columna }                    -> tarjeta movida
  *   DELETE /api/cotizaciones/:id                                     -> { ok }
  *
- * Todo menos /api/login exige `Authorization: Bearer <token>`.
+ * Rutas públicas: /api (saludo) y /api/login. /api/acceso también lo es, pero
+ * sólo entrega una sesión si el dueño del servidor prendió el acceso automático
+ * (ACCESO_AUTOMATICO=true en el .env, ver más abajo); si no, contesta
+ * { automatico: false } y la app muestra su pantalla de acceso normal.
+ * Todo lo demás exige `Authorization: Bearer <token>`.
+ *
+ * Acceso automático (opcional, para el taller): con
+ *   ACCESO_AUTOMATICO="true"
+ *   ACCESO_NOMBRE="Nombre"
+ *   ACCESO_EMAIL="correo@dominio.com"
+ *   ACCESO_CLAVE="la-clave"
+ * en el .env, la app entra sola al abrirse: no hay que escribir ni correo ni
+ * contraseña. La clave NUNCA viaja al navegador: el servidor la compara contra
+ * el hash guardado y, si coincide, devuelve un token como cualquier login.
+ * Ese usuario se crea o se actualiza con `npm run acceso` (nunca a mano).
+ * Apagado (o vacío) = login normal: se pide correo y contraseña.
  *
  * El archivo es autocontenido a propósito (sin imports relativos): así lo puede
  * empaquetar cualquier plataforma. El envuelto de cada una vive afuera
@@ -73,6 +90,10 @@ const numero = (valor, porDefecto) => {
 const huella = (token) => createHash("sha256").update(token).digest("hex");
 const redondear = (n) => Math.round(n * 100) / 100;
 
+// Lo que la gente escribe en el .env para decir "sí": true / 1 / si / on / yes.
+const esVerdadero = (valor) => valor === true ||
+  ["1", "true", "si", "sí", "on", "yes", "verdadero"].includes(texto(valor).trim().toLowerCase());
+
 async function leerJson(request) {
   try {
     return JSON.parse(await request.text());
@@ -129,6 +150,13 @@ export function crearApp(opciones) {
   const ahora = opciones.ahora || (() => new Date());
   const log = opciones.log || ((...args) => console.error(...args));
   const intentos = new Map();   // correo -> { n, hasta } (por instancia)
+
+  // Acceso automático: viene del .env (el export de abajo pasa process.env). Se
+  // lee una sola vez al crear la app, y por eso el test puede inyectarlo.
+  const acceso = opciones.acceso || {};
+  const accesoActivo = esVerdadero(acceso.automatico);
+  const accesoEmail = texto(acceso.email).trim().toLowerCase();
+  const accesoClave = texto(acceso.clave);
 
   function cors(request) {
     const origen = request.headers.get("Origin") || "";
@@ -303,20 +331,58 @@ export function crearApp(opciones) {
       return fallo("Correo o contraseña incorrectos.", 401, contexto.cabeceras);
     }
 
+    intentos.delete(email);
+    return ok(await abrirSesion(usuario), contexto.cabeceras);
+  }
+
+  // Abre la sesión de un usuario YA verificado. Lo comparten el login normal y el
+  // acceso automático: se genera un token al azar (en la base queda sólo su
+  // SHA-256) que dura DIAS_SESION días.
+  async function abrirSesion(usuario) {
+    await query("delete from sesiones where expira < now()");   // limpieza barata
     const token = randomBytes(32).toString("base64url");
     await query(
       "insert into sesiones (token_hash, usuario_id, expira)" +
       " values ($1, $2, now() + make_interval(days => $3::int))",
       [huella(token), usuario.id, DIAS_SESION]
     );
-    await query("delete from sesiones where expira < now()");
-    intentos.delete(email);
-
-    return ok({
+    return {
       token: token,
       usuario: { id: usuario.id, nombre: usuario.nombre, email: usuario.email },
       diasSesion: DIAS_SESION
-    }, contexto.cabeceras);
+    };
+  }
+
+  // Acceso automático: la app lo llama ANTES de mostrar el formulario. Si el
+  // servidor lo tiene prendido y la cuenta del .env es válida, entra sola (la
+  // clave no sale de acá: se compara contra el hash guardado). Si no, contesta
+  // { automatico: false } y el frontend pide correo y contraseña como siempre.
+  async function accesoAutomatico(request, contexto) {
+    if (!accesoActivo) return ok({ automatico: false }, contexto.cabeceras);
+
+    if (!accesoEmail || !accesoClave) {
+      log("[api] ACCESO_AUTOMATICO está prendido pero falta ACCESO_EMAIL o ACCESO_CLAVE en el .env");
+      return ok({
+        automatico: false,
+        aviso: "Falta ACCESO_EMAIL o ACCESO_CLAVE en el .env del API."
+      }, contexto.cabeceras);
+    }
+
+    const { rows } = await query(
+      "select id, nombre, email, password_hash, activo from usuarios where email = $1", [accesoEmail]
+    );
+    const usuario = rows[0];
+    // Cuenta borrada, desactivada o clave del .env que quedó vieja: se dice qué
+    // hacer en vez de un «correo o contraseña incorrectos» que no explica nada.
+    if (!usuario || !usuario.activo || !(await verificarPassword(accesoClave, usuario.password_hash))) {
+      log("[api] el acceso automático no coincide con la cuenta " + accesoEmail);
+      return ok({
+        automatico: false,
+        aviso: "La cuenta del acceso automático no coincide con la base: corré «npm run acceso» en api/."
+      }, contexto.cabeceras);
+    }
+
+    return ok(Object.assign({ automatico: true }, await abrirSesion(usuario)), contexto.cabeceras);
   }
 
   async function logout(request, contexto) {
@@ -509,6 +575,7 @@ export function crearApp(opciones) {
   const RUTAS = [
     { metodo: "GET",    patron: /^\/(?:api\/?)?$/,                            publica: true, fn: salud },
     { metodo: "POST",   patron: /^\/api\/login$/,                             publica: true, fn: login },
+    { metodo: "POST",   patron: /^\/api\/acceso$/,                            publica: true, fn: accesoAutomatico },
     { metodo: "POST",   patron: /^\/api\/logout$/,                                           fn: logout },
     { metodo: "GET",    patron: /^\/api\/bootstrap$/,                                        fn: bootstrap },
     { metodo: "GET",    patron: /^\/api\/tablero$/,                                          fn: tablero },
@@ -582,10 +649,28 @@ pool.on("error", function (error) {
   console.error("[api] se cayó una conexión del pool:", error.message);
 });
 
-export default crearApp({
-  query: (sql, parametros) => pool.query(sql, parametros),
-  origenPermitido: process.env.APP_ORIGEN || ""
-});
+// Las opciones que salen del entorno (el .env), en un solo lugar: así el servidor
+// local las reusa cuando la base no es Neon (api/tools/base-local.js) y no hay dos
+// listas de variables que se puedan desincronizar.
+export function opcionesDeEntorno(query) {
+  return {
+    query: query,
+    origenPermitido: process.env.APP_ORIGEN || "",
+    // Acceso automático: lo prende o lo apaga el .env del servidor (ver arriba).
+    // El navegador no manda nada: sólo pregunta si está prendido.
+    acceso: {
+      automatico: process.env.ACCESO_AUTOMATICO || "",
+      email: process.env.ACCESO_EMAIL || "",
+      clave: process.env.ACCESO_CLAVE || ""
+    }
+  };
+}
+
+// La consulta contra el pool de Neon, para que otro punto de entrada (el servidor
+// local) pueda armar su propia app con la misma base y las mismas opciones.
+export const consultarNeon = (sql, parametros) => pool.query(sql, parametros);
+
+export default crearApp(opcionesDeEntorno(consultarNeon));
 
 
 

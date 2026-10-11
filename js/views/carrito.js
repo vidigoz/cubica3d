@@ -192,35 +192,56 @@
 
   /* ------------------------- Envío al tablero ------------------------- */
 
-  // Manda la cotización al tablero de Proceso (#/proceso) y abre el PDF para
-  // mandárselo al cliente. Después el carrito arranca de cero con folio nuevo:
-  // la tarjeta es una copia congelada, así que la cotización enviada ya no se
-  // puede tocar por accidente.
+  // Manda la cotización al API: queda guardada en Postgres y aparece en Proceso
+  // (#/proceso), y abre el PDF para mandárselo al cliente. Después el carrito
+  // arranca de cero con folio nuevo: la tarjeta es una copia congelada, así que
+  // la cotización enviada ya no se puede tocar por accidente.
   function enviarCotizacion() {
     if (!Cart.getCount()) {
       window.App.toast('Agrega productos antes de enviar', 'error');
       return;
     }
 
-    var tarjeta = window.Proceso.add({ meta: Cart.getMeta(), items: Cart.getItems() });
-    if (!tarjeta) return;
-
-    Cart.clear();
-    // El folio del carrito sigue la numeración del tablero: así nunca se repite
-    // un folio ya enviado, aunque se borre el almacenamiento del navegador.
-    var siguiente = Utils.parseNumber(window.Proceso.siguienteFolio(), 0);
-    if (Utils.parseNumber(Cart.getMeta().folio, 0) < siguiente) {
-      Cart.setMeta({ folio: String(siguiente) });
+    var boton = rootEl.querySelector('#carrito-enviar');
+    if (boton) {
+      boton.disabled = true;
+      boton.textContent = 'Enviando…';
     }
 
-    window.App.navigate('proceso');
-    // El PDF se imprime DESPUÉS de navegar: la hoja vive en #print-root, así que
-    // sale igual desde el tablero y el diálogo no tapa la cotización anterior.
-    if (!PDF.imprimir({ meta: tarjeta, items: tarjeta.items })) {
-      window.App.toast('Cotización enviada, pero no se pudo abrir el PDF', 'error');
-      return;
-    }
-    window.App.toast('Cotización ' + PDF.folioTexto(tarjeta.folio) + ' enviada a Proceso', 'success');
+    Proceso.crear({
+      clientId: Cart.getClientId(),
+      meta: Cart.getMeta(),
+      items: Cart.getItems()
+    }).then(function (res) {
+      var tarjeta = res.tarjeta;
+
+      Cart.clear();
+      // El folio del carrito sigue la numeración de la base: así nunca se repite
+      // un folio ya enviado, aunque se borre el almacenamiento del navegador.
+      if (res.folioSiguiente) Cart.setMeta({ folio: String(res.folioSiguiente) });
+
+      window.App.navigate('proceso');
+      // El PDF se imprime DESPUÉS de navegar: la hoja vive en #print-root, así que
+      // sale igual desde el tablero y el diálogo no tapa la cotización anterior.
+      if (!PDF.imprimir({ meta: tarjeta, items: tarjeta.items })) {
+        window.App.toast('Cotización guardada, pero no se pudo abrir el PDF', 'error');
+        return;
+      }
+      if (res.folioReasignado) {
+        // El folio que traía el formulario ya estaba usado y la base puso otro.
+        window.App.toast('Ese folio ya estaba usado: quedó como ' + PDF.folioTexto(tarjeta.folio), 'error');
+        return;
+      }
+      window.App.toast('Cotización ' + PDF.folioTexto(tarjeta.folio) + ' guardada en Proceso', 'success');
+    }).catch(function (error) {
+      // No se guardó nada: el carrito queda intacto para volver a intentar.
+      window.App.toast(error.message || 'No se pudo enviar la cotización', 'error');
+    }).then(function () {
+      if (boton) {
+        boton.disabled = false;
+        boton.textContent = 'Enviar cotización';
+      }
+    });
   }
 
   /* ------------------------- Interacciones ------------------------- */

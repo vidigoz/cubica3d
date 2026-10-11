@@ -27,10 +27,35 @@
         <span class="cart-chip__sep" aria-hidden="true">·</span>
         <span class="cart-chip__total" id="cart-total">$0.00</span>
       </button>
+      <span class="user-chip" id="user-chip" hidden></span>
+      <button class="btn btn--ghost btn--salir" type="button" id="btn-salir">Salir</button>
       <button class="icon-btn icon-btn--gear" type="button" id="btn-config"
         title="Configuración" aria-label="Configuración">⚙️</button>
     </div>
   </header>
+
+  <!-- Pantalla de acceso: todo el API pide sesión, así que hasta entrar no se
+       pinta la app (js/acceso.js + js/app.js la ocultan cuando el login va bien). -->
+  <section class="acceso" id="acceso" hidden aria-labelledby="acceso-titulo">
+    <form class="acceso__card" id="acceso-form" novalidate>
+      <img class="acceso__logo" src="icons/cubica-logo.png" alt="" width="56" height="56" />
+      <h2 class="acceso__title" id="acceso-titulo">Entrar al cotizador</h2>
+      <p class="acceso__hint">Las cotizaciones del taller viven en una base compartida:
+        entra con tu cuenta para verlas, moverlas y sacar el PDF.</p>
+      <label class="field">
+        <span class="field__label">Correo</span>
+        <input class="field__input" type="email" id="acceso-email" autocomplete="username"
+          placeholder="tu@correo.com" required />
+      </label>
+      <label class="field">
+        <span class="field__label">Contraseña</span>
+        <input class="field__input" type="password" id="acceso-password"
+          autocomplete="current-password" required />
+      </label>
+      <button class="btn btn--primary acceso__enviar" type="submit" id="acceso-boton">Entrar</button>
+      <p class="acceso__error" id="acceso-error" hidden></p>
+    </form>
+  </section>
 
   <main class="app-main" id="view"></main>
 
@@ -40,12 +65,15 @@
        pantalla) para que el PDF salga igual desde cualquier pestaña. -->
   <div id="print-root" aria-hidden="true"></div>
 
-  <!-- Orden importante: utils -> store -> cart -> proceso -> pdf -> vistas -> app -->
+  <!-- Orden importante: utils -> api -> store -> cart -> proceso -> pdf -> acceso
+       -> vistas -> app -->
   <script src="js/utils.js"></script>
+  <script src="js/api.js"></script>
   <script src="js/store.js"></script>
   <script src="js/cart.js"></script>
   <script src="js/proceso.js"></script>
   <script src="js/pdf.js"></script>
+  <script src="js/acceso.js"></script>
   <script src="js/views/productos.js"></script>
   <script src="js/views/carrito.js"></script>
   <script src="js/views/proceso.js"></script>

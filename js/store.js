@@ -1,10 +1,18 @@
-/* Configuración persistente del cotizador (colores en stock + precios).
- * Se guarda en localStorage. Se expone como window.Store */
+/* Configuración compartida del cotizador (colores en stock + precios).
+ *
+ * Vive en Postgres y se lee/escribe por el API (/api/config): así los colores y
+ * los precios son los mismos en todo el taller, en cualquier navegador.
+ * La app arranca los datos con Store.init() (lo que trae el bootstrap) y de ahí
+ * en adelante cada cambio se pinta al instante en memoria y se manda al
+ * servidor por atrás. Si el guardado falla, se vuelve a lo último confirmado
+ * por el servidor y se avisa: nunca queda en pantalla algo que no se guardó.
+ *
+ * Se expone como window.Store */
 (function () {
   'use strict';
 
-  var STORAGE_KEY = 'cotizador.config.v1';
-
+  // Sólo se usan cuando la base todavía no tiene configuración (instalación
+  // nueva): se siembran una vez y después manda siempre lo que hay en Neon.
   var DEFAULT_CONFIG = {
     colores: [
       { id: 'color-negro', nombre: 'Negro', hex: '#111111' },
@@ -17,27 +25,19 @@
     }
   };
 
-  var config = load();
+  var config = clone(DEFAULT_CONFIG);
+  var confirmada = clone(DEFAULT_CONFIG);   // último estado que el servidor aceptó
+  var listeners = [];
+  var cola = Promise.resolve();             // guardados en fila: uno por vez
 
-  function clone(obj) {
-    return JSON.parse(JSON.stringify(obj));
-  }
+  function clone(obj) { return JSON.parse(JSON.stringify(obj)); }
 
-  // Lee la config guardada y la sanea; si algo falla, usa los valores por defecto.
-  function load() {
-    try {
-      var raw = window.localStorage.getItem(STORAGE_KEY);
-      if (!raw) return clone(DEFAULT_CONFIG);
-      return sanitize(JSON.parse(raw));
-    } catch (e) {
-      return clone(DEFAULT_CONFIG);
-    }
-  }
-
+  // Sanea lo que llega (de la base o de la memoria) y completa lo que falte.
   function sanitize(parsed) {
+    parsed = parsed || {};
     var out = clone(DEFAULT_CONFIG);
 
-    if (parsed && Array.isArray(parsed.colores)) {
+    if (Array.isArray(parsed.colores)) {
       out.colores = parsed.colores
         .filter(function (c) { return c && typeof c.hex === 'string'; })
         .map(function (c) {
@@ -49,7 +49,7 @@
         });
     }
 
-    if (parsed && parsed.precios) {
+    if (parsed.precios) {
       out.precios.nombre = window.Utils.parseNumber(parsed.precios.nombre, DEFAULT_CONFIG.precios.nombre);
       out.precios.nombreApellido = window.Utils.parseNumber(parsed.precios.nombreApellido, DEFAULT_CONFIG.precios.nombreApellido);
     }
@@ -57,13 +57,55 @@
     return out;
   }
 
-  function persist() {
-    try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
-    } catch (e) {
-      /* Si el almacenamiento no está disponible, se sigue trabajando en memoria. */
-    }
+  function notify() {
+    listeners.forEach(function (fn) { fn(getConfig()); });
   }
+
+
+  /* --------------------------- Enlace con el API --------------------------- */
+
+  // Manda la config y adopta la que devuelve el servidor (él vuelve a sanear).
+  // Los guardados van en fila para que dos cambios seguidos no se pisen.
+  function guardar() {
+    var enviado = clone(config);
+    cola = cola.then(function () {
+      return window.Api.guardarConfig(enviado);
+    }).then(function (datos) {
+      var aceptada = sanitize((datos && datos.config) || enviado);
+      confirmada = aceptada;
+      if (JSON.stringify(aceptada) !== JSON.stringify(config)) {
+        config = clone(aceptada);
+        notify();
+      }
+      return aceptada;
+    }, function (error) {
+      // No se guardó: se vuelve a lo confirmado y se avisa, sin romper la app.
+      config = clone(confirmada);
+      notify();
+      window.App.toast('No se guardó el cambio: ' + error.message, 'error');
+      return null;
+    });
+    return cola;
+  }
+
+  // Carga la config que vino del bootstrap. Si la base todavía no tiene ninguna
+  // (instalación nueva, sin fila), se siembran los valores por defecto.
+  function init(datos, actualizada) {
+    config = sanitize(datos);
+    if (!actualizada && !config.colores.length &&
+        !config.precios.nombre && !config.precios.nombreApellido) {
+      config = clone(DEFAULT_CONFIG);
+      guardar();
+    }
+    confirmada = clone(config);
+    notify();
+  }
+
+  // Promesa del guardado en curso (o del último): la usa quien quiera esperar
+  // a que los datos estén en Neon.
+  function pendiente() { return cola; }
+
+  /* ---------------------------- Lectura ---------------------------- */
 
   function getConfig() {
     return clone(config);
@@ -71,10 +113,13 @@
 
   function findColor(id) {
     for (var i = 0; i < config.colores.length; i++) {
-      if (config.colores[i].id === id) return config.colores[i];
+      if (config.colores[i].id === id) return clone(config.colores[i]);
     }
     return null;
   }
+
+
+  /* --------------------------- Escritura --------------------------- */
 
   // Agrega un color al stock. Devuelve { ok, error }.
   function addColor(nombre, hex) {
@@ -88,7 +133,8 @@
     if (duplicado) return { ok: false, error: 'Ya existe un color con ese nombre.' };
 
     config.colores.push({ id: window.Utils.uid(), nombre: nombre, hex: hex });
-    persist();
+    notify();
+    guardar();
     return { ok: true };
   }
 
@@ -97,29 +143,42 @@
     var antes = config.colores.length;
     config.colores = config.colores.filter(function (c) { return c.id !== id; });
     if (config.colores.length === antes) return { ok: false, error: 'Color no encontrado.' };
-    persist();
+    notify();
+    guardar();
     return { ok: true };
   }
 
   function setPrecios(precios) {
     config.precios.nombre = window.Utils.parseNumber(precios.nombre, config.precios.nombre);
     config.precios.nombreApellido = window.Utils.parseNumber(precios.nombreApellido, config.precios.nombreApellido);
-    persist();
+    notify();
+    guardar();
     return { ok: true };
   }
 
   function resetDefaults() {
     config = clone(DEFAULT_CONFIG);
-    persist();
+    notify();
+    guardar();
+  }
+
+  // Permite que las vistas reaccionen a cambios de la configuración.
+  function subscribe(fn) {
+    listeners.push(fn);
+    return function unsubscribe() {
+      listeners = listeners.filter(function (l) { return l !== fn; });
+    };
   }
 
   window.Store = {
-    STORAGE_KEY: STORAGE_KEY,
+    init: init,
+    pendiente: pendiente,
     getConfig: getConfig,
     findColor: findColor,
     addColor: addColor,
     removeColor: removeColor,
     setPrecios: setPrecios,
-    resetDefaults: resetDefaults
+    resetDefaults: resetDefaults,
+    subscribe: subscribe
   };
 })();

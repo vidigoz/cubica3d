@@ -1,6 +1,10 @@
 /* Carrito de cotización, compartido entre todos los productos.
- * Guarda las líneas y los datos de la cotización (folio, fecha, cliente, notas)
- * y se persiste en localStorage para no perderla al recargar.
+ * Guarda las líneas y los datos de la cotización (folio, fecha, cliente, notas).
+ *
+ * Esto es lo ÚNICO que sigue viviendo en este navegador: el carrito es un
+ * borrador personal que se está armando, y se persiste en localStorage para no
+ * perderlo al recargar. Recién al pulsar «Enviar cotización» viaja al API y
+ * queda guardado en Postgres (ver js/proceso.js y js/views/carrito.js).
  * Se expone como window.Cart */
 (function () {
   'use strict';
@@ -11,6 +15,10 @@
   //   precio = precio UNITARIO. El importe de la línea es precio * cantidad.
   var items = [];
   var meta = null;
+  // Identificador de ESTE carrito. Viaja con el envío para que un doble clic (o
+  // un reintento de red) no guarde la misma cotización dos veces: el servidor
+  // reconoce el clientId y devuelve la tarjeta que ya había creado.
+  var clientId = window.Utils.uid();
   var listeners = [];
 
   function clone(obj) { return JSON.parse(JSON.stringify(obj)); }
@@ -55,7 +63,7 @@
 
   function persist() {
     try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ items: items, meta: meta }));
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ items: items, meta: meta, clientId: clientId }));
     } catch (e) {
       /* Si el almacenamiento no está disponible, se sigue trabajando en memoria. */
     }
@@ -69,6 +77,10 @@
       if (raw) guardado = JSON.parse(raw);
     } catch (e) {
       guardado = null;
+    }
+
+    if (guardado && typeof guardado.clientId === 'string' && guardado.clientId) {
+      clientId = guardado.clientId;
     }
 
     if (guardado && Array.isArray(guardado.items)) {
@@ -130,6 +142,9 @@
 
   function getMeta() { return clone(meta); }
 
+  // Identificador del carrito actual: viaja en el envío (ver js/views/carrito.js).
+  function getClientId() { return clientId; }
+
   /* --------------------------- Escritura --------------------------- */
 
   function notify() {
@@ -181,6 +196,7 @@
     if (!items.length) return false;
     items = [];
     meta = metaNueva(folioSiguiente(meta.folio));
+    clientId = window.Utils.uid();   // carrito nuevo: envío nuevo, sin duplicados
     persist();
     notify();
     return true;
@@ -215,6 +231,7 @@
     getUnidades: getUnidades,
     getTotal: getTotal,
     getMeta: getMeta,
+    getClientId: getClientId,
     setMeta: setMeta,
     add: add,
     setCantidad: setCantidad,

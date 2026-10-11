@@ -4,7 +4,9 @@
   "description": "Cotizador Cubica3D: sitio estático + API en una Netlify Function que habla con Postgres (Neon)",
   "scripts": {
     "dev": "netlify dev",
-    "humo": "node api/tools/humo.js"
+    "local": "node api/tools/servidor-local.js",
+    "humo": "node api/tools/humo.js",
+    "probar-frontend": "node api/tools/probar-frontend.js"
   },
   "dependencies": {
     "pg": "^8.23.1"

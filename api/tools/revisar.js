@@ -89,7 +89,9 @@ try {
 } catch (error) {
   console.log("─ Conexión");
   console.log("  ✗ no pude conectar: " + (error.message || error));
-  console.log("    Revisá que la cadena esté completa y que el proyecto de Neon esté activo.");
+  console.log("    Revisá el mensaje de arriba: si la base es la de Neon, fijate que la");
+  console.log("    cadena esté completa y el proyecto activo; si es la local, que no la");
+  console.log("    tenga abierta el servidor (`npm run server`).");
 } finally {
   if (cerrar) await cerrar();
 }

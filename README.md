@@ -24,6 +24,17 @@ levanta el sitio *y* el API en el mismo puerto, leyendo la cadena de conexión d
 npx netlify dev                   # http://localhost:8888 (sitio) y http://localhost:8888/api (API)
 ```
 
+**Opción 4 — Todo junto y con la base adentro del proyecto** (sin Neon, sin `netlify dev`): el
+servidor propio sirve el sitio *y* el API en un solo puerto, y guarda en `api/datos/`:
+
+```bash
+npm run local                     # desde la raíz: http://localhost:8787 (sitio + API)
+# es lo mismo que:  cd api && npm run server
+```
+
+Los demás puestos del taller entran por `http://<IP-de-esta-PC>:8787`. Qué base usa, cómo
+respaldarla y por qué no se puede desplegar: **[`api/README.md`](api/README.md)**.
+
 ## Marca y logo
 
 La app se llama **Cubica3D** y su logo se usa en tres lugares: el encabezado (`.app-header__logo-img`),
@@ -185,12 +196,49 @@ pruebas y migración— está en **[`api/README.md`](api/README.md)**.
 - **La cadena de conexión a la base nunca llega al navegador**: el frontend sólo habla con el
   API.
 
+### Base local (sin Neon)
+
+Si preferís que los datos **no salgan de tu máquina** —o no depender de internet— el proyecto trae
+su propia base: Postgres (PGlite, el motor compilado a WebAssembly) guardado en `api/datos/`, con el
+**mismo `db/schema.sql`** que usa Neon. Se elige con una variable en `api/.env`:
+
+| En `api/.env` | Base que se usa |
+|---|---|
+| `BASE_LOCAL="true"` (o una ruta) | **la local** (`api/datos/`), aunque haya `DATABASE_URL` |
+| sin `BASE_LOCAL`, con `DATABASE_URL` | **Neon** |
+| sin ninguna de las dos | **la local** |
+
+Con `npm run local` (o `cd api && npm run server`) el sitio y el API salen del mismo puerto, así que
+no hacen falta CORS ni un segundo servidor de archivos. Para ver cómo va y para respaldarla:
+`cd api && npm run base-local`, y la copia de seguridad con `npm run base-local -- --respaldo`.
+
+**Lo que no se puede: poner esa base en Netlify.** En una función el disco es efímero (se borra al
+terminar cada instancia, y cada copia de la función vería datos distintos), así que la base local es
+para la PC del taller, que sirve a las demás. El sitio desplegado necesita una base de verdad
+(Neon). Si querés que el sitio de Netlify use los datos de tu máquina, hay que dejar esa PC
+encendida con `npm run local`, exponerla con un túnel HTTPS (Cloudflare Tunnel, Tailscale Funnel o
+ngrok) y apuntar el frontend ahí con `window.CUBICA_API="https://tu-tunel/api"`; el navegador no
+puede llamar a `http://192.168.x.x:8787` desde una página `https://`.
+
+### Entrar sin escribir la contraseña (acceso automático)
+
+Con `ACCESO_AUTOMATICO="true"` en `api/.env` (o en las variables del sitio, en Netlify) la app
+**entra sola** al abrirse, con la cuenta de `ACCESO_EMAIL` / `ACCESO_CLAVE`: no hay pantalla de
+acceso. La clave **nunca viaja al navegador** —el servidor la compara contra el hash que dejó
+`cd api && npm run acceso` y devuelve un token como en cualquier login— y "Salir" sigue existiendo
+(cierra la sesión y muestra el login; al recargar, entra sola otra vez). Con `"false"`, o si nunca
+corrés `npm run acceso`, el login es el de siempre.
+
 > **Estado:** el API está publicado en Netlify (`https://cubica3d.netlify.app/api`), habla con el
 > Postgres de Neon usando la cadena de conexión de las variables del sitio, y la prueba de humo
 > completa pasa 14/14 tanto contra producción como en local con `npx netlify dev` leyendo el `.env`
-> de la raíz. La base quedó limpia (sólo tu usuario, sin cotizaciones de prueba). Falta conectar el
-> frontend al API —hoy sigue leyendo del `localStorage`— y migrar lo ya cargado
-> (`tools/respaldo-localstorage.js` + `npm run migrar`): es el paso siguiente.
+> de la raíz. La base quedó limpia (sólo tu usuario, sin cotizaciones de prueba). El frontend **ya
+> habla con el API** en vez del `localStorage` (`js/api.js`: configuración, cotizaciones y tablero
+> salen de la base; en el navegador sólo queda el carrito en armado), y falta migrar lo que haya
+> quedado cargado en cada navegador (`tools/respaldo-localstorage.js` + `npm run migrar`).
+>
+> **Agregado después:** la app puede **entrar sola** (acceso automático) y la base puede vivir
+> **adentro del proyecto** (`api/datos`, sin Neon), levantando todo con `npm run local`.
 
 ## Estructura
 
@@ -206,7 +254,8 @@ cotizador/
 ├── api/                         # el API que reemplaza el localStorage compartido
 │   ├── neon.ts                  # (alternativa) declara la función para el CLI de Neon
 │   ├── functions/api.js         # login + configuración + cotizaciones (autocontenido)
-│   ├── tools/                   # schema, usuario, migrar, revisar, servidor local y humo
+│   ├── datos/                   # la base local (Postgres en una carpeta): no va al repo
+│   ├── tools/                   # schema, usuario, acceso, base-local, migrar, revisar, servidor y humo
 │   └── README.md                # puesta en marcha, deploy, pruebas y migración
 ├── icons/
 │   ├── cubica.png              # logo maestro (original del diseñador)

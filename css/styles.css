@@ -867,3 +867,73 @@ button { font-family: inherit; cursor: pointer; }
 }
 
 
+/* ---------- Sesión: quién está adentro y pantalla de acceso ---------- */
+
+/* El nombre del usuario que entró, al lado del carrito. */
+.user-chip {
+  max-width: 160px;
+  overflow: hidden;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: .82rem;
+  font-weight: 700;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.btn--salir { padding: 8px 14px; font-size: .82rem; }
+
+/* Pantalla de acceso: tapa todo hasta que haya sesión. Sin la regla [hidden]
+   el `display: flex` le ganaría al atributo hidden del HTML. */
+.acceso {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--bg);
+  overflow: auto;
+}
+
+.acceso[hidden] { display: none; }
+
+.acceso__card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+  max-width: 380px;
+  padding: 28px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.acceso__logo {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  align-self: center;
+}
+
+.acceso__title { font-size: 1.25rem; text-align: center; }
+.acceso__hint { font-size: .85rem; color: var(--muted); text-align: center; }
+.acceso__enviar { width: 100%; justify-content: center; }
+.acceso__enviar:disabled { opacity: .5; cursor: not-allowed; }
+.acceso__error { font-size: .85rem; font-weight: 600; color: var(--danger); text-align: center; }
+.acceso__error[hidden] { display: none; }
+
+/* Con la pantalla de acceso delante, el fondo no se desplaza. */
+body.con-acceso { overflow: hidden; }
+
+@media (max-width: 620px) {
+  /* En el móvil el encabezado se apila: el nombre y «Salir» van junto al carrito. */
+  .user-chip { max-width: 110px; }
+}
+
