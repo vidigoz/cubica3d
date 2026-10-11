@@ -146,7 +146,19 @@ async function principal() {
   afirmar(Number(tarjeta.total) === 260, "el servidor calculó el total (2 x 100 + 1 x 60 = 260)");
   afirmar(tarjeta.columna === "cotizacion", "entró a la columna «Cotización»");
 
-  titulo("6) Mover la tarjeta a «Trabajo» (PATCH /api/cotizaciones/:id)");
+  titulo("6) El tablero reparte las tarjetas: cada una en su columna, una sola vez");
+  // Esta es la comprobación que atrapa el bug de «la misma tarjeta en las tres
+  // columnas»: cada columna pide SÓLO las suyas (Proceso.getTarjetas(columna)).
+  const columnas = Proceso.COLUMNAS.map((c) => Proceso.getTarjetas(c.id));
+  const total = Proceso.getTarjetas().length;
+  afirmar(columnas.reduce((suma, lista) => suma + lista.length, 0) === total,
+    "las tres columnas suman el tablero entero (" + total + " tarjeta/s)");
+  afirmar(columnas.every((lista, i) => lista.every((t) => t.columna === Proceso.COLUMNAS[i].id)),
+    "cada columna trae sólo las suyas (ninguna repetida en las tres)");
+  afirmar(columnas[0].filter((t) => t.id === tarjeta.id).length === 1,
+    "la cotización nueva aparece una sola vez, en «Cotización»");
+
+  titulo("7) Mover la tarjeta a «Trabajo» (PATCH /api/cotizaciones/:id)");
   const movida = Proceso.mover(tarjeta.id, "trabajo");
   afirmar(!!movida && movida.columna === "trabajo", "el frontend la movió");
   await esperar(800);
@@ -155,15 +167,19 @@ async function principal() {
   afirmar(!!enTrabajo && enTrabajo.columna === "trabajo", "la columna nueva quedó guardada en la base");
   afirmar(!!enTrabajo && enTrabajo.movidaPor === usuario.nombre,
     "quedó registrado quién la movió (" + (enTrabajo ? enTrabajo.movidaPor : "?") + ")");
+  afirmar(Proceso.getTarjetas("cotizacion").every((t) => t.id !== tarjeta.id),
+    "ya no está en «Cotización»: se movió, no se copió");
 
-  titulo("7) Quitar la tarjeta del tablero (DELETE /api/cotizaciones/:id)");
+  titulo("8) Quitar la tarjeta del tablero (DELETE /api/cotizaciones/:id)");
   afirmar(Proceso.remove(tarjeta.id), "el frontend la quitó de la vista");
   await esperar(800);
   revisado = await servidor();
   afirmar(!revisado.cotizaciones.some((t) => t.id === tarjeta.id),
     "ya no aparece en el tablero que devuelve la base");
+  afirmar(Proceso.getTarjetas().every((t) => t.id !== tarjeta.id),
+    "tampoco quedó en ninguna de las tres columnas");
 
-  titulo("8) Salir (POST /api/logout)");
+  titulo("9) Salir (POST /api/logout)");
   await Api.logout();
   afirmar(!Api.haySesion(), "la sesión se borró del navegador");
 

@@ -1,73 +1,123 @@
-/* Deja la cuenta del acceso automático igual a lo que dice api/.env.
+/* La cuenta del taller: con la que la app entra sola, sin contraseña.
  *   cd api && npm run acceso
  *
- * Es el puente entre el .env y la base: la contraseña vive en claro SÓLO en tu
- * .env (no se sube nunca al repositorio) y en Postgres queda su hash scrypt,
- * igual que con `npm run usuario`. Corrélo después de cambiar ACCESO_EMAIL o
- * ACCESO_CLAVE, o para crear la cuenta la primera vez.
+ * La app no tiene pantalla de login: al abrirse le pide una sesión al API
+ * (POST /api/acceso) y el API se la da con esta cuenta. Por eso, para que el
+ * cotizador abra, la base sólo necesita tener una cuenta activa: la clave no se
+ * escribe nunca y este comando se corre sobre todo cuando cambiás el correo, el
+ * nombre o la clave de api/.env, o la primera vez.
  *
- * Si ACCESO_AUTOMATICO no está prendido, la cuenta queda igual de lista pero se
- * avisa: en ese caso la app pide el correo y esta clave se escribe a mano.
+ *   · con ACCESO_EMAIL + ACCESO_CLAVE en el .env -> esa cuenta queda creada (o
+ *     actualizada: sirve de «olvidé la contraseña», la clave vieja deja de servir
+ *     para /api/login);
+ *   · con el .env incompleto y la base sin ninguna cuenta activa -> se crea la
+ *     cuenta «taller» para que una máquina nueva abra igual. Es lo que hace
+ *     `npm run server` al arrancar, así que no hace falta correrlo a mano.
  *
- * Nunca imprime la contraseña: sale del .env y ahí la podés leer o cambiar. */
+ * La contraseña vive en claro SÓLO en api/.env (que no se sube al repositorio) y
+ * en Postgres queda su hash scrypt, igual que con `npm run usuario`.
+ * Nunca imprime la contraseña: sale del .env y ahí la podés leer o cambiar.
+ *
+ * Se expone para tools/servidor-local.js (que la deja lista al arrancar) además
+ * de la línea de comandos: `main()` corre sólo si lo llaman a este archivo. */
 import { pathToFileURL } from "node:url";
 
 import { hashPassword } from "./crear-usuario.js";
 import { cargarEnv, conectar } from "./conectar.js";
 
-// Mismos valores que acepta el API (api/functions/api.js, esVerdadero).
-const VERDADEROS = ["1", "true", "si", "sí", "on", "yes", "verdadero"];
-const prendido = (valor) => VERDADEROS.includes(String(valor == null ? "" : valor).trim().toLowerCase());
+// Cuenta que se crea cuando la base está vacía, para que la app tenga con qué
+// entrar aunque el .env todavía no tenga nada.
+export const CUENTA_TALLER = { email: "taller@cubica3d.local", nombre: "Taller" };
 
+const CORREO = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+
+// Lo que dice el .env, ya normalizado, con la lista de lo que falta.
+export function datosDeAcceso() {
+  const email = String(process.env.ACCESO_EMAIL || "").trim().toLowerCase();
+  const clave = String(process.env.ACCESO_CLAVE || "");
+  const nombre = String(process.env.ACCESO_NOMBRE || "").trim() ||
+    email.split("@")[0] || CUENTA_TALLER.nombre;
+
+  const faltan = [];
+  if (!email) faltan.push("ACCESO_EMAIL");
+  else if (!CORREO.test(email)) faltan.push("ACCESO_EMAIL (no parece un correo)");
+  if (!clave) faltan.push("ACCESO_CLAVE");
+  else if (clave.length < 8) faltan.push("ACCESO_CLAVE (necesita al menos 8 caracteres)");
+
+  return { email, clave, nombre, faltan };
+}
+
+// Deja la cuenta en la base: la crea si no está y, si está, le vuelve a poner el
+// nombre y la clave del .env. Devuelve { usuario, creada }.
+export async function asegurarCuentaDeAcceso(query, datos) {
+  const { email, clave, nombre } = datos || datosDeAcceso();
+  const previo = await query("select id from usuarios where email = $1", [email]);
+  const hash = await hashPassword(clave);
+  // Mismo camino que `npm run usuario`: si el correo ya está, se actualiza la
+  // clave y se lo vuelve a activar (sirve de «olvidé mi contraseña»).
+  const { rows } = await query(
+    "insert into usuarios (email, nombre, password_hash, activo) values ($1, $2, $3, true)" +
+    " on conflict (email) do update set nombre = $2, password_hash = $3, activo = true" +
+    " returning id, nombre, email",
+    [email, nombre.slice(0, 120), hash]
+  );
+  return { usuario: rows[0], creada: previo.rows.length === 0 };
+}
+
+async function hayCuentaActiva(query) {
+  const { rows } = await query("select 1 from usuarios where activo limit 1");
+  return rows.length > 0;
+}
+
+/* Deja la base en condiciones de que la app entre sola. La llama el servidor
+ * local al arrancar, así que nunca rompe nada: avisa por `avisar` (una función,
+ * por defecto silencio) y sigue. Devuelve { usuario, creada, motivo } o null. */
+export async function prepararCuentaDeAcceso(query, avisar) {
+  const log = avisar || (() => {});
+  const datos = datosDeAcceso();
+
+  if (!datos.faltan.length) {
+    return Object.assign(await asegurarCuentaDeAcceso(query, datos), { motivo: "env" });
+  }
+
+  if (await hayCuentaActiva(query)) {
+    log("el .env no tiene " + datos.faltan.join(" y ") + ": se entra con la cuenta que ya está en la base");
+    return null;
+  }
+
+  // Base recién creada y .env sin cuenta: se crea una para que la app pueda
+  // entrar. La clave es al azar y no la sabe nadie: la app entra sin escribirla.
+  const inicial = Object.assign({}, CUENTA_TALLER, {
+    clave: "sin-clave-" + Math.random().toString(36).slice(2, 12) + "-local"
+  });
+  return Object.assign(await asegurarCuentaDeAcceso(query, inicial), { motivo: "taller" });
+}
+
+/* -------------------------- `npm run acceso` -------------------------- */
 async function main() {
   cargarEnv();
 
-  const email = String(process.env.ACCESO_EMAIL || "").trim().toLowerCase();
-  const clave = String(process.env.ACCESO_CLAVE || "");
-  const nombre = String(process.env.ACCESO_NOMBRE || "").trim() || email.split("@")[0];
-  const automatico = prendido(process.env.ACCESO_AUTOMATICO);
-
-  if (!email || !clave) {
-    console.error("Faltan ACCESO_EMAIL y/o ACCESO_CLAVE en api/.env.");
-    console.error("Descomentá el bloque «Acceso automático» de api/.env (está en api/.env.example) y volvé a correrlo.");
-    process.exit(1);
-  }
-  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
-    console.error("ACCESO_EMAIL no parece un correo: " + email);
-    process.exit(1);
-  }
-  if (clave.length < 8) {
-    console.error("ACCESO_CLAVE necesita al menos 8 caracteres.");
+  const datos = datosDeAcceso();
+  if (datos.faltan.length) {
+    console.error("Faltan datos en api/.env: " + datos.faltan.join(", ") + ".");
+    console.error("Descomentá el bloque «Acceso del taller» de api/.env (el ejemplo está en");
+    console.error("api/.env.example) y volvé a correrlo.");
     process.exit(1);
   }
 
   const { query, cerrar } = await conectar();
   try {
-    const previo = await query("select id from usuarios where email = $1", [email]);
-    const hash = await hashPassword(clave);
-    // Mismo camino que `npm run usuario`: si el correo ya está, se actualiza la
-    // clave y se lo vuelve a activar (sirve de «olvidé mi contraseña»).
-    const { rows } = await query(
-      "insert into usuarios (email, nombre, password_hash, activo) values ($1, $2, $3, true)" +
-      " on conflict (email) do update set nombre = $2, password_hash = $3, activo = true" +
-      " returning id, nombre, email",
-      [email, nombre.slice(0, 120), hash]
-    );
-    const usuario = rows[0];
+    const { usuario, creada } = await asegurarCuentaDeAcceso(query, datos);
 
-    console.log("─ Acceso automático");
-    console.log("  ✓ cuenta " + (previo.rows.length ? "actualizada" : "creada") + ": " +
-      usuario.nombre + " <" + usuario.email + "> (con la clave de api/.env)");
-    if (automatico) {
-      console.log("  ✓ ACCESO_AUTOMATICO está prendido: la app entra sola con esta cuenta.");
-      console.log("    Para volver al login normal: ACCESO_AUTOMATICO=\"false\" en api/.env (y en");
-      console.log("    las variables del sitio, si esto es producción) y recargar la página.");
-    } else {
-      console.log("  · ACCESO_AUTOMATICO está apagado: la app pide el correo y esta clave se");
-      console.log("    escribe a mano. Prendelo con ACCESO_AUTOMATICO=\"true\" en api/.env.");
-    }
-    console.log("  · En el sitio desplegado estas variables van en las variables de entorno");
-    console.log("    del sitio (Netlify): el .env es sólo para tu máquina y para `netlify dev`.");
+    console.log("─ Cuenta del taller (con la que la app entra sola, sin contraseña)");
+    console.log("  ✓ cuenta " + (creada ? "creada" : "actualizada") + ": " +
+      usuario.nombre + " <" + usuario.email + ">");
+    console.log("  ✓ la app entra con esta cuenta por POST /api/acceso: no hay que escribir nada.");
+    console.log("  · para cerrar el acceso: ACCESO_LIBRE=\"false\" en api/.env (y en las variables");
+    console.log("    del sitio, si esto es producción). Ahí /api/acceso no entrega sesión y se entra");
+    console.log("    sólo por POST /api/login, con correo y contraseña.");
+    console.log("  · en el sitio desplegado estas variables van en las variables de entorno del");
+    console.log("    sitio (Netlify): el .env es sólo para tu máquina y para `npm run server`.");
   } catch (error) {
     console.error("No se pudo dejar la cuenta lista:", error.message);
     process.exitCode = 1;

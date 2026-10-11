@@ -115,10 +115,10 @@
       });
   }
 
-  // Acceso automático: pregunta si el servidor entra solo con la cuenta que tiene
-  // en su .env (ACCESO_AUTOMATICO=true). Si abre sesión, la guarda como si
-  // hubieras escrito el correo; si no, avisa el motivo para mostrarlo en la
-  // pantalla de acceso. El navegador nunca ve la contraseña: sólo recibe el token.
+  // La sesión del taller: le pide al servidor que la abra con la cuenta que él
+  // tiene (POST /api/acceso). La app no tiene login, así que este es el camino
+  // normal de entrada; si el servidor no puede, avisa el motivo para mostrarlo en
+  // el aviso de arranque. El navegador nunca ve la contraseña: sólo recibe el token.
   function accesoAutomatico() {
     return pedir('POST', '/acceso', {}, { publica: true })
       .then(function (datos) {
@@ -129,9 +129,9 @@
         return { automatico: true, usuario: datos.usuario };
       })
       .catch(function (error) {
-        // 404: el servidor todavía no tiene esta ruta (deploy viejo) -> se pide el
-        // correo sin ruido. Otra falla (sin conexión, origen no autorizado) sí se
-        // muestra: en la pantalla de acceso hay que ver por qué no entró.
+        // 404: el servidor todavía no tiene esta ruta (deploy viejo) -> se avisa
+        // sin ruido. Otra falla (sin conexión, origen no autorizado) sí se muestra:
+        // en el aviso de arranque hay que ver por qué no entró.
         return { automatico: false, aviso: (error && error.estado === 404) ? '' : (error.message || '') };
       });
   }

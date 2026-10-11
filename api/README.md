@@ -203,7 +203,7 @@ del archivo. Si cambiás de rama: `neon link && neon env pull`.
 |---|---|---|
 | `GET` | `/api` | Saludo; sirve para verificar que la función está viva (en local y en Neon también contesta en `/`) |
 | `POST` | `/api/login` | `{ email, password }` → `{ token, usuario }` |
-| `POST` | `/api/acceso` | Sin cuerpo: entra solo si el servidor tiene prendido el acceso automático → `{ automatico: true, token, usuario }`; si está apagado, `{ automatico: false }` |
+| `POST` | `/api/acceso` | Sin cuerpo: abre la sesión de la **cuenta del taller** (`ACCESO_EMAIL` o la primera activa) → `{ automatico: true, token, usuario }`; con `ACCESO_LIBRE="false"`, `{ automatico: false, aviso }` |
 | `POST` | `/api/logout` | Invalida el token |
 | `GET` | `/api/bootstrap` | Config + tablero + folio siguiente + quién sos (una sola llamada al abrir la app) |
 | `GET` | `/api/tablero` | Sólo las tarjetas (lo que consulta el refresco periódico) |
@@ -213,9 +213,10 @@ del archivo. Si cambiás de rama: `neon link && neon env pull`.
 | `PATCH` | `/api/cotizaciones/:id` | `{ columna }` → mueve la tarjeta (entra arriba del destino) |
 | `DELETE` | `/api/cotizaciones/:id` | Borrado suave: sale del tablero, queda la historia |
 
-Todo menos `/api`, `/api/login` y `/api/acceso` exige `Authorization: Bearer <token>`. Las tres
-son públicas a propósito: las dos primeras son la puerta de entrada y la tercera **no entrega una
-sesión** salvo que el dueño del servidor haya prendido el acceso automático en su `.env`.
+Todo menos `/api`, `/api/login` y `/api/acceso` exige `Authorization: Bearer <token>`. Las tres son
+públicas a propósito: son las dos puertas de entrada (`/api/acceso` es la que usa la app, que no tiene
+pantalla de login) y el tercer endpoint no entrega sesión si el dueño del servidor puso
+`ACCESO_LIBRE="false"` en su `.env`.
 
 ## Cómo se guardan las cosas
 
@@ -233,35 +234,41 @@ sesión** salvo que el dueño del servidor haya prendido el acceso automático e
 - **Sesiones:** se guarda el SHA-256 del token, nunca el token. Duran 30 días.
 - **Contraseñas:** `scrypt` (N=16384) con sal por usuario, comparadas en tiempo constante.
 
-## Acceso automático (que la app entre sola)
+## La cuenta del taller (la app entra sola)
 
-Para el taller: con cuatro variables —en `api/.env` o en las del sitio, si está en Netlify— la app
-**no pide la pantalla de acceso** y entra con esa cuenta al abrirse.
+La app **no tiene pantalla de login**: al abrirse llama a `POST /api/acceso` y el servidor le abre
+una sesión con la cuenta del taller, sin correo ni contraseña. Se configuran en `api/.env` o en las
+variables del sitio, si está en Netlify:
 
 ```bash
-ACCESO_AUTOMATICO="true"
+ACCESO_LIBRE="true"            # entra sin contraseña (es lo que quiere el taller)
 ACCESO_NOMBRE="Victor"
 ACCESO_EMAIL="correo@cubica3d.com"
-ACCESO_CLAVE="una-clave-larga"
+ACCESO_CLAVE="una-clave-larga"  # sólo para crear la cuenta: nadie la escribe
 
 cd api && npm run acceso        # crea/actualiza esa cuenta en la base (no se toca a mano)
 ```
 
-- La clave **nunca viaja al navegador**: el navegador llama `POST /api/acceso` sin datos, el servidor
-  la compara contra el hash guardado y, si coincide, devuelve un token igual que cualquier login
-  (dura 30 días, como todo).
-- Apagado (`ACCESO_AUTOMATICO="false"`, vacío o sin la cuenta creada), `/api/acceso` contesta
-  `{ automatico: false }` y la app muestra el login de siempre. La misma cuenta sirve para entrar a
-  mano.
-- **"Salir" sigue existiendo**: cierra la sesión y muestra el login; al recargar la página vuelve a
-  entrar sola, porque el acceso automático sigue prendido.
-- En el sitio desplegado las cuatro van en **Site configuration → Environment variables** de Netlify
-  (el `.env` es sólo para tu máquina y para `netlify dev`).
+- Con qué cuenta entra: con la de `ACCESO_EMAIL` si existe y está activa; si no (o si no está
+  configurada), con la **primera cuenta activa** de la base.
+- La cuenta se deja lista sola: **`npm run server` la crea o la actualiza al arrancar**
+  (`tools/asegurar-acceso.js`), y si la base está recién creada y el `.env` no tiene cuenta, inventa
+  `taller@cubica3d.local` con una clave al azar que nadie usa: así el cotizador abre igual en una
+  máquina nueva, sin configurar nada.
+- La clave **nunca viaja al navegador**: el navegador llama `POST /api/acceso` sin datos y recibe un
+  token igual que cualquier login (dura 30 días). En Postgres sólo queda su hash scrypt.
+- Si no puede entrar (base sin ninguna cuenta activa, servidor caído), la app muestra el motivo y un
+  botón **Reintentar**: nunca pide credenciales.
+- Apagado (`ACCESO_LIBRE="false"`), `/api/acceso` contesta `{ automatico: false, aviso }` y la única
+  puerta es `POST /api/login` con correo y contraseña (para scripts y herramientas; la app del
+  navegador no tiene formulario). El viejo `ACCESO_AUTOMATICO` se sigue leyendo como alias.
+- **No hay botón «Salir»**: como el servidor entra solo, cerrar la sesión no tenía sentido. Para
+  cortar el acceso de alguien, desactivá o borrá su cuenta (ver *Tareas de todos los días*).
 
 ## Pruebas
 
 ```bash
-npm test          # 22 pruebas: rutas, CORS, sesión, saneo, folios, idempotencia, permisos
+npm test          # 26 pruebas: rutas, CORS, entrada sin contraseña, saneo, folios, idempotencia, permisos
 npm run test:db   # 10 pruebas contra un Postgres REAL en memoria (PGlite)
 npm run test:db2  #  4 pruebas de la migración, también contra Postgres real
 ```
@@ -292,7 +299,7 @@ número más alto del respaldo.
 ```bash
 npm run usuario -- "otro@cubica3d.com" "Bea" "otra-clave-larga"   # crear usuario
 npm run usuario -- "bea@cubica3d.com" "Bea" "clave-nueva"         # cambiar contraseña
-npm run acceso                                                    # la cuenta del acceso automático, al día
+npm run acceso                                                    # la cuenta del taller, al día
 npm run schema                                                    # reaplicar el esquema (es idempotente)
 npm run revisar                                                   # estado de todo: .env, base, tablas, usuarios
 npm run base-local                                                # estado de la base local (api/datos)
@@ -324,7 +331,7 @@ api/
 │   ├── base-local.js       # la base del proyecto (PGlite en api/datos), con candado y respaldo
 │   ├── aplicar-schema.js   # npm run schema
 │   ├── crear-usuario.js    # npm run usuario (scrypt, mismo formato que api.js)
-│   ├── asegurar-acceso.js  # npm run acceso: cuenta del acceso automático desde el .env
+│   ├── asegurar-acceso.js  # npm run acceso: la cuenta del taller (con la que la app entra sola)
 │   ├── revisar.js          # npm run revisar: diagnóstico de .env, base, tablas y usuarios
 │   ├── servidor-local.js   # npm run server: el sitio y el API en tu máquina, en un solo puerto
 │   ├── humo.js             # npm run humo: recorrido completo contra un API que ya corre

@@ -3,12 +3,11 @@
  * Rutas: #/productos, #/productos/llaveros, #/carrito, #/proceso, #/configuracion
  * (Configuración se abre desde el engranito del encabezado, no es una pestaña.)
  *
- * Secuencia de arranque: si hay sesión guardada se pide /api/bootstrap (que trae
- * de una sola vez la configuración, el tablero y el folio que sigue) y recién
- * entonces se pinta. Si no hay sesión, antes de mostrar el formulario se le
- * pregunta al servidor si tiene prendido el acceso automático (POST /api/acceso):
- * con ACCESO_AUTOMATICO=true en el .env del API la app entra sola; si no,
- * aparece la pantalla de acceso de siempre.
+ * Secuencia de arranque: con sesión guardada se pide /api/bootstrap (que trae de
+ * una sola vez la configuración, el tablero y el folio que sigue) y recién
+ * entonces se pinta. Sin sesión, se le pide una al servidor (POST /api/acceso):
+ * el API entra sola con la cuenta del taller, sin correo ni contraseña (no hay
+ * pantalla de login: ver js/acceso.js y el encabezado de api/functions/api.js).
  * Después, cada 15 s se vuelve a preguntar por el tablero: así lo que envía o
  * mueve otro compañero aparece solo.
  * Se expone como window.App */
@@ -30,7 +29,6 @@
   var cartTotalEl = document.getElementById('cart-total');
   var gearBtn = document.getElementById('btn-config');
   var userChip = document.getElementById('user-chip');
-  var salirBtn = document.getElementById('btn-salir');
   var toastTimer = null;
   var sondeo = null;        // timer que refresca el tablero desde la base
   var SONDA_MS = 15000;     // cada cuánto se pregunta si alguien del taller cambió algo
@@ -154,23 +152,25 @@
     sondeo = null;
   }
 
-  // Vuelve a la pantalla de acceso (sesión vencida, «Salir» o error de arranque).
-  function pedirAcceso(mensaje) {
+  // Muestra el aviso de arranque (no se pudo entrar, sesión vencida o error de
+  // carga): es la pantalla que explica el motivo y deja reintentar. No pide nada:
+  // la app no tiene login (ver js/acceso.js).
+  function avisoDeAcceso(mensaje) {
     detenerSondeo();
     window.Acceso.mostrar(mensaje || '');
   }
 
-  // Intenta entrar sola con la cuenta que el servidor tiene en su .env; si el
-  // acceso automático está apagado, muestra el formulario (con el motivo, si lo
-  // hay). No se usa al cerrar sesión a propósito: si no, «Salir» no serviría.
-  function entrarSoloOLogin(mensaje) {
+  // Le pide la sesión al servidor (POST /api/acceso): el API la abre sola con la
+  // cuenta del taller, sin correo ni contraseña. Si no puede, queda el aviso con
+  // el motivo y el botón «Reintentar».
+  function entrarSolo(mensaje) {
     if (!window.Api.accesoAutomatico) {   // api.js viejo en caché
-      pedirAcceso(mensaje);
+      avisoDeAcceso(mensaje);
       return Promise.resolve(null);
     }
     return window.Api.accesoAutomatico().then(function (resultado) {
       if (resultado && resultado.automatico) return iniciar();
-      pedirAcceso((resultado && resultado.aviso) || mensaje || '');
+      avisoDeAcceso((resultado && resultado.aviso) || mensaje || '');
       return null;
     });
   }
@@ -188,17 +188,8 @@
       render();
       return datos;
     }, function (error) {
-      pedirAcceso(error.message || 'No se pudo cargar la información del taller.');
+      avisoDeAcceso(error.message || 'No se pudo cargar la información del taller.');
       return null;
-    });
-  }
-
-  function cerrarSesion() {
-    if (salirBtn) salirBtn.disabled = true;
-    window.Api.logout().then(function () {
-      if (salirBtn) salirBtn.disabled = false;
-      pintarUsuario(null);
-      pedirAcceso('Sesión cerrada.');
     });
   }
 
@@ -223,15 +214,10 @@
     });
   }
 
-  // «Salir»: se le avisa al servidor (borra la sesión en la base) y se limpia acá.
-  if (salirBtn) {
-    salirBtn.addEventListener('click', cerrarSesion);
-  }
-
-  // Si el servidor dice que la sesión venció (o borraron el usuario), se prueba
-  // entrar sola con el acceso automático y, si está apagado, se pide el correo.
+  // Si el servidor dice que la sesión venció (o borraron la cuenta), se pide una
+  // nueva y se sigue: acá no hay nada que escribir.
   window.Api.onSesionVencida(function () {
-    entrarSoloOLogin('Tu sesión venció. Volvé a entrar.');
+    entrarSolo('');
   });
 
   window.addEventListener('hashchange', render);
@@ -245,19 +231,20 @@
     parseHash: parseHash,
     ALIASES: ALIASES,
     iniciar: iniciar,
-    cerrarSesion: cerrarSesion
+    entrarSolo: entrarSolo
   };
 
   // El carrito es un borrador local: se muestra en el chip aunque todavía no se
   // haya entrado, así al entrar ya está todo a la vista.
   refreshCartChip();
 
-  // Arranque: con sesión guardada se entra directo; sin sesión (o si venció), se
-  // prueba el acceso automático y, si está apagado, se pide el correo.
-  window.Acceso.init(iniciar);
+  // Arranque: con sesión guardada se entra directo; sin sesión (o si venció) el
+  // servidor abre una nueva. Acá no hay formularios: `Acceso.init` sólo conecta el
+  // botón «Reintentar» del aviso con este mismo arranque.
+  window.Acceso.init(function () { entrarSolo(''); });
   if (window.Api.haySesion()) {
     iniciar();
   } else {
-    entrarSoloOLogin('');
+    entrarSolo('');
   }
 })();

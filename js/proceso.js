@@ -156,8 +156,12 @@
 
   // Devuelve copias profundas: nadie de fuera puede alterar el tablero por
   // accidente (los objetos originales quedan protegidos).
-  function getTarjetas() {
-    return clone(tarjetas);
+  // Con el id de una columna (los de COLUMNAS) devuelve SÓLO las tarjetas de esa
+  // columna: es lo que necesita cada columna del Kanban. Sin argumento, todas.
+  function getTarjetas(columna) {
+    var copia = clone(tarjetas);
+    if (!columna) return copia;
+    return copia.filter(function (t) { return t.columna === columna; });
   }
 
   function getTarjeta(id) {

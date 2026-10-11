@@ -17,7 +17,10 @@
  * archivos, ni `netlify dev` (que en algunas versiones del CLI no arranca).
  *
  * Para los demás puestos del taller: entrá desde ellos a http://<IP-de-esta-PC>:8787.
- * Ese origen se habilita solo, no hay que tocar APP_ORIGEN. */
+ * Ese origen se habilita solo, no hay que tocar APP_ORIGEN.
+ *
+ * Al arrancar deja lista la cuenta del taller (ver tools/asegurar-acceso.js): la
+ * app entra sola con ella, sin pedir correo ni contraseña. */
 import { createServer } from "node:http";
 import { readFileSync, statSync } from "node:fs";
 import { networkInterfaces } from "node:os";
@@ -44,6 +47,26 @@ if (usarBaseLocal()) {
   console.log("Base: local en " + base.carpeta + (base.nueva ? " (la creé recién)" : ""));
 } else {
   console.log("Base: Neon (DATABASE_URL de api/.env)");
+}
+
+/* --------------------------- La cuenta del taller --------------------------- */
+// La app entra sola (POST /api/acceso), así que el API necesita una cuenta activa
+// para abrirle la sesión. Se deja lista acá, al arrancar, y por eso una máquina
+// nueva abre sin tocar nada:
+//   · con ACCESO_EMAIL + ACCESO_CLAVE en el .env -> esa cuenta queda creada o
+//     actualizada (es lo mismo que `npm run acceso`);
+//   · si la base todavía no tiene ninguna cuenta activa -> se crea una «taller».
+// Nunca corta el arranque: si falla, se avisa y el servidor sigue.
+const { prepararCuentaDeAcceso } = await import("./asegurar-acceso.js");
+try {
+  const listo = await prepararCuentaDeAcceso(base ? base.query : consultarNeon,
+    (aviso) => console.log("Cuenta del taller: " + aviso));
+  if (listo) {
+    console.log("Cuenta del taller: " + listo.usuario.nombre + " <" + listo.usuario.email + ">" +
+      (listo.creada ? " (la creé recién)" : "") + "   ·   la app entra sola con ella");
+  }
+} catch (error) {
+  console.warn("No pude dejar lista la cuenta del taller: " + error.message);
 }
 
 // Este servidor sirve también el sitio, así que el navegador entra por SU origen:

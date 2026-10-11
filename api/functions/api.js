@@ -6,7 +6,7 @@
  *
  *   POST   /api/login                 { email, password }          -> { token, usuario }
  *   POST   /api/acceso                (sin cuerpo)                 -> { automatico:true, token, usuario }
- *                                                                       o { automatico:false }
+ *                                                                       o { automatico:false, aviso }
  *   POST   /api/logout                                               -> { ok }
  *   GET    /api/bootstrap                                            -> config + tablero + folio
  *   GET    /api/tablero                                              -> sólo las tarjetas
@@ -16,22 +16,25 @@
  *   PATCH  /api/cotizaciones/:id      { columna }                    -> tarjeta movida
  *   DELETE /api/cotizaciones/:id                                     -> { ok }
  *
- * Rutas públicas: /api (saludo) y /api/login. /api/acceso también lo es, pero
- * sólo entrega una sesión si el dueño del servidor prendió el acceso automático
- * (ACCESO_AUTOMATICO=true en el .env, ver más abajo); si no, contesta
- * { automatico: false } y la app muestra su pantalla de acceso normal.
- * Todo lo demás exige `Authorization: Bearer <token>`.
+ * Rutas públicas: /api (saludo), /api/login y /api/acceso. /api/acceso es el
+ * camino normal de entrada: la app no tiene pantalla de login (se sacó a
+ * propósito), así que al abrirse pregunta por acá y el servidor le abre la sesión
+ * con la cuenta del taller, SIN correo ni contraseña. Todo lo demás exige
+ * `Authorization: Bearer <token>`: el token sigue siendo obligatorio, lo que no
+ * hace falta es escribir nada.
  *
- * Acceso automático (opcional, para el taller): con
- *   ACCESO_AUTOMATICO="true"
- *   ACCESO_NOMBRE="Nombre"
- *   ACCESO_EMAIL="correo@dominio.com"
- *   ACCESO_CLAVE="la-clave"
- * en el .env, la app entra sola al abrirse: no hay que escribir ni correo ni
- * contraseña. La clave NUNCA viaja al navegador: el servidor la compara contra
- * el hash guardado y, si coincide, devuelve un token como cualquier login.
- * Ese usuario se crea o se actualiza con `npm run acceso` (nunca a mano).
- * Apagado (o vacío) = login normal: se pide correo y contraseña.
+ * La cuenta del taller es la de ACCESO_EMAIL en el .env (o, si esa no existe, la
+ * primera cuenta activa de la base). Se crea o se actualiza con
+ *   cd api && npm run acceso
+ * que usa ACCESO_NOMBRE / ACCESO_EMAIL / ACCESO_CLAVE: la clave queda en claro
+ * SÓLO en tu .env (no se sube) y en Postgres va su hash scrypt —igual que antes—
+ * pero ya nadie la escribe: sirve para crear la cuenta. El servidor local la deja
+ * lista al arrancar (tools/asegurar-acceso.js), por eso una máquina nueva abre
+ * sin configurar nada.
+ *
+ * Para volver a exigir credenciales: ACCESO_LIBRE="false" (en el .env o en las
+ * variables del sitio). Ahí /api/acceso contesta { automatico:false, aviso } y el
+ * único camino es POST /api/login con correo y contraseña.
  *
  * El archivo es autocontenido a propósito (sin imports relativos): así lo puede
  * empaquetar cualquier plataforma. El envuelto de cada una vive afuera
@@ -151,12 +154,14 @@ export function crearApp(opciones) {
   const log = opciones.log || ((...args) => console.error(...args));
   const intentos = new Map();   // correo -> { n, hasta } (por instancia)
 
-  // Acceso automático: viene del .env (el export de abajo pasa process.env). Se
-  // lee una sola vez al crear la app, y por eso el test puede inyectarlo.
+  // Entrada de la app (ver el encabezado): viene del .env y se lee una sola vez al
+  // crear la app, y por eso el test puede inyectarla. Manda ACCESO_LIBRE y, como
+  // alias, el viejo ACCESO_AUTOMATICO; sin ninguno de los dos, entra (es lo que
+  // quiere el taller: la app se abre y ya).
   const acceso = opciones.acceso || {};
-  const accesoActivo = esVerdadero(acceso.automatico);
+  const accesoLibreCrudo = texto(acceso.libre).trim() || texto(acceso.automatico).trim();
+  const accesoLibre = !accesoLibreCrudo || esVerdadero(accesoLibreCrudo);
   const accesoEmail = texto(acceso.email).trim().toLowerCase();
-  const accesoClave = texto(acceso.clave);
 
   function cors(request) {
     const origen = request.headers.get("Origin") || "";
@@ -353,32 +358,40 @@ export function crearApp(opciones) {
     };
   }
 
-  // Acceso automático: la app lo llama ANTES de mostrar el formulario. Si el
-  // servidor lo tiene prendido y la cuenta del .env es válida, entra sola (la
-  // clave no sale de acá: se compara contra el hash guardado). Si no, contesta
-  // { automatico: false } y el frontend pide correo y contraseña como siempre.
-  async function accesoAutomatico(request, contexto) {
-    if (!accesoActivo) return ok({ automatico: false }, contexto.cabeceras);
+  // Con qué cuenta entra la app: la de ACCESO_EMAIL si existe y está activa; si no
+  // (o si esa cuenta no está), la primera cuenta activa de la base — así una
+  // instalación nueva abre igual, sin tocar el .env.
+  async function cuentaDeAcceso() {
+    if (accesoEmail) {
+      const { rows } = await query(
+        "select id, nombre, email from usuarios where email = $1 and activo", [accesoEmail]
+      );
+      if (rows[0]) return rows[0];
+    }
+    const { rows } = await query(
+      "select id, nombre, email from usuarios where activo order by creado limit 1"
+    );
+    return rows[0] || null;
+  }
 
-    if (!accesoEmail || !accesoClave) {
-      log("[api] ACCESO_AUTOMATICO está prendido pero falta ACCESO_EMAIL o ACCESO_CLAVE en el .env");
+  // La app pide la sesión por acá al abrirse: el servidor la abre sola con la
+  // cuenta del taller, sin correo ni contraseña. No hay pantalla de login (se sacó
+  // a propósito): si esto no puede entrar, el frontend muestra el motivo y un
+  // botón para reintentar, y la única salida es arreglar lo que dice el aviso.
+  async function accesoAutomatico(request, contexto) {
+    if (!accesoLibre) {
       return ok({
         automatico: false,
-        aviso: "Falta ACCESO_EMAIL o ACCESO_CLAVE en el .env del API."
+        aviso: "El servidor pide correo y contraseña (ACCESO_LIBRE): entrá por POST /api/login."
       }, contexto.cabeceras);
     }
 
-    const { rows } = await query(
-      "select id, nombre, email, password_hash, activo from usuarios where email = $1", [accesoEmail]
-    );
-    const usuario = rows[0];
-    // Cuenta borrada, desactivada o clave del .env que quedó vieja: se dice qué
-    // hacer en vez de un «correo o contraseña incorrectos» que no explica nada.
-    if (!usuario || !usuario.activo || !(await verificarPassword(accesoClave, usuario.password_hash))) {
-      log("[api] el acceso automático no coincide con la cuenta " + accesoEmail);
+    const usuario = await cuentaDeAcceso();
+    if (!usuario) {
+      log("[api] la base no tiene ninguna cuenta activa: corré «npm run acceso» en api/");
       return ok({
         automatico: false,
-        aviso: "La cuenta del acceso automático no coincide con la base: corré «npm run acceso» en api/."
+        aviso: "La base no tiene ninguna cuenta activa: corré «npm run acceso» en api/."
       }, contexto.cabeceras);
     }
 
@@ -656,9 +669,10 @@ export function opcionesDeEntorno(query) {
   return {
     query: query,
     origenPermitido: process.env.APP_ORIGEN || "",
-    // Acceso automático: lo prende o lo apaga el .env del servidor (ver arriba).
-    // El navegador no manda nada: sólo pregunta si está prendido.
+    // Entrada de la app: la prende o la apaga el .env del servidor (ver arriba).
+    // El navegador no manda nada: sólo pregunta si puede entrar.
     acceso: {
+      libre: process.env.ACCESO_LIBRE || "",
       automatico: process.env.ACCESO_AUTOMATICO || "",
       email: process.env.ACCESO_EMAIL || "",
       clave: process.env.ACCESO_CLAVE || ""

@@ -189,8 +189,9 @@ pruebas y migración— está en **[`api/README.md`](api/README.md)**.
 - **El folio lo entrega la base**, no el navegador: dos personas cotizando a la vez no pueden
   repetirlo (hoy sí pueden, porque cada navegador cuenta por su cuenta).
 - **El total y las unidades los recalcula el servidor** al guardar la cotización.
-- **Entrar requiere usuario y contraseña** (`npm run usuario` los crea). Cada tarjeta queda
-  sellada con quién la envió y quién la movió, y hay una **bitácora** de cada movimiento.
+- **La app entra sola, sin login** (`POST /api/acceso`, ver *La app entra sola*): las tarjetas quedan
+  selladas con la cuenta del taller y hay una **bitácora** de cada movimiento. Las cuentas siguen
+  existiendo (`npm run usuario` las crea) para cerrar el acceso o para el API.
 - **"Quitar" es un borrado suave**: la tarjeta sale del tablero pero sus datos quedan
   guardados, así se puede reportar sobre lo vendido o deshacer un error.
 - **La cadena de conexión a la base nunca llega al navegador**: el frontend sólo habla con el
@@ -220,14 +221,26 @@ encendida con `npm run local`, exponerla con un túnel HTTPS (Cloudflare Tunnel,
 ngrok) y apuntar el frontend ahí con `window.CUBICA_API="https://tu-tunel/api"`; el navegador no
 puede llamar a `http://192.168.x.x:8787` desde una página `https://`.
 
-### Entrar sin escribir la contraseña (acceso automático)
+### La app entra sola (sin pantalla de login)
 
-Con `ACCESO_AUTOMATICO="true"` en `api/.env` (o en las variables del sitio, en Netlify) la app
-**entra sola** al abrirse, con la cuenta de `ACCESO_EMAIL` / `ACCESO_CLAVE`: no hay pantalla de
-acceso. La clave **nunca viaja al navegador** —el servidor la compara contra el hash que dejó
-`cd api && npm run acceso` y devuelve un token como en cualquier login— y "Salir" sigue existiendo
-(cierra la sesión y muestra el login; al recargar, entra sola otra vez). Con `"false"`, o si nunca
-corrés `npm run acceso`, el login es el de siempre.
+**No hay login y no hay contraseña que escribir**: al abrirse, la app le pide una sesión al API
+(`POST /api/acceso`) y el servidor se la da con la **cuenta del taller** —la de `ACCESO_EMAIL` en
+`api/.env` o, si esa no está, la primera cuenta activa de la base—. El token sigue existiendo (cada
+pedido va firmado y cada tarjeta queda sellada con quién la hizo), lo que se sacó es el formulario.
+
+La cuenta se deja lista sola: `npm run local` la crea o la actualiza al arrancar, y si la base está
+recién creada inventa una (`taller@cubica3d.local`) para que el cotizador abra igual en una máquina
+nueva. `ACCESO_CLAVE` en `api/.env` sirve sólo para crearla (en Postgres queda su hash scrypt) y
+`cd api && npm run acceso` la vuelve a dejar al día si cambiás el correo, el nombre o la clave.
+
+Si algo impide entrar (servidor apagado, base sin cuentas), la app muestra un aviso con el motivo y
+un botón **Reintentar**; nunca pide credenciales.
+
+> **Ojo con el sitio desplegado:** el `.env` es sólo para tu máquina; en Netlify estas variables van
+> en *Site configuration → Environment variables*. Y como el acceso ya no pide nada, **cualquiera
+> que tenga el enlace del sitio entra**: para cerrarlo, `ACCESO_LIBRE="false"`. Ahí `/api/acceso` no
+> entrega sesión y la única puerta es `POST /api/login` (correo + contraseña), pensada para
+> herramientas y scripts.
 
 > **Estado:** el API está publicado en Netlify (`https://cubica3d.netlify.app/api`), habla con el
 > Postgres de Neon usando la cadena de conexión de las variables del sitio, y la prueba de humo
@@ -237,8 +250,9 @@ corrés `npm run acceso`, el login es el de siempre.
 > salen de la base; en el navegador sólo queda el carrito en armado), y falta migrar lo que haya
 > quedado cargado en cada navegador (`tools/respaldo-localstorage.js` + `npm run migrar`).
 >
-> **Agregado después:** la app puede **entrar sola** (acceso automático) y la base puede vivir
-> **adentro del proyecto** (`api/datos`, sin Neon), levantando todo con `npm run local`.
+> **Agregado después:** la app puede **entrar sola, sin contraseña** (no hay pantalla de login: ver
+> *La app entra sola*) y la base puede vivir **adentro del proyecto** (`api/datos`, sin Neon),
+> levantando todo con `npm run local`.
 
 ## Estructura
 
@@ -253,7 +267,7 @@ cotizador/
 │   └── schema.sql               # esquema de la base compartida (Neon), en un solo archivo
 ├── api/                         # el API que reemplaza el localStorage compartido
 │   ├── neon.ts                  # (alternativa) declara la función para el CLI de Neon
-│   ├── functions/api.js         # login + configuración + cotizaciones (autocontenido)
+│   ├── functions/api.js         # el API: entra sin contraseña + configuración + cotizaciones
 │   ├── datos/                   # la base local (Postgres en una carpeta): no va al repo
 │   ├── tools/                   # schema, usuario, acceso, base-local, migrar, revisar, servidor y humo
 │   └── README.md                # puesta en marcha, deploy, pruebas y migración
@@ -265,10 +279,12 @@ cotizador/
 │   └── respaldo-localstorage.js # baja un JSON con lo guardado en este navegador
 └── js/
     ├── utils.js                # helpers: uuid, moneda, escape
-    ├── store.js                # configuración persistente (localStorage)
-    ├── cart.js                 # carrito + datos de la cotización (localStorage)
-    ├── proceso.js              # tablero Kanban: tarjetas congeladas (localStorage)
+    ├── api.js                  # cliente del API: la única puerta del navegador hacia la base
+    ├── store.js                # configuración del negocio: colores en stock y precios (por el API)
+    ├── cart.js                 # carrito + datos de la cotización (borrador de este navegador)
+    ├── proceso.js              # tablero Kanban: tarjetas congeladas (por el API)
     ├── pdf.js                  # plantilla A4 de la cotización + visor en pantalla + impresión/PDF
+    ├── acceso.js               # aviso de arranque: entra sola, y si no puede, dice por qué
     ├── views/
     │   ├── productos.js        # menú de productos + formulario Llaveros + carrito
     │   ├── carrito.js          # desglose: cantidades, datos, vista previa A4 y envío al tablero
@@ -283,7 +299,8 @@ cotizador/
 - El API vive aparte, en `api/`, con su propio `package.json` (Node) y un envuelto de seis líneas
   en `netlify/functions/api.mjs` para publicarlo junto al sitio: el frontend **no** ganó
   dependencias ni pasos de armado. Abrir `index.html` con doble clic sigue funcionando igual.
-- Orden de carga en `index.html`: `utils` → `store` → `cart` → `proceso` → `pdf` → `views` → `app`.
+- Orden de carga en `index.html`: `utils` → `api` → `store` → `cart` → `proceso` → `pdf` → `acceso`
+  → `views` → `app`.
 - El enrutador soporta sub-rutas (`#/productos/llaveros`), así el botón **atrás** del navegador
   funciona; `ALIASES` traduce las rutas viejas (`cotizacion`, `trabajos`) a las nuevas.
 - `Cart.setMeta()` **no** avisa a los suscriptores a propósito: son datos de cabecera, no líneas del
