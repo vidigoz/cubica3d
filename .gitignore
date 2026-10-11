@@ -19,8 +19,10 @@ api/*.local
 node_modules
 api/.neon
 
-# Estado local del CLI de Netlify (lo crea `netlify link`): no va al repo.
+# Estado local del CLI de Netlify (lo crea `netlify link`) y su caché de
+# edge functions / extensiones: no van al repo (se regeneran solos).
 .netlify
+deno.lock
 
 # Respaldos del localStorage (los genera tools/respaldo-localstorage.js) y
 # volcados de la base.

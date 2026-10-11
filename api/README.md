@@ -36,41 +36,58 @@ También sirve que el `.env` lo complete el CLI de Neon: `npm install -g neon@la
 si la base responde, en qué región está, si están las 7 tablas, si existe `siguiente_folio()` y
 cuántos usuarios activos hay.
 
-`api/.env` está en `.gitignore` (nunca se sube) y es **sólo para los utilitarios de tu máquina**:
-la función desplegada no lo lee, saca la cadena de las variables de entorno del sitio.
+`api/.env` está en `.gitignore` (nunca se sube). En la raíz del repo hay un `.env` que **apunta a
+este mismo archivo** (un enlace), porque `netlify dev` sólo lee el `.env` de la raíz: así la cadena
+se pega una sola vez y la ven el emulador y los utilitarios. El `.env` es de tu máquina: la función
+desplegada no lo lee, saca la cadena de las variables de entorno del sitio.
 
 ## Probarlo en tu máquina
 
-```bash
-npm run server                    # http://localhost:8787 (lee las variables de api/.env)
-```
-
-El emulador de Netlify levanta exactamente lo que se publica (sitio + función):
+El camino corto —y el que más se parece a producción— es **el mismo `.env`** con el emulador de
+Netlify, que levanta el sitio y la función juntos:
 
 ```bash
-npx netlify dev                   # desde la raíz del repo: sitio en :8888 y API en /api
+cd ..                             # la raíz del repo
+npx netlify dev                   # sitio: http://localhost:8888   ·   API: http://localhost:8888/api
 ```
 
-Y con el CLI de Neon, `npm run dev` sirve la misma función con recarga automática.
+El `.env` de la raíz es un enlace a `api/.env`: un solo archivo, la cadena se pega una vez y la ven
+tanto el emulador como los utilitarios (si el enlace no estuviera: `ln -s api/.env .env`). En la
+salida de `netlify dev` se ve que la tomó:
+
+```
+⬥ Injected .env file env vars: APP_ORIGEN, DATABASE_URL, DATABASE_URL_UNPOOLED
+⬥ Loaded function api
+```
 
 En otra terminal:
 
 ```bash
-curl -s localhost:8787/api                                          # {"ok":true,...}
-curl -s localhost:8787/api/login -H 'Content-Type: application/json' \
+curl -s localhost:8888/api                                          # {"ok":true,...}
+curl -s localhost:8888/api/login -H 'Content-Type: application/json' \
      -d '{"email":"correo@cubica3d.com","password":"una-clave-larga"}'
 # copiá el token de la respuesta y usalo así:
-curl -s localhost:8787/api/bootstrap -H "Authorization: Bearer EL_TOKEN"
+curl -s localhost:8888/api/bootstrap -H "Authorization: Bearer EL_TOKEN"
 ```
 
-Y para no probar a mano, la prueba de humo recorre el camino completo (salud, login, bootstrap,
+Si preferís no depender de Netlify, hay un servidor propio que lee el mismo `.env` y arranca en el
+puerto 8787:
+
+```bash
+cd api
+npm run server
+```
+
+Y con el CLI de Neon, `npm run dev` sirve la misma función con recarga automática.
+
+Para no probar a mano, la prueba de humo recorre el camino completo (salud, login, bootstrap,
 folio, guardar config, crear la cotización, moverla de columna, sacarla del tablero y cerrar
 sesión): 14 comprobaciones, y no ensucia los datos porque la configuración se vuelve a guardar
 igual que estaba y la cotización de prueba se borra sola. (Lo único que avanza es el contador de
 folios, uno por corrida, como con cualquier cotización de verdad.)
 
 ```bash
-npm run humo -- http://localhost:8787 correo@cubica3d.com "una-clave-larga"
+npm run humo -- http://localhost:8888 correo@cubica3d.com "una-clave-larga"
 ```
 
 Sirve igual contra el API desplegado: pasale su dirección en lugar de `localhost`.
@@ -100,7 +117,7 @@ Variables del sitio (Site configuration -> Environment variables):
 
 | Variable | Para qué |
 |---|---|
-| `DATABASE_URL` | la cadena de Neon; la pone la extensión de Neon, no hay que pegar nada a mano |
+| `DATABASE_URL` | la cadena de Neon: **la misma que tenés en el `.env`**. Ya está puesta (la carga la extensión de Neon); si algún día no la usás, se pega a mano acá y no hace falta nada más |
 | `APP_ORIGEN` | dominios autorizados a llamar la API, separados por coma. Ej.: `https://cubica3d.netlify.app,http://localhost:8000`. Vacía = refleja cualquier origen: cómodo para probar, **no** para producción |
 
 `APP_ORIGEN` en Netlify y el de `api/.env` conviene mantenerlos iguales (el del `.env` es el que
@@ -228,6 +245,7 @@ api/
 │   └── migrar.js           # npm run migrar
 └── __*.test.js             # baterías (están en .gitignore: son herramientas, no app)
 
+../.env                     # enlace a api/.env: es el que lee `netlify dev` (no se sube)
 ../netlify.toml             # config del sitio: publica la raíz y empaqueta la función
 ../netlify/functions/
 │   └── api.mjs             # envuelto de Netlify: le pasa la petición a functions/api.js

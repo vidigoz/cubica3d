@@ -16,6 +16,14 @@ python3 -m http.server 8000
 
 Luego entra a <http://localhost:8000>.
 
+**Opción 3 — Todo junto, como en producción** (recomendado si vas a tocar el API): `netlify dev`
+levanta el sitio *y* el API en el mismo puerto, leyendo la cadena de conexión del `.env` de la raíz
+(el mismo archivo que `api/.env`, ver **[`api/README.md`](api/README.md)**):
+
+```bash
+npx netlify dev                   # http://localhost:8888 (sitio) y http://localhost:8888/api (API)
+```
+
 ## Marca y logo
 
 La app se llama **Cubica3D** y su logo se usa en tres lugares: el encabezado (`.app-header__logo-img`),
@@ -177,12 +185,12 @@ pruebas y migración— está en **[`api/README.md`](api/README.md)**.
 - **La cadena de conexión a la base nunca llega al navegador**: el frontend sólo habla con el
   API.
 
-> **Estado:** el API está publicado en Netlify (`https://cubica3d.netlify.app/api`) y habla con el
-> Postgres de Neon usando la cadena de conexión que vive en las variables del sitio; la prueba de
-> humo de punta a punta pasa completa (14/14), más 22 pruebas de comportamiento y 14 contra un
-> Postgres real en memoria. Falta conectar el frontend al API (hoy sigue leyendo del
-> `localStorage`) y migrar lo ya cargado (`tools/respaldo-localstorage.js` + `npm run migrar`):
-> es el paso siguiente.
+> **Estado:** el API está publicado en Netlify (`https://cubica3d.netlify.app/api`), habla con el
+> Postgres de Neon usando la cadena de conexión de las variables del sitio, y la prueba de humo
+> completa pasa 14/14 tanto contra producción como en local con `npx netlify dev` leyendo el `.env`
+> de la raíz. La base quedó limpia (sólo tu usuario, sin cotizaciones de prueba). Falta conectar el
+> frontend al API —hoy sigue leyendo del `localStorage`— y migrar lo ya cargado
+> (`tools/respaldo-localstorage.js` + `npm run migrar`): es el paso siguiente.
 
 ## Estructura
 

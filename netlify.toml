@@ -5,10 +5,13 @@
 #
 # El API es una función: netlify/functions/api.mjs, que envuelve el código de
 # api/functions/api.js. La cadena de conexión con Postgres NO vive en el repo:
-# se pega una sola vez en Site configuration -> Environment variables.
-#   DATABASE_URL  la cadena de Neon (la "pooled", la que termina en -pooler)
-#   APP_ORIGEN    dominios autorizados a llamar el API, separados por coma
-#                 ("https://cubica3d.netlify.app,http://localhost:8000")
+#   · en local, la lee `netlify dev` del .env de esta carpeta (un enlace a
+#     api/.env: un solo archivo para pegar la cadena una sola vez);
+#   · desplegada, llega por la variable de entorno del sitio (Site configuration
+#     -> Environment variables), con la misma cadena:
+#       DATABASE_URL  la cadena de Neon (la "pooled", la que termina en -pooler)
+#       APP_ORIGEN    dominios autorizados a llamar el API, separados por coma
+#                     ("https://cubica3d.netlify.app,http://localhost:8000")
 # Con el frontend y el API en el mismo dominio no hace falta CORS, pero
 # APP_ORIGEN deja entrar también al servidor local mientras desarrollás.
 
