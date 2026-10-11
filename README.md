@@ -65,7 +65,7 @@ encabezado) y en `js/pdf.js` (`NEGOCIO.logo`).
 ## Pestañas y rutas
 
 - **Productos** (`#/productos`) — menú principal de productos + carrito de cotización.
-  - Formulario de un producto: `#/productos/llaveros`.
+  - Formulario de un producto: `#/productos/llaveros` y `#/productos/clicers`.
   - **Desglose + PDF**: `#/carrito`.
 - **Proceso** (`#/proceso`) — tablero Kanban de las cotizaciones enviadas.
 - **Configuración** (`#/configuracion`) — la abre el **engranaje ⚙** del encabezado; ajusta colores en stock y precios.
@@ -82,7 +82,7 @@ de Productos, así que esa pestaña sigue activa.
 | Producto | Estado |
 |---|---|
 | **Llaveros de Nombre** | ✅ Funcional |
-| **Clicker de Nombre** | 🔜 Próximamente |
+| **Clicer de Nombre** | ✅ Funcional |
 
 ### Producto "Llaveros de Nombre"
 
@@ -95,6 +95,24 @@ de Productos, así que esa pestaña sigue activa.
   (entra con **cantidad 1**; luego la ajustas en el desglose).
 - Botón **Ver desglose** → abre `#/carrito` para capturar los datos y exportar el PDF.
 - Botón **← Volver al menú** para regresar a la página de productos.
+
+### Producto "Clicer de Nombre"
+
+Un clicer lleva **base** (de un solo color, con acabado **Corrugado** o **Liso**) y **una tecla por
+cada letra del nombre**; cada tecla puede ser de un color distinto.
+
+- Campo **Nombre** (obligatorio): una sola palabra, sólo letras (acentos y Ñ incluidos). Con cada
+  letra que escribes aparece **una tecla nueva** debajo, así se ve enseguida en cuántas se va.
+- Menú **Color de la base** y menú **Acabado de la base**.
+- **Color de todas las teclas**: elige uno y se aplica a todas de una vez. Cada tecla tiene además su
+  propio menú, para cambiar sólo la que quieras (la muestra de color se actualiza al instante).
+- **Precio por letra**, con dos tramos (se configuran en *Configuración → Precios*, ver abajo):
+  - Hasta *N* letras (por defecto **5**) → precio **por letra corto**.
+  - De *N+1* letras en adelante → precio **por letra largo**.
+  - Debajo del precio se ve la cuenta (`6 letras × $30.00 (precio de 6 letras o más)`).
+- Botón **Agregar al carrito** → entra con **cantidad 1** y un **desglose completo** (base + acabado y
+  cada tecla con su letra y su color), que es lo que viaja al carrito, al PDF y al tablero: con eso
+  se fabrica sin tener que preguntar nada.
 
 ## Carrito de cotización
 
@@ -165,8 +183,13 @@ Tablero **Kanban** con tres columnas, que son el flujo de trabajo: **Cotización
 ## Configuración
 
 - **Colores en stock:** agrega (nombre + selector de color) y quita colores. Los cambios se ven al instante en los menús de la cotización.
-- **Precios:** edita el precio de *Solo nombre* y de *Nombre + Apellido*.
-- **Restaurar valores por defecto.** Vuelve a Negro, Blanco y Rojo, y a $60 / $100.
+- **Precios:**
+  - *Llavero · Solo nombre* y *Llavero · Nombre + Apellido*.
+  - *Clicer · Precio por letra (hasta N letras)*, *Clicer · Precio por letra (N+1 letras o más)* y
+    *Clicer · El precio corto aplica hasta (letras)* (por defecto **5**). Al lado hay un ejemplo con
+    el precio ya calculado, así se ve el efecto del corte sin tener que cotizar.
+- **Restaurar valores por defecto.** Vuelve a Negro, Blanco y Rojo, y a $60 / $100 y al clicer
+  $15 / $30 por letra con corte en 5.
 
 Todo se guarda en el `localStorage` del navegador (clave `cotizador.config.v1`).
 
@@ -281,12 +304,13 @@ cotizador/
     ├── utils.js                # helpers: uuid, moneda, escape
     ├── api.js                  # cliente del API: la única puerta del navegador hacia la base
     ├── store.js                # configuración del negocio: colores en stock y precios (por el API)
+    ├── clicer.js               # producto Clicer de Nombre: letras, precio por letra y desglose
     ├── cart.js                 # carrito + datos de la cotización (borrador de este navegador)
     ├── proceso.js              # tablero Kanban: tarjetas congeladas (por el API)
     ├── pdf.js                  # plantilla A4 de la cotización + visor en pantalla + impresión/PDF
     ├── acceso.js               # aviso de arranque: entra sola, y si no puede, dice por qué
     ├── views/
-    │   ├── productos.js        # menú de productos + formulario Llaveros + carrito
+    │   ├── productos.js        # menú de productos + formularios Llaveros y Clicer + carrito
     │   ├── carrito.js          # desglose: cantidades, datos, vista previa A4 y envío al tablero
     │   ├── proceso.js          # tablero Kanban: columnas, tarjetas y botones ← / →
     │   └── configuracion.js    # colores + precios
@@ -299,10 +323,10 @@ cotizador/
 - El API vive aparte, en `api/`, con su propio `package.json` (Node) y un envuelto de seis líneas
   en `netlify/functions/api.mjs` para publicarlo junto al sitio: el frontend **no** ganó
   dependencias ni pasos de armado. Abrir `index.html` con doble clic sigue funcionando igual.
-- Orden de carga en `index.html`: `utils` → `api` → `store` → `cart` → `proceso` → `pdf` → `acceso`
-  → `views` → `app`.
-- El enrutador soporta sub-rutas (`#/productos/llaveros`), así el botón **atrás** del navegador
-  funciona; `ALIASES` traduce las rutas viejas (`cotizacion`, `trabajos`) a las nuevas.
+- Orden de carga en `index.html`: `utils` → `api` → `store` → `clicer` → `cart` → `proceso` → `pdf`
+  → `acceso` → `views` → `app`.
+- El enrutador soporta sub-rutas (`#/productos/llaveros`, `#/productos/clicers`), así el botón **atrás**
+  del navegador funciona; `ALIASES` traduce las rutas viejas (`cotizacion`, `trabajos`) a las nuevas.
 - `Cart.setMeta()` **no** avisa a los suscriptores a propósito: son datos de cabecera, no líneas del
   carrito, y notificar repintaría la vista justo mientras el usuario escribe.
 - El PDF se genera con la impresión nativa del navegador (`window.print()` + reglas `@media print`),

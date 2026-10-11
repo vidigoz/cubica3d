@@ -49,13 +49,14 @@ globalThis.App = {
 };
 
 // Se cargan en el mismo orden que index.html.
-["js/utils.js", "js/api.js", "js/store.js", "js/proceso.js"].forEach((relativo) => {
+["js/utils.js", "js/api.js", "js/store.js", "js/clicer.js", "js/proceso.js"].forEach((relativo) => {
   const ruta = resolve(raiz, relativo);
   vm.runInThisContext(readFileSync(ruta, "utf8"), { filename: ruta });
 });
 
 const Api = globalThis.Api;
 const Store = globalThis.Store;
+const Clicer = globalThis.Clicer;
 const Proceso = globalThis.Proceso;
 
 
@@ -120,7 +121,7 @@ async function principal() {
     afirmar(!revisado.config.colores.some((c) => c.nombre === nombreColor), "el color ya no está en la base");
   }
 
-  titulo("5) Enviar una cotización (POST /api/cotizaciones)");
+  titulo("5) Enviar una cotización con los DOS productos (POST /api/cotizaciones)");
   const clientId = "prueba-" + Date.now().toString(36);
   const meta = {
     folio: String(Proceso.siguienteFolio()),
@@ -128,6 +129,16 @@ async function principal() {
     cliente: "Cliente de prueba",
     notas: "La genera api/tools/probar-frontend.js"
   };
+
+  // El clicer: base + una tecla por letra, cada una de un color. El precio y el
+  // desglose salen de la MISMA función que usa la vista (js/clicer.js), así que lo
+  // que se manda acá es exactamente lo que se manda al cotizar en la app.
+  const nombreClicer = "Victor";
+  const letras = Clicer.letrasDe(nombreClicer).letras;
+  const colores = Store.getConfig().colores;
+  const colorDe = (i) => colores[i % colores.length] || { nombre: "Negro", hex: "#111111" };
+  const precioClicer = Clicer.precioDe(Store.getConfig(), letras.length).total;
+
   const creada = await Proceso.crear({
     clientId: clientId,
     meta: meta,
@@ -135,16 +146,29 @@ async function principal() {
       { tipo: "Llavero de Nombre", titulo: "Ana Prueba", precio: 100, cantidad: 2,
         detalles: [{ label: "Base", nombre: "Negro", hex: "#111111" },
                    { label: "Nombre", nombre: "Rojo", hex: "#D32F2F" }] },
-      { tipo: "Llavero de Nombre", titulo: "Luis Prueba", precio: 60, cantidad: 1, detalles: [] }
+      { tipo: "Llavero de Nombre", titulo: "Luis Prueba", precio: 60, cantidad: 1, detalles: [] },
+      { tipo: "Clicer de Nombre", titulo: nombreClicer, precio: precioClicer, cantidad: 1,
+        detalles: Clicer.detallesDe({ base: colorDe(0), acabado: "Corrugado", letras: letras,
+          teclas: letras.map((_, i) => colorDe(i + 1)) }) }
     ]
   });
 
   const tarjeta = creada.tarjeta;
   console.log("  ·     tarjeta creada: folio " + tarjeta.folio + "  ·  id " + tarjeta.id);
+  console.log("  ·     clicer «" + nombreClicer + "»: " + letras.length + " teclas, $" + precioClicer +
+    " (precio por letra de Configuración → Precios)");
   console.log("  ·     total que calculó el servidor: $" + tarjeta.total + " por " + tarjeta.unidades + " pieza(s)");
-  afirmar(tarjeta.unidades === 3, "el servidor contó las 3 piezas");
-  afirmar(Number(tarjeta.total) === 260, "el servidor calculó el total (2 x 100 + 1 x 60 = 260)");
+  afirmar(tarjeta.unidades === 4, "el servidor contó las 4 piezas: 2 + 1 llaveros y 1 clicer");
+  afirmar(Number(tarjeta.total) === 260 + precioClicer,
+    "el servidor calculó el total (2 x 100 + 1 x 60 + " + precioClicer + " del clicer)");
   afirmar(tarjeta.columna === "cotizacion", "entró a la columna «Cotización»");
+
+  // Y el desglose tiene que volver de la base: la base y CADA tecla con su letra.
+  const clicerGuardado = (tarjeta.items || []).filter((it) => it.tipo === "Clicer de Nombre")[0];
+  afirmar(!!clicerGuardado && clicerGuardado.detalles.length === letras.length + 1,
+    "la base y las " + letras.length + " teclas del clicer quedaron guardadas (jsonb)");
+  afirmar(!!clicerGuardado && clicerGuardado.detalles[1].label === "Tecla 1 (" + letras[0] + ")",
+    "cada tecla guarda su letra: «" + (clicerGuardado ? clicerGuardado.detalles[1].label : "?") + "»");
 
   titulo("6) El tablero reparte las tarjetas: cada una en su columna, una sola vez");
   // Esta es la comprobación que atrapa el bug de «la misma tarjeta en las tres

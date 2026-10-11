@@ -21,7 +21,10 @@
     ],
     precios: {
       nombre: 60,
-      nombreApellido: 100
+      nombreApellido: 100,
+      // Clicer de Nombre: precio POR LETRA (una tecla por letra del nombre).
+      // Hasta `letrasCorte` letras manda el corto; de ahí en adelante, el largo.
+      clicer: { porLetraCorto: 15, porLetraLargo: 30, letrasCorte: 5 }
     }
   };
 
@@ -52,6 +55,17 @@
     if (parsed.precios) {
       out.precios.nombre = window.Utils.parseNumber(parsed.precios.nombre, DEFAULT_CONFIG.precios.nombre);
       out.precios.nombreApellido = window.Utils.parseNumber(parsed.precios.nombreApellido, DEFAULT_CONFIG.precios.nombreApellido);
+
+      // Clicer: los dos tramos por letra y hasta cuántas letras manda el corto.
+      var clicer = parsed.precios.clicer || {};
+      out.precios.clicer.porLetraCorto = window.Utils.parseNumber(
+        clicer.porLetraCorto, DEFAULT_CONFIG.precios.clicer.porLetraCorto);
+      out.precios.clicer.porLetraLargo = window.Utils.parseNumber(
+        clicer.porLetraLargo, DEFAULT_CONFIG.precios.clicer.porLetraLargo);
+      var corte = window.Utils.parseNumber(clicer.letrasCorte, DEFAULT_CONFIG.precios.clicer.letrasCorte);
+      out.precios.clicer.letrasCorte = corte >= 1
+        ? Math.floor(corte)
+        : DEFAULT_CONFIG.precios.clicer.letrasCorte;
     }
 
     return out;
@@ -149,8 +163,21 @@
   }
 
   function setPrecios(precios) {
+    precios = precios || {};
     config.precios.nombre = window.Utils.parseNumber(precios.nombre, config.precios.nombre);
     config.precios.nombreApellido = window.Utils.parseNumber(precios.nombreApellido, config.precios.nombreApellido);
+
+    // El clicer se manda como un bloque aparte: lo que no venga, se conserva.
+    var clicer = precios.clicer || {};
+    config.precios.clicer.porLetraCorto = window.Utils.parseNumber(
+      clicer.porLetraCorto, config.precios.clicer.porLetraCorto);
+    config.precios.clicer.porLetraLargo = window.Utils.parseNumber(
+      clicer.porLetraLargo, config.precios.clicer.porLetraLargo);
+    if (clicer.letrasCorte !== undefined) {
+      var corte = Math.floor(window.Utils.parseNumber(clicer.letrasCorte, config.precios.clicer.letrasCorte));
+      config.precios.clicer.letrasCorte = corte >= 1 ? corte : config.precios.clicer.letrasCorte;
+    }
+
     notify();
     guardar();
     return { ok: true };

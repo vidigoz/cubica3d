@@ -201,6 +201,8 @@ button { font-family: inherit; cursor: pointer; }
 .form { display: flex; flex-direction: column; gap: 16px; }
 .form--inline { flex-direction: row; flex-wrap: wrap; align-items: flex-end; gap: 12px; }
 .form__row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+/* Tres columnas: los precios del clicer (dos tramos por letra + el corte). */
+.form__row--tres { grid-template-columns: repeat(3, 1fr); }
 
 .field { display: flex; flex-direction: column; gap: 6px; }
 .field--grow { flex: 1 1 200px; }
@@ -311,6 +313,28 @@ button { font-family: inherit; cursor: pointer; }
   color: var(--muted);
 }
 .price-preview__value { font-size: 1.5rem; font-weight: 800; color: var(--primary); }
+/* La cuenta del clicer bajo el precio: "6 letras × $30.00 (precio de 6 letras o más)". */
+.price-preview__nota { font-size: .78rem; color: var(--muted); }
+
+/* ---------- Clicer: una tecla por letra del nombre ---------- */
+.teclas { display: flex; flex-wrap: wrap; gap: 8px; }
+.tecla {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+.tecla__letra {
+  width: 22px;
+  text-align: center;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--primary);
+}
+.tecla .field__input { width: auto; min-width: 130px; padding: 6px 8px; font-size: .88rem; }
 
 /* ---------- Cotización actual ---------- */
 .cart__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }

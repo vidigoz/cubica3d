@@ -12,6 +12,10 @@
  *   GET    /api/tablero                                              -> sólo las tarjetas
  *   GET    /api/folio                                                -> { siguiente }
  *   PUT    /api/config                { colores, precios }           -> config guardada
+ *                                     precios: { nombre, nombreApellido,
+ *                                                clicer: { porLetraCorto,
+ *                                                          porLetraLargo,
+ *                                                          letrasCorte } }
  *   POST   /api/cotizaciones          { clientId, meta, items }      -> tarjeta creada
  *   PATCH  /api/cotizaciones/:id      { columna }                    -> tarjeta movida
  *   DELETE /api/cotizaciones/:id                                     -> { ok }
@@ -93,6 +97,11 @@ const numero = (valor, porDefecto) => {
 const huella = (token) => createHash("sha256").update(token).digest("hex");
 const redondear = (n) => Math.round(n * 100) / 100;
 
+// Como numero(), pero respetando el valor por defecto: si el dato no viene
+// (undefined / null / ""), devuelve el de por defecto en vez de 0.
+const numeroODefecto = (valor, porDefecto) =>
+  (valor == null || String(valor).trim() === "" ? porDefecto : numero(valor, porDefecto));
+
 // Lo que la gente escribe en el .env para decir "sí": true / 1 / si / on / yes.
 const esVerdadero = (valor) => valor === true ||
   ["1", "true", "si", "sí", "on", "yes", "verdadero"].includes(texto(valor).trim().toLowerCase());
@@ -138,9 +147,26 @@ function coloresValidos(lista) {
     }));
 }
 
+// Precios del Clicer de Nombre: es un producto de nombre por letras (una tecla
+// por letra), así que se cobra POR LETRA en dos tramos —el corto hasta
+// `letrasCorte` letras y el largo de ahí en adelante—.
+// Si una base vieja todavía no los tiene, se guardan los valores por defecto
+// (los mismos que js/clicer.js): así el producto nunca cotiza en cero por
+// faltar el dato.
+const CLICER_POR_DEFECTO = { porLetraCorto: 15, porLetraLargo: 30, letrasCorte: 5 };
+
 function preciosValidos(precios) {
   const p = precios || {};
-  return { nombre: numero(p.nombre, 0), nombreApellido: numero(p.nombreApellido, 0) };
+  const c = p.clicer || {};
+  return {
+    nombre: numero(p.nombre, 0),
+    nombreApellido: numero(p.nombreApellido, 0),
+    clicer: {
+      porLetraCorto: Math.max(0, redondear(numeroODefecto(c.porLetraCorto, CLICER_POR_DEFECTO.porLetraCorto))),
+      porLetraLargo: Math.max(0, redondear(numeroODefecto(c.porLetraLargo, CLICER_POR_DEFECTO.porLetraLargo))),
+      letrasCorte: Math.max(1, Math.floor(numeroODefecto(c.letrasCorte, CLICER_POR_DEFECTO.letrasCorte)))
+    }
+  };
 }
 
 /* ------------------------------ La aplicación ------------------------------ */
@@ -221,7 +247,7 @@ export function crearApp(opciones) {
       "select colores, precios, actualizada, actualizada_por from configuracion where id = 'default'"
     );
     const fila = rows[0];
-    if (!fila) return { config: { colores: [], precios: { nombre: 0, nombreApellido: 0 } }, configUsuario: "" };
+    if (!fila) return { config: { colores: [], precios: preciosValidos(null) }, configUsuario: "" };
     return {
       config: {
         colores: Array.isArray(fila.colores) ? fila.colores : [],

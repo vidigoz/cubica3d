@@ -1,15 +1,22 @@
-/* Vista de Productos: menú de productos (Llaveros de Nombre / Clicker de Nombre),
- * formulario del producto y el carrito de cotización compartido (window.Cart).
- * Ruta: #/productos. Se expone como window.Views.productos */
+/* Vista de Productos: menú de productos (Llaveros de Nombre / Clicer de Nombre),
+ * el formulario de cada producto y el carrito de cotización compartido
+ * (window.Cart). Rutas: #/productos/llaveros y #/productos/clicers.
+ * Se expone como window.Views.productos */
 (function () {
   'use strict';
 
   var Utils = window.Utils;
   var Store = window.Store;
   var Cart = window.Cart;
+  var Clicer = window.Clicer;
 
   var rootEl = null;
-  var currentSub = null; // null = menú de productos, 'llaveros' = formulario
+  var currentSub = null;   // null = menú · 'llaveros' · 'clicers' = formulario
+
+  // Color elegido para cada tecla del clicer, uno por letra del nombre. Se
+  // mantiene mientras se escribe (y mientras cambia la cantidad de letras) y se
+  // pierde al salir del formulario.
+  var clicerTeclas = [];
 
   /* ---------------------------- Plantillas ---------------------------- */
 
@@ -43,8 +50,8 @@
         '<div class="product-grid">' +
           productCard('llaveros', 'productos/llaveros', '🔑', 'Llaveros de Nombre',
             'Elige el color de la base y del nombre. Precio con o sin apellido.', false) +
-          productCard('clickers', 'productos', '🖱️', 'Clicker de Nombre',
-            'Disponible en una siguiente versión.', true) +
+          productCard('clicers', 'productos/clicers', '🖱️', 'Clicer de Nombre',
+            'Base corrugada o lisa y una tecla por letra, cada una de su color.', false) +
         '</div>' +
       '</section>';
   }
@@ -107,6 +114,70 @@
       '</section>';
   }
 
+  // Formulario del Clicer de Nombre: se escribe el nombre y sus letras se
+  // reparten como teclas, cada una con su color. La base es de un solo color.
+  function clicerTemplate() {
+    var config = Store.getConfig();
+    var sinColores = config.colores.length === 0;
+    var options = colorOptions(config.colores);
+    var dis = sinColores ? ' disabled' : '';
+
+    return '' +
+      '<section class="panel">' +
+        '<button class="btn btn--ghost btn--back" type="button" data-action="back">← Volver al menú</button>' +
+        '<h3 class="panel__title">Clicer de Nombre</h3>' +
+        (sinColores
+          ? '<p class="alert alert--warn">No hay colores en stock. Agrégalos en <b>⚙️ Configuración</b> (arriba a la derecha) para poder cotizar.</p>'
+          : '') +
+        '<p class="panel__hint">Lleva una tecla por cada letra del nombre. La base es de un solo color, con acabado corrugado o liso; las teclas pueden ser todas del mismo color o una distinta por letra.</p>' +
+        '<form class="form" id="form-clicer" novalidate>' +
+          '<div class="form__row form__row--tres">' +
+            '<label class="field field--grow">' +
+              '<span class="field__label">Nombre</span>' +
+              '<input class="field__input" type="text" id="f-clicer-nombre" placeholder="Ej. Victor" autocomplete="off"' + dis + ' />' +
+            '</label>' +
+            '<label class="field field--grow">' +
+              '<span class="field__label">Acabado de la Base</span>' +
+              '<select class="field__input" id="f-clicer-acabado"' + dis + '>' +
+                Clicer.acabados().map(function (a) {
+                  return '<option value="' + Utils.escapeHtml(a.id) + '">' + Utils.escapeHtml(a.nombre) + '</option>';
+                }).join('') +
+              '</select>' +
+            '</label>' +
+            '<div class="field field--grow">' +
+              '<span class="field__label">Color de la Base</span>' +
+              '<div class="field__row">' +
+                '<select class="field__input" id="f-clicer-base"' + dis + '>' + options + '</select>' +
+                '<span class="swatch" id="swatch-clicer-base"></span>' +
+              '</div>' +
+            '</div>' +
+          '</div>' +
+          '<div class="field">' +
+            '<span class="field__label">Teclas · Mismo color para todas</span>' +
+            '<div class="field__row">' +
+              '<select class="field__input" id="f-clicer-todas"' + dis + '>' + options + '</select>' +
+              '<span class="swatch" id="swatch-clicer-todas"></span>' +
+            '</div>' +
+            '<span class="field__opt">Si querés una letra de otro color, cambiala abajo en «Color de cada tecla».</span>' +
+          '</div>' +
+          '<div class="field">' +
+            '<span class="field__label">Color de cada tecla <em class="field__opt">(una por letra del nombre)</em></span>' +
+            '<div class="teclas" id="clicer-teclas"></div>' +
+            '<span class="field__opt" id="clicer-cuenta"></span>' +
+          '</div>' +
+          '<p class="form__error" id="clicer-error" hidden></p>' +
+          '<div class="form__footer">' +
+            '<div class="price-preview">' +
+              '<span class="price-preview__label">Precio</span>' +
+              '<span class="price-preview__value" id="clicer-precio">$0.00</span>' +
+              '<span class="price-preview__nota" id="clicer-nota"></span>' +
+            '</div>' +
+            '<button class="btn btn--primary" type="submit"' + dis + '>Agregar al carrito</button>' +
+          '</div>' +
+        '</form>' +
+      '</section>';
+  }
+
   function cartTemplate() {
     return '' +
       '<section class="panel">' +
@@ -123,16 +194,20 @@
 
   /* ---------------------------- Render ---------------------------- */
 
-  // sub: null = menú de productos · 'llaveros' = formulario del llavero.
-  // Se llama desde App en cada navegación (hash) y también internamente.
+  // sub: null = menú de productos · 'llaveros' / 'clicers' = formulario del
+  // producto. Se llama desde App en cada navegación (hash) y también internamente.
   function render(container, sub) {
     if (container) rootEl = container;
-    if (sub !== undefined) currentSub = sub === 'llaveros' ? 'llaveros' : null;
+    if (sub !== undefined) currentSub = (sub === 'llaveros' || sub === 'clicers') ? sub : null;
+
+    var formulario = currentSub === 'llaveros' ? formTemplate()
+      : currentSub === 'clicers' ? clicerTemplate()
+      : listTemplate();
 
     rootEl.innerHTML =
       '<div class="page">' +
         pageHead() +
-        (currentSub === 'llaveros' ? formTemplate() : listTemplate()) +
+        formulario +
         cartTemplate() +
       '</div>';
 
@@ -142,6 +217,13 @@
     if (currentSub === 'llaveros') {
       updateSwatches();
       updatePricePreview();
+    }
+
+    if (currentSub === 'clicers') {
+      clicerTeclas = [];           // formulario recién montado: todo con el color de «todas»
+      updateSwatchesClicer();
+      pintarTeclas();
+      updateClicerPrecio();
     }
   }
 
@@ -179,6 +261,49 @@
       var nomSel = container.querySelector('#f-color-nombre');
       if (baseSel) baseSel.addEventListener('change', updateSwatches);
       if (nomSel) nomSel.addEventListener('change', updateSwatches);
+    }
+
+    // Formulario del clicer: base (acabado + color), «todas las teclas» y una
+    // tecla por letra del nombre.
+    var clicerForm = container.querySelector('#form-clicer');
+    if (clicerForm) {
+      clicerForm.addEventListener('submit', function (e) {
+        e.preventDefault();
+        addClicerToCart();
+      });
+
+      var nombreClicer = container.querySelector('#f-clicer-nombre');
+      if (nombreClicer) {
+        nombreClicer.addEventListener('input', function () {
+          pintarTeclas();
+          updateClicerPrecio();
+        });
+      }
+
+      var todasSel = container.querySelector('#f-clicer-todas');
+      if (todasSel) {
+        todasSel.addEventListener('change', function () {
+          // Un solo color para todas las teclas: se olvida lo elegido letra por letra.
+          clicerTeclas = [];
+          pintarTeclas();
+          updateSwatchesClicer();
+        });
+      }
+
+      var baseClicer = container.querySelector('#f-clicer-base');
+      if (baseClicer) baseClicer.addEventListener('change', updateSwatchesClicer);
+
+      // Los menús de cada tecla salen y entran con cada letra del nombre: el
+      // listener va en el contenedor y se reengancha solo.
+      var letrasEl = container.querySelector('#clicer-teclas');
+      if (letrasEl) {
+        letrasEl.addEventListener('change', function (e) {
+          var sel = e.target.closest('[data-tecla]');
+          if (!sel) return;
+          clicerTeclas[Number(sel.getAttribute('data-tecla'))] = sel.value;
+          updateSwatchesClicer();
+        });
+      }
     }
 
     // Vaciar el carrito (es compartido: afecta a todos los productos)
@@ -240,17 +365,19 @@
     }
   }
 
-  function showFormError(msg) {
+  // Muestra/oculta el aviso de error de un formulario de producto. Sin selector
+  // usa el del llavero; el clicer pasa '#clicer-error'.
+  function showFormError(msg, selector) {
     if (!rootEl) return;
-    var el = rootEl.querySelector('#form-error');
+    var el = rootEl.querySelector(selector || '#form-error');
     if (!el) return;
     el.textContent = msg;
     el.hidden = false;
   }
 
-  function hideFormError() {
+  function hideFormError(selector) {
     if (!rootEl) return;
-    var el = rootEl.querySelector('#form-error');
+    var el = rootEl.querySelector(selector || '#form-error');
     if (!el) return;
     el.textContent = '';
     el.hidden = true;
@@ -295,6 +422,185 @@
     rootEl.querySelector('#f-nombre').focus();
 
     updatePricePreview();
+    window.App.toast('Agregado al carrito', 'success');
+  }
+
+  /* ------------------------- Clicer de Nombre ------------------------- */
+
+  // Colores de las teclas alineados con las letras que hay ahora en el campo:
+  // lo ya elegido se conserva por posición y lo que falta toma el color de
+  // «todas las teclas». Devuelve ese color de referencia.
+  function teclasDelNombre(config, letras) {
+    var todasSel = rootEl.querySelector('#f-clicer-todas');
+    var todas = (todasSel && todasSel.value) || (config.colores[0] || {}).id || '';
+    var elegidos = [];
+    letras.forEach(function (_, i) {
+      elegidos.push(clicerTeclas[i] || todas);
+    });
+    clicerTeclas = elegidos;
+    return todas;
+  }
+
+  // Reparte el nombre en teclas: un renglón por letra con su menú de color.
+  // Se vuelve a llamar con cada tecla que se escribe, así que cada letra
+  // conserva el color que ya tenía.
+  function pintarTeclas() {
+    if (!rootEl) return;
+    var cont = rootEl.querySelector('#clicer-teclas');
+    if (!cont) return;
+
+    var config = Store.getConfig();
+    var campo = rootEl.querySelector('#f-clicer-nombre');
+    var res = Clicer.letrasDe(campo ? campo.value : '');
+    var cuenta = rootEl.querySelector('#clicer-cuenta');
+
+    if (!res.ok) {
+      clicerTeclas = [];
+      cont.innerHTML = '<p class="empty">' + Utils.escapeHtml(res.error) + '</p>';
+      if (cuenta) cuenta.textContent = '';
+      return;
+    }
+
+    teclasDelNombre(config, res.letras);
+    var options = colorOptions(config.colores);
+    var dis = config.colores.length ? '' : ' disabled';
+
+    cont.innerHTML = res.letras.map(function (letra, i) {
+      return '' +
+        '<div class="tecla">' +
+          '<span class="tecla__letra">' + Utils.escapeHtml(letra) + '</span>' +
+          '<select class="field__input" data-tecla="' + i + '" ' +
+            'aria-label="Color de la tecla ' + (i + 1) + ' (' + Utils.escapeHtml(letra) + ')"' + dis + '>' +
+            options +
+          '</select>' +
+          '<span class="swatch swatch--sm" data-swatch-tecla="' + i + '"></span>' +
+        '</div>';
+    }).join('');
+
+    // Cada menú queda en el color que le toca (el elegido o el de «todas»).
+    res.letras.forEach(function (_, i) {
+      var sel = cont.querySelector('[data-tecla="' + i + '"]');
+      if (sel) sel.value = clicerTeclas[i];
+    });
+
+    if (cuenta) {
+      cuenta.textContent = res.letras.length + (res.letras.length === 1 ? ' tecla' : ' teclas') +
+        ' · una por cada letra del nombre';
+    }
+
+    updateSwatchesClicer();
+  }
+
+  // Muestras de color de la base, de «todas las teclas» y de cada tecla.
+  function updateSwatchesClicer() {
+    if (!rootEl) return;
+    var colores = Store.getConfig().colores;
+
+    var baseSel = rootEl.querySelector('#f-clicer-base');
+    pintarSwatch(rootEl.querySelector('#swatch-clicer-base'), hexDe(colores, baseSel && baseSel.value));
+
+    var todasSel = rootEl.querySelector('#f-clicer-todas');
+    pintarSwatch(rootEl.querySelector('#swatch-clicer-todas'), hexDe(colores, todasSel && todasSel.value));
+
+    var cont = rootEl.querySelector('#clicer-teclas');
+    if (!cont) return;
+    cont.querySelectorAll('[data-swatch-tecla]').forEach(function (sw) {
+      var i = Number(sw.getAttribute('data-swatch-tecla'));
+      var sel = cont.querySelector('[data-tecla="' + i + '"]');
+      pintarSwatch(sw, hexDe(colores, (sel && sel.value) || clicerTeclas[i]));
+    });
+  }
+
+  function pintarSwatch(el, hex) {
+    if (el) el.style.background = hex || '';
+  }
+
+  function hexDe(colores, id) {
+    var c = findColor(colores, id);
+    return c ? c.hex : '';
+  }
+
+  // Precio del clicer: por letra, con el tramo corto o el largo según la
+  // configuración de Configuración → Precios. Bajo el número se ve la cuenta.
+  function updateClicerPrecio() {
+    if (!rootEl) return;
+    var valor = rootEl.querySelector('#clicer-precio');
+    var nota = rootEl.querySelector('#clicer-nota');
+    if (!valor) return;
+
+    var campo = rootEl.querySelector('#f-clicer-nombre');
+    var res = Clicer.letrasDe(campo ? campo.value : '');
+    if (!res.ok) {
+      valor.textContent = Utils.formatMoney(0);
+      if (nota) nota.textContent = '';
+      return;
+    }
+
+    var p = Clicer.precioDe(Store.getConfig(), res.letras.length);
+    valor.textContent = Utils.formatMoney(p.total);
+    if (nota) {
+      nota.textContent = p.letras + (p.letras === 1 ? ' letra' : ' letras') + ' × ' +
+        Utils.formatMoney(p.porLetra) + (p.largo
+          ? ' (precio de ' + (p.letrasCorte + 1) + ' letras o más)'
+          : ' (precio hasta ' + p.letrasCorte + ' letras)');
+    }
+  }
+
+  // Agrega el clicer al carrito compartido (window.Cart), con el desglose
+  // completo: base (color + acabado) y cada tecla con su letra y su color, que
+  // es lo que se necesita para fabricarlo.
+  function addClicerToCart() {
+    if (!rootEl) return;
+    var config = Store.getConfig();
+    var campo = rootEl.querySelector('#f-clicer-nombre');
+    var res = Clicer.letrasDe(campo ? campo.value : '');
+    if (!res.ok) {
+      showFormError(res.error, '#clicer-error');
+      return;
+    }
+
+    var baseSel = rootEl.querySelector('#f-clicer-base');
+    var base = findColor(config.colores, baseSel && baseSel.value);
+    if (!base) {
+      showFormError('Selecciona el color de la base.', '#clicer-error');
+      return;
+    }
+
+    var acabadoSel = rootEl.querySelector('#f-clicer-acabado');
+    var acabado = Clicer.buscarAcabado(acabadoSel && acabadoSel.value);
+
+    // Una tecla por letra, con el color que quedó en su menú.
+    var teclas = [];
+    for (var i = 0; i < res.letras.length; i++) {
+      var sel = rootEl.querySelector('[data-tecla="' + i + '"]');
+      var color = findColor(config.colores, (sel && sel.value) || clicerTeclas[i]);
+      if (!color) {
+        showFormError('Elige el color de cada tecla.', '#clicer-error');
+        return;
+      }
+      teclas.push(color);
+    }
+
+    var precio = Clicer.precioDe(config, res.letras.length);
+
+    Cart.add({
+      tipo: 'Clicer de Nombre',
+      titulo: res.nombre,
+      detalles: Clicer.detallesDe({
+        base: base,
+        acabado: acabado ? acabado.nombre : '',
+        letras: res.letras,
+        teclas: teclas
+      }),
+      precio: precio.total
+    });
+
+    hideFormError('#clicer-error');
+    campo.value = '';
+    clicerTeclas = [];
+    pintarTeclas();
+    updateClicerPrecio();
+    campo.focus();
     window.App.toast('Agregado al carrito', 'success');
   }
 

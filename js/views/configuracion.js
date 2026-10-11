@@ -53,22 +53,44 @@
   }
 
   function preciosTemplate(config) {
+    var corte = config.precios.clicer.letrasCorte;
     return '' +
       '<section class="panel">' +
         '<h3 class="panel__title">Precios</h3>' +
-        '<p class="panel__hint">Se aplican automáticamente según si incluyes apellido.</p>' +
-        '<form class="form form--inline" id="form-precios">' +
-          '<label class="field field--grow">' +
-            '<span class="field__label">Solo nombre</span>' +
-            '<input class="field__input" type="number" min="0" step="1" id="p-nombre" value="' + config.precios.nombre + '" />' +
-          '</label>' +
-          '<label class="field field--grow">' +
-            '<span class="field__label">Nombre + Apellido</span>' +
-            '<input class="field__input" type="number" min="0" step="1" id="p-nombreApellido" value="' + config.precios.nombreApellido + '" />' +
-          '</label>' +
-          '<button class="btn btn--primary" type="submit">Guardar precios</button>' +
+        '<p class="panel__hint">Los llaveros cambian según si llevan apellido; los clicers, según cuántas letras tenga el nombre (llevan una tecla por letra).</p>' +
+        '<form class="form" id="form-precios">' +
+          '<div class="form__row">' +
+            '<label class="field field--grow">' +
+              '<span class="field__label">Llavero · Solo nombre</span>' +
+              '<input class="field__input" type="number" min="0" step="1" id="p-nombre" value="' + config.precios.nombre + '" />' +
+            '</label>' +
+            '<label class="field field--grow">' +
+              '<span class="field__label">Llavero · Nombre + Apellido</span>' +
+              '<input class="field__input" type="number" min="0" step="1" id="p-nombreApellido" value="' + config.precios.nombreApellido + '" />' +
+            '</label>' +
+          '</div>' +
+          '<div class="form__row form__row--tres">' +
+            '<label class="field field--grow">' +
+              '<span class="field__label">Clicer · Precio por letra (hasta ' + corte + ' letras)</span>' +
+              '<input class="field__input" type="number" min="0" step="1" id="p-clicer-corto" value="' + config.precios.clicer.porLetraCorto + '" />' +
+            '</label>' +
+            '<label class="field field--grow">' +
+              '<span class="field__label">Clicer · Precio por letra (' + (corte + 1) + ' letras o más)</span>' +
+              '<input class="field__input" type="number" min="0" step="1" id="p-clicer-largo" value="' + config.precios.clicer.porLetraLargo + '" />' +
+            '</label>' +
+            '<label class="field field--grow">' +
+              '<span class="field__label">Clicer · El precio corto aplica hasta (letras)</span>' +
+              '<input class="field__input" type="number" min="1" step="1" id="p-clicer-corte" value="' + corte + '" />' +
+            '</label>' +
+          '</div>' +
+          '<p class="field__opt">Así, un nombre de ' + corte + ' letras cuesta $' +
+            (config.precios.clicer.porLetraCorto * corte).toFixed(2) + ' y uno de ' + (corte + 1) +
+            ' letras, $' + (config.precios.clicer.porLetraLargo * (corte + 1)).toFixed(2) + '.</p>' +
+          '<p class="form__error" id="precio-error" hidden></p>' +
+          '<div class="form__footer">' +
+            '<button class="btn btn--primary" type="submit">Guardar precios</button>' +
+          '</div>' +
         '</form>' +
-        '<p class="form__error" id="precio-error" hidden></p>' +
       '</section>';
   }
 
@@ -150,17 +172,40 @@
       e.preventDefault();
       var n = Utils.parseNumber(container.querySelector('#p-nombre').value, NaN);
       var na = Utils.parseNumber(container.querySelector('#p-nombreApellido').value, NaN);
+      var clicerCorto = Utils.parseNumber(container.querySelector('#p-clicer-corto').value, NaN);
+      var clicerLargo = Utils.parseNumber(container.querySelector('#p-clicer-largo').value, NaN);
+      var clicerCorte = Utils.parseNumber(container.querySelector('#p-clicer-corte').value, NaN);
 
       if (!isFinite(n) || n < 0) {
-        showError(container, '#precio-error', 'El precio de "Solo nombre" debe ser un número mayor o igual a 0.');
+        showError(container, '#precio-error', 'El precio de "Llavero · Solo nombre" debe ser un número mayor o igual a 0.');
         return;
       }
       if (!isFinite(na) || na < 0) {
-        showError(container, '#precio-error', 'El precio de "Nombre + Apellido" debe ser un número mayor o igual a 0.');
+        showError(container, '#precio-error', 'El precio de "Llavero · Nombre + Apellido" debe ser un número mayor o igual a 0.');
+        return;
+      }
+      if (!isFinite(clicerCorto) || clicerCorto < 0) {
+        showError(container, '#precio-error', 'El precio por letra del clicer (tramo corto) debe ser un número mayor o igual a 0.');
+        return;
+      }
+      if (!isFinite(clicerLargo) || clicerLargo < 0) {
+        showError(container, '#precio-error', 'El precio por letra del clicer (tramo largo) debe ser un número mayor o igual a 0.');
+        return;
+      }
+      if (!isFinite(clicerCorte) || clicerCorte < 1) {
+        showError(container, '#precio-error', 'El corte del clicer debe ser 1 letra o más.');
         return;
       }
 
-      Store.setPrecios({ nombre: n, nombreApellido: na });
+      Store.setPrecios({
+        nombre: n,
+        nombreApellido: na,
+        clicer: {
+          porLetraCorto: clicerCorto,
+          porLetraLargo: clicerLargo,
+          letrasCorte: Math.floor(clicerCorte)
+        }
+      });
       hideError(container, '#precio-error');
       window.App.toast('Precios guardados', 'success');
     });
