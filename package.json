@@ -1,0 +1,12 @@
+{
+  "name": "cubica3d",
+  "private": true,
+  "description": "Cotizador Cubica3D: sitio estático + API en una Netlify Function que habla con Postgres (Neon)",
+  "scripts": {
+    "dev": "netlify dev",
+    "humo": "node api/tools/humo.js"
+  },
+  "dependencies": {
+    "pg": "^8.23.1"
+  }
+}

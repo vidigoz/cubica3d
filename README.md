@@ -151,17 +151,61 @@ Tablero **Kanban** con tres columnas, que son el flujo de trabajo: **Cotización
 
 Todo se guarda en el `localStorage` del navegador (clave `cotizador.config.v1`).
 
+## Datos compartidos (Neon)
+
+La configuración, las cotizaciones enviadas y las posiciones del tablero van a vivir en un
+**Postgres de Neon**, para que todo el equipo vea lo mismo y nada dependa de en qué navegador
+se abrió. El API está en `api/`, se publica como **función de Netlify** (mismo dominio que el
+sitio, así que no hay CORS) y la cadena de conexión con la base vive en las variables de entorno
+del sitio, nunca en el navegador. Su documentación completa —puesta en marcha, despliegue,
+pruebas y migración— está en **[`api/README.md`](api/README.md)**.
+
+| Qué | Hoy (navegador) | Después (Neon) |
+|---|---|---|
+| Colores en stock y precios | `localStorage` | tabla `configuracion` |
+| Cotizaciones enviadas + tablero | `localStorage` | `cotizaciones` + `cotizacion_items` |
+| Folio | `Proceso.siguienteFolio()`, calculado en el navegador | `siguiente_folio()`, en la base |
+| Carrito en armado | `localStorage` | **sigue igual**: es un borrador personal |
+
+- **El folio lo entrega la base**, no el navegador: dos personas cotizando a la vez no pueden
+  repetirlo (hoy sí pueden, porque cada navegador cuenta por su cuenta).
+- **El total y las unidades los recalcula el servidor** al guardar la cotización.
+- **Entrar requiere usuario y contraseña** (`npm run usuario` los crea). Cada tarjeta queda
+  sellada con quién la envió y quién la movió, y hay una **bitácora** de cada movimiento.
+- **"Quitar" es un borrado suave**: la tarjeta sale del tablero pero sus datos quedan
+  guardados, así se puede reportar sobre lo vendido o deshacer un error.
+- **La cadena de conexión a la base nunca llega al navegador**: el frontend sólo habla con el
+  API.
+
+> **Estado:** el API está publicado en Netlify (`https://cubica3d.netlify.app/api`) y habla con el
+> Postgres de Neon usando la cadena de conexión que vive en las variables del sitio; la prueba de
+> humo de punta a punta pasa completa (14/14), más 22 pruebas de comportamiento y 14 contra un
+> Postgres real en memoria. Falta conectar el frontend al API (hoy sigue leyendo del
+> `localStorage`) y migrar lo ya cargado (`tools/respaldo-localstorage.js` + `npm run migrar`):
+> es el paso siguiente.
+
 ## Estructura
 
 ```
 cotizador/
 ├── index.html
 ├── css/styles.css
+├── netlify.toml                 # cómo publica Netlify: el sitio de la raíz + la función `api`
+├── netlify/functions/api.mjs    # envuelto de Netlify: le pasa la petición a api/functions/api.js
+├── package.json                 # `pg`, la dependencia que usa la función desplegada
+├── db/
+│   └── schema.sql               # esquema de la base compartida (Neon), en un solo archivo
+├── api/                         # el API que reemplaza el localStorage compartido
+│   ├── neon.ts                  # (alternativa) declara la función para el CLI de Neon
+│   ├── functions/api.js         # login + configuración + cotizaciones (autocontenido)
+│   ├── tools/                   # schema, usuario, migrar, revisar, servidor local y humo
+│   └── README.md                # puesta en marcha, deploy, pruebas y migración
 ├── icons/
 │   ├── cubica.png              # logo maestro (original del diseñador)
 │   └── cubica-logo.png         # logo optimizado: encabezado, favicon y PDF
 ├── tools/
-│   └── logo.html + logo.js     # regenera icons/cubica-logo.png desde el maestro
+│   ├── logo.html + logo.js     # regenera icons/cubica-logo.png desde el maestro
+│   └── respaldo-localstorage.js # baja un JSON con lo guardado en este navegador
 └── js/
     ├── utils.js                # helpers: uuid, moneda, escape
     ├── store.js                # configuración persistente (localStorage)
@@ -179,6 +223,9 @@ cotizador/
 ## Notas técnicas
 
 - Se usan **scripts clásicos** (no ES modules) para que funcione abriendo el archivo con `file://`.
+- El API vive aparte, en `api/`, con su propio `package.json` (Node) y un envuelto de seis líneas
+  en `netlify/functions/api.mjs` para publicarlo junto al sitio: el frontend **no** ganó
+  dependencias ni pasos de armado. Abrir `index.html` con doble clic sigue funcionando igual.
 - Orden de carga en `index.html`: `utils` → `store` → `cart` → `proceso` → `pdf` → `views` → `app`.
 - El enrutador soporta sub-rutas (`#/productos/llaveros`), así el botón **atrás** del navegador
   funciona; `ALIASES` traduce las rutas viejas (`cotizacion`, `trabajos`) a las nuevas.

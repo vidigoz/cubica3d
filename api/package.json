@@ -1,0 +1,26 @@
+{
+  "name": "cubica3d-api",
+  "private": true,
+  "type": "module",
+  "description": "API del cotizador Cubica3D: una función que habla con Postgres (Neon) y reemplaza el localStorage compartido del negocio",
+  "scripts": {
+    "dev": "neon dev",
+    "deploy": "neon deploy --env .env --update-existing --no-env-pull",
+    "test": "node __api.test.js",
+    "test:db": "node __api.pglite.test.js",
+    "test:db2": "node __migrar.pglite.test.js",
+    "schema": "node tools/aplicar-schema.js",
+    "usuario": "node tools/crear-usuario.js",
+    "migrar": "node tools/migrar.js",
+    "revisar": "node tools/revisar.js",
+    "server": "node tools/servidor-local.js",
+    "humo": "node tools/humo.js"
+  },
+  "dependencies": {
+    "pg": "^8.23.1"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
+    "@neon/config": "^1.8.6"
+  }
+}

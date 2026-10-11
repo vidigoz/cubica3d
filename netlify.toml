@@ -1,0 +1,30 @@
+# Cómo se arma el sitio en Netlify.
+#
+# El frontend es estático y está en la raíz del repo (index.html, css/, js/,
+# icons/): Netlify lo publica tal cual, como lo viene haciendo.
+#
+# El API es una función: netlify/functions/api.mjs, que envuelve el código de
+# api/functions/api.js. La cadena de conexión con Postgres NO vive en el repo:
+# se pega una sola vez en Site configuration -> Environment variables.
+#   DATABASE_URL  la cadena de Neon (la "pooled", la que termina en -pooler)
+#   APP_ORIGEN    dominios autorizados a llamar el API, separados por coma
+#                 ("https://cubica3d.netlify.app,http://localhost:8000")
+# Con el frontend y el API en el mismo dominio no hace falta CORS, pero
+# APP_ORIGEN deja entrar también al servidor local mientras desarrollás.
+
+[build]
+  publish = "."
+  # El sitio no se compila (ya está listo tal cual), pero este comando sí hace
+  # falta: es el paso que instala node_modules, y de ahí Netlify saca `pg` para
+  # empaquetar la función `api`. Sin él, la función arranca pero contesta
+  # "Cannot find package 'pg'".
+  command = "npm install --no-audit --no-fund"
+
+[functions]
+  # Cada archivo de acá se publica como una función. El path público (/api/*)
+  # lo declara la función misma, así que no hay redirects que mantener.
+  directory = "netlify/functions"
+
+[build.environment]
+  # El API usa node:crypto (scrypt) y fetch de Node: hace falta 20 o más.
+  NODE_VERSION = "20"

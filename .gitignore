@@ -5,3 +5,25 @@
 # navegador (baterías, páginas de captura, volcados del DOM).
 __*.html
 __*.js
+__*.mjs
+
+# Credenciales: ningún .env se sube al repositorio, en ninguna carpeta.
+# (El .env trae la cadena de conexión a Postgres con usuario y contraseña.)
+.env
+.env.*
+!.env.example
+api/*.local
+
+# API: dependencias y estado local del CLI.
+# `node_modules` sin barra los cubre a todos (raíz de la función y api/).
+node_modules
+api/.neon
+
+# Estado local del CLI de Netlify (lo crea `netlify link`): no va al repo.
+.netlify
+
+# Respaldos del localStorage (los genera tools/respaldo-localstorage.js) y
+# volcados de la base.
+respaldo*.json
+api/.runtime
+
