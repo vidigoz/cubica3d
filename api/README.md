@@ -203,6 +203,8 @@ del archivo. Si cambiás de rama: `neon link && neon env pull`.
 |---|---|---|
 | `GET` | `/api` | Saludo; sirve para verificar que la función está viva (en local y en Neon también contesta en `/`) |
 | `POST` | `/api/login` | `{ email, password }` → `{ token, usuario }` |
+| `GET` | `/api/pin` | `{ requerido, digitos, aviso }`: si este cotizador pide PIN (lo pregunta la app al abrirse) |
+| `POST` | `/api/pin` | `{ pin }` → `{ ok: true, token, usuario }`; con el PIN mal, `401 { error }`. Con PIN puesto, es la **única** entrada (ver *El PIN*) |
 | `POST` | `/api/acceso` | Sin cuerpo: abre la sesión de la **cuenta del taller** (`ACCESO_EMAIL` o la primera activa) → `{ automatico: true, token, usuario }`; con `ACCESO_LIBRE="false"`, `{ automatico: false, aviso }` |
 | `POST` | `/api/logout` | Invalida el token |
 | `GET` | `/api/bootstrap` | Config + tablero + folio siguiente + quién sos (una sola llamada al abrir la app) |
@@ -213,10 +215,10 @@ del archivo. Si cambiás de rama: `neon link && neon env pull`.
 | `PATCH` | `/api/cotizaciones/:id` | `{ columna }` → mueve la tarjeta (entra arriba del destino) |
 | `DELETE` | `/api/cotizaciones/:id` | Borrado suave: sale del tablero, queda la historia |
 
-Todo menos `/api`, `/api/login` y `/api/acceso` exige `Authorization: Bearer <token>`. Las tres son
-públicas a propósito: son las dos puertas de entrada (`/api/acceso` es la que usa la app, que no tiene
-pantalla de login) y el tercer endpoint no entrega sesión si el dueño del servidor puso
-`ACCESO_LIBRE="false"` en su `.env`.
+Todo menos `/api`, `/api/login`, `/api/pin` y `/api/acceso` exige `Authorization: Bearer <token>`. Las
+cuatro son públicas a propósito: son las puertas de entrada (`/api/pin` y `/api/acceso` son las que usa
+la app, que no tiene pantalla de login) y ninguna entrega sesión si el dueño del servidor puso el PIN
+o `ACCESO_LIBRE="false"` en su `.env`.
 
 ## Cómo se guardan las cosas
 
@@ -245,6 +247,7 @@ ACCESO_LIBRE="true"            # entra sin contraseña (es lo que quiere el tall
 ACCESO_NOMBRE="Victor"
 ACCESO_EMAIL="correo@cubica3d.com"
 ACCESO_CLAVE="una-clave-larga"  # sólo para crear la cuenta: nadie la escribe
+PIN="3008"                      # opcional: 4 dígitos y la página pide el PIN al abrirse (ver abajo)
 
 cd api && npm run acceso        # crea/actualiza esa cuenta en la base (no se toca a mano)
 ```
@@ -264,6 +267,23 @@ cd api && npm run acceso        # crea/actualiza esa cuenta en la base (no se to
   navegador no tiene formulario). El viejo `ACCESO_AUTOMATICO` se sigue leyendo como alias.
 - **No hay botón «Salir»**: como el servidor entra solo, cerrar la sesión no tenía sentido. Para
   cortar el acceso de alguien, desactivá o borrá su cuenta (ver *Tareas de todos los días*).
+
+### El PIN (4 dígitos)
+
+Con `PIN` puesta y con 4 dígitos, el cotizador queda **cerrado con llave**:
+
+- La app pregunta `GET /api/pin` al abrirse y, si la respuesta dice que sí, muestra el **pinpad**
+  (`js/pin.js`). Al **cuarto dígito** se verifica solo —no hay botón de entrar— y, si está bien, el
+  servidor abre la misma sesión de siempre (`POST /api/pin` → token de 30 días, igual que `/api/login`).
+- Con PIN puesto, **`/api/acceso` deja de entregar sesión**: contesta `{ automatico: false, pin: true }`.
+  Si no fuera así, quien conociera la ruta entraría sin escribir nada y el PIN sería un adorno.
+- Los intentos fallidos se cuentan **por instancia**: 5 cada 15 minutos (`429`). Alcanza para que probar
+  los 10.000 números no sea gratis, pero **no es una contraseña**: es una llave de 4 dígitos.
+- Si la variable tiene otra cosa que no sean 4 dígitos (`PIN="casa"`), el cotizador **no se abre** y lo
+  dice en pantalla: mejor eso que quedar abierto creyendo que está protegido. Una variable vacía
+  (`PIN=`) es como no tenerla.
+- El PIN nunca queda escrito en el navegador: se manda una vez y lo que se guarda es el token.
+- Para que la app entre sola otra vez, borrá `PIN` (del `.env` y de las variables del sitio).
 
 ## Pruebas
 

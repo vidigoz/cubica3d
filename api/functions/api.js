@@ -5,6 +5,9 @@
  * El navegador NUNCA ve la cadena de conexión: sólo habla con esta API.
  *
  *   POST   /api/login                 { email, password }          -> { token, usuario }
+ *   GET    /api/pin                                                -> { requerido, digitos }
+ *   POST   /api/pin                   { pin }                      -> { ok:true, token, usuario }
+ *                                                                       o 401 { error }
  *   POST   /api/acceso                (sin cuerpo)                 -> { automatico:true, token, usuario }
  *                                                                       o { automatico:false, aviso }
  *   POST   /api/logout                                               -> { ok }
@@ -20,12 +23,23 @@
  *   PATCH  /api/cotizaciones/:id      { columna }                    -> tarjeta movida
  *   DELETE /api/cotizaciones/:id                                     -> { ok }
  *
- * Rutas públicas: /api (saludo), /api/login y /api/acceso. /api/acceso es el
- * camino normal de entrada: la app no tiene pantalla de login (se sacó a
+ * Rutas públicas: /api (saludo), /api/login, /api/pin y /api/acceso. /api/acceso es
+ * el camino normal de entrada: la app no tiene pantalla de login (se sacó a
  * propósito), así que al abrirse pregunta por acá y el servidor le abre la sesión
  * con la cuenta del taller, SIN correo ni contraseña. Todo lo demás exige
  * `Authorization: Bearer <token>`: el token sigue siendo obligatorio, lo que no
  * hace falta es escribir nada.
+ *
+ * ✔ El PIN (variable PIN del .env). Si PIN tiene 4 dígitos, el cotizador queda
+ *   cerrado con llave: /api/acceso YA NO entrega sesión —contesta
+ *   { automatico:false, pin:true }— y la única entrada es POST /api/pin con los 4
+ *   dígitos. La app pregunta GET /api/pin al abrirse, muestra el pinpad y, al
+ *   cuarto dígito, verifica sola (no hay botón de entrar): si está bien, el
+ *   servidor abre la misma sesión de siempre. Sin PIN —o si la variable no son 4
+ *   dígitos— todo funciona como antes, así que apagarlo es borrar la variable.
+ *   El PIN es una llave de 4 dígitos: frena a quien abre el enlace, no reemplaza
+ *   una contraseña. Los intentos fallidos se cuentan por instancia (5 cada 15
+ *   minutos), así que probar los 10.000 números no es gratis.
  *
  * La cuenta del taller es la de ACCESO_EMAIL en el .env (o, si esa no existe, la
  * primera cuenta activa de la base). Se crea o se actualiza con
@@ -55,6 +69,11 @@ const INTENTOS_MAX = 10;                                   // por correo...
 const INTENTOS_VENTANA_MS = 15 * 60 * 1000;                // ...cada 15 minutos
 const SCRYPT = { N: 16384, r: 8, p: 1, largo: 64, sal: 16 };
 const LIMITE = { cliente: 120, notas: 600, titulo: 120, tipo: 40 };
+const PIN_DIGITOS = 4;                                     // el PIN del taller tiene 4
+const INTENTOS_PIN_MAX = 5;                                // 5 intentos cada 15 minutos
+const CLAVE_PIN = "#pin";                                  // los cuenta acá (no es un correo)
+const AVISO_PIN_ROTO = "El PIN del servidor está mal configurado: tiene que tener " +
+  PIN_DIGITOS + " dígitos (variable PIN).";
 
 /* ------------------------------ Contraseñas ------------------------------ */
 
@@ -96,6 +115,11 @@ const numero = (valor, porDefecto) => {
 };
 const huella = (token) => createHash("sha256").update(token).digest("hex");
 const redondear = (n) => Math.round(n * 100) / 100;
+
+// El PIN se compara por hash (siempre del mismo tamaño) para no delatar ni el
+// largo ni la posición del primer dígito que falla.
+const mismoPin = (candidato, esperado) =>
+  timingSafeEqual(Buffer.from(huella(candidato), "hex"), Buffer.from(huella(esperado), "hex"));
 
 // Como numero(), pero respetando el valor por defecto: si el dato no viene
 // (undefined / null / ""), devuelve el de por defecto en vez de 0.
@@ -189,6 +213,14 @@ export function crearApp(opciones) {
   const accesoLibre = !accesoLibreCrudo || esVerdadero(accesoLibreCrudo);
   const accesoEmail = texto(acceso.email).trim().toLowerCase();
 
+  // PIN del taller (ver el encabezado): se lee acá una sola vez, igual que el
+  // acceso, y por eso el test puede inyectarlo. Sólo vale si son 4 dígitos: si la
+  // variable tiene otra cosa, el cotizador queda cerrado con un aviso que dice qué
+  // arreglar (mejor eso que abrirlo en silencio creyendo que está protegido).
+  const pinCrudo = texto(opciones.pin).trim();
+  const pin = new RegExp("^[0-9]{" + PIN_DIGITOS + "}$").test(pinCrudo) ? pinCrudo : "";
+  const pinRoto = !pin && !!pinCrudo;
+
   function cors(request) {
     const origen = request.headers.get("Origin") || "";
     let permitir = "";
@@ -213,7 +245,7 @@ export function crearApp(opciones) {
   const ok = (cuerpo, cabeceras) => responder(cuerpo || { ok: true }, 200, cabeceras);
   const fallo = (mensaje, estado, cabeceras) => responder({ error: mensaje }, estado || 400, cabeceras);
 
-  function permitirIntento(clave) {
+  function permitirIntento(clave, maximo) {
     const t = ahora().getTime();
     const registro = intentos.get(clave);
     if (!registro || t > registro.hasta) {
@@ -222,7 +254,7 @@ export function crearApp(opciones) {
       return true;
     }
     registro.n += 1;
-    return registro.n <= INTENTOS_MAX;
+    return registro.n <= (maximo || INTENTOS_MAX);
   }
 
   /* --------------------------------- Sesión -------------------------------- */
@@ -400,11 +432,66 @@ export function crearApp(opciones) {
     return rows[0] || null;
   }
 
+  /* ---------------------------------- PIN ---------------------------------- */
+
+  // ¿Este servidor pide PIN? La app lo pregunta al abrirse para saber si muestra
+  // el pinpad o entra sola. Es pública a propósito: no dice nada más que eso.
+  function estadoPin(request, contexto) {
+    return ok({
+      requerido: !!pin || pinRoto,
+      digitos: PIN_DIGITOS,
+      aviso: pinRoto ? AVISO_PIN_ROTO : ""
+    }, contexto.cabeceras);
+  }
+
+  // Entrada con PIN: la app manda los 4 dígitos y, si están bien, acá se abre la
+  // misma sesión de siempre. El PIN vive en el .env del servidor: el navegador no
+  // lo compara ni lo guarda, sólo lo manda una vez (lo que queda guardado es el
+  // token, igual que con cualquier otra entrada).
+  async function verificarPin(request, contexto) {
+    if (pinRoto) {
+      log("[api] " + AVISO_PIN_ROTO);
+      return fallo(AVISO_PIN_ROTO, 500, contexto.cabeceras);
+    }
+    if (!pin) return fallo("Este servidor no pide PIN.", 400, contexto.cabeceras);
+
+    const cuerpo = await leerJson(request);
+    if (!cuerpo) return fallo("Cuerpo JSON inválido", 400, contexto.cabeceras);
+    if (!permitirIntento(CLAVE_PIN, INTENTOS_PIN_MAX)) {
+      return fallo("Demasiados intentos. Probá de nuevo en unos minutos.", 429, contexto.cabeceras);
+    }
+    if (!mismoPin(texto(cuerpo.pin).trim(), pin)) {
+      return fallo("PIN incorrecto.", 401, contexto.cabeceras);
+    }
+
+    intentos.delete(CLAVE_PIN);
+    const usuario = await cuentaDeAcceso();
+    if (!usuario) {
+      log("[api] la base no tiene ninguna cuenta activa: corré «npm run acceso» en api/");
+      return fallo("La base no tiene ninguna cuenta activa: corré «npm run acceso» en api/.",
+        500, contexto.cabeceras);
+    }
+    return ok(Object.assign({ ok: true }, await abrirSesion(usuario)), contexto.cabeceras);
+  }
+
   // La app pide la sesión por acá al abrirse: el servidor la abre sola con la
   // cuenta del taller, sin correo ni contraseña. No hay pantalla de login (se sacó
   // a propósito): si esto no puede entrar, el frontend muestra el motivo y un
   // botón para reintentar, y la única salida es arreglar lo que dice el aviso.
   async function accesoAutomatico(request, contexto) {
+    // Con PIN puesto, por acá no se entra: hay que mandar los 4 dígitos a
+    // POST /api/pin. Se avisa igual (y con 200) para que la app —incluso una
+    // versión vieja en caché— sepa que lo que corresponde es el pinpad.
+    if (pin || pinRoto) {
+      return ok({
+        automatico: false,
+        pin: true,
+        aviso: pinRoto
+          ? AVISO_PIN_ROTO
+          : "El cotizador está protegido con PIN: entrá por POST /api/pin."
+      }, contexto.cabeceras);
+    }
+
     if (!accesoLibre) {
       return ok({
         automatico: false,
@@ -614,6 +701,8 @@ export function crearApp(opciones) {
   const RUTAS = [
     { metodo: "GET",    patron: /^\/(?:api\/?)?$/,                            publica: true, fn: salud },
     { metodo: "POST",   patron: /^\/api\/login$/,                             publica: true, fn: login },
+    { metodo: "GET",    patron: /^\/api\/pin$/,                               publica: true, fn: estadoPin },
+    { metodo: "POST",   patron: /^\/api\/pin$/,                               publica: true, fn: verificarPin },
     { metodo: "POST",   patron: /^\/api\/acceso$/,                            publica: true, fn: accesoAutomatico },
     { metodo: "POST",   patron: /^\/api\/logout$/,                                           fn: logout },
     { metodo: "GET",    patron: /^\/api\/bootstrap$/,                                        fn: bootstrap },
@@ -695,6 +784,9 @@ export function opcionesDeEntorno(query) {
   return {
     query: query,
     origenPermitido: process.env.APP_ORIGEN || "",
+    // El PIN del taller: con 4 dígitos acá, la app queda cerrada con llave (ver
+    // el encabezado). Vacío = entra sola, como siempre.
+    pin: process.env.PIN || "",
     // Entrada de la app: la prende o la apaga el .env del servidor (ver arriba).
     // El navegador no manda nada: sólo pregunta si puede entrar.
     acceso: {

@@ -1047,6 +1047,80 @@ button { font-family: inherit; cursor: pointer; }
 /* Con el aviso de arranque delante, el fondo no se desplaza. */
 body.con-acceso { overflow: hidden; }
 
+/* ---------- El PIN: la pantalla que cierra el cotizador ---------- */
+
+/* Es la misma tarjeta del aviso de arranque (ver .acceso), con los 4 casilleros y
+   el teclado. No hay botón de entrar a propósito: al cuarto dígito se verifica solo
+   (js/pin.js). */
+.acceso--pin .acceso__card { gap: 18px; }
+
+/* Los 4 casilleros: se llenan a medida que se tipean los dígitos. */
+.pin__puntos { display: flex; justify-content: center; gap: 14px; }
+
+.pin__punto {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--border);
+  border-radius: 50%;
+  background: var(--surface-2);
+  transition: background .12s ease, border-color .12s ease, transform .12s ease;
+}
+
+.pin__punto--lleno {
+  border-color: var(--primary);
+  background: var(--primary);
+  transform: scale(1.15);
+}
+
+.pin__teclas {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.pin__tecla {
+  padding: 14px 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 1.3rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.pin__tecla:hover { border-color: var(--primary); background: var(--primary-soft); }
+.pin__tecla:active { transform: translateY(1px); }
+.pin__tecla:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+.pin__tecla--borrar { color: var(--muted); font-size: 1.15rem; }
+
+/* El hueco de la última fila: mantiene el 0 en su lugar sin ser un botón. */
+.pin__tecla--hueco { border: 0; background: none; cursor: default; }
+
+/* Mientras el servidor contesta, el teclado no responde (y se nota apagado). */
+.pin--verificando .pin__tecla { opacity: .5; pointer-events: none; }
+
+/* PIN incorrecto: la tarjeta se sacude (js/pin.js marca la clase 400 ms). */
+.pin--error .acceso__card { animation: pin-sacudida .4s ease; }
+
+@keyframes pin-sacudida {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-8px); }
+  40% { transform: translateX(7px); }
+  60% { transform: translateX(-5px); }
+  80% { transform: translateX(3px); }
+}
+
+/* Con el pinpad delante tampoco se desplaza el fondo. */
+body.con-pin { overflow: hidden; }
+
+@media (prefers-reduced-motion: reduce) {
+  /* La sacudida es sólo un adorno: si el sistema pide menos movimiento, se va. */
+  .pin--error .acceso__card { animation: none; }
+  .pin__punto { transition: none; }
+}
+
 @media (max-width: 620px) {
   /* En el móvil el encabezado se apila: el nombre de la cuenta va junto al carrito. */
   .user-chip { max-width: 110px; }

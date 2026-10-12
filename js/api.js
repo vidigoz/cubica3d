@@ -5,6 +5,8 @@
  * la función que sí tiene la cadena y escribe en Neon.
  *
  *   POST   /login        { email, password } -> { token, usuario }
+ *   GET    /pin                              -> { requerido, digitos }
+ *   POST   /pin          { pin }             -> { token, usuario }
  *   POST   /acceso       (sin cuerpo)        -> { automatico, token?, usuario?, aviso? }
  *   POST   /logout
  *   GET    /bootstrap    -> config + tablero + folio (todo de una sola vez)
@@ -68,7 +70,7 @@
   }
 
   // Petición cruda. `opciones.publica` marca las rutas que no llevan token
-  // (hoy sólo /login), para no tratar su 401 como "sesión vencida".
+  // (hoy /login, /pin y /acceso), para no tratar su 401 como "sesión vencida".
   function pedir(metodo, camino, cuerpo, opciones) {
     opciones = opciones || {};
     var cabeceras = {};
@@ -143,6 +145,32 @@
     return pendiente;
   }
 
+  /* -------------------------------- PIN -------------------------------- */
+
+  // ¿Este cotizador pide PIN? Se pregunta al abrirse: si el servidor dice que sí,
+  // la app muestra el pinpad en vez de entrar sola (ver js/pin.js). Si el servidor
+  // es viejo y la ruta no existe (404), se responde que no para seguir como antes.
+  function pinRequerido() {
+    return pedir('GET', '/pin', undefined, { publica: true })
+      .catch(function (error) {
+        return { requerido: false, aviso: (error && error.estado === 404) ? '' : (error.message || '') };
+      });
+  }
+
+  // Manda los 4 dígitos que se tipearon. Si están bien, el servidor abre la sesión
+  // (la misma de siempre) y el token queda guardado; si no, se devuelve
+  // { ok: false, mensaje } para que el pinpad lo muestre, sin romper nada: el 401
+  // de esta ruta no es "sesión vencida" (es pública a propósito).
+  function verificarPin(pin) {
+    return pedir('POST', '/pin', { pin: pin }, { publica: true })
+      .then(function (datos) {
+        guardarSesion({ token: datos.token, usuario: datos.usuario });
+        return { ok: true, usuario: datos.usuario };
+      }, function (error) {
+        return { ok: false, mensaje: (error && error.message) || '' };
+      });
+  }
+
   function onSesionVencida(fn) {
     avisos.push(fn);
   }
@@ -184,6 +212,8 @@
     usuario: function () { return sesion ? sesion.usuario : null; },
     login: login,
     accesoAutomatico: accesoAutomatico,
+    pinRequerido: pinRequerido,
+    verificarPin: verificarPin,
     logout: logout,
     onSesionVencida: onSesionVencida,
     bootstrap: bootstrap,

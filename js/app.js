@@ -3,13 +3,16 @@
  * Rutas: #/productos, #/productos/llaveros, #/carrito, #/proceso, #/configuracion
  * (Configuración se abre desde el engranito del encabezado, no es una pestaña.)
  *
- * Secuencia de arranque: con sesión guardada se pide /api/bootstrap (que trae de
- * una sola vez la configuración, el tablero y el folio que sigue) y recién
- * entonces se pinta. Sin sesión, se le pide una al servidor (POST /api/acceso):
- * el API entra sola con la cuenta del taller, sin correo ni contraseña (no hay
- * pantalla de login: ver js/acceso.js y el encabezado de api/functions/api.js).
- * Después, cada 15 s se vuelve a preguntar por el tablero: así lo que envía o
- * mueve otro compañero aparece solo.
+ * Secuencia de arranque: primero se le pregunta al servidor si el cotizador pide
+ * PIN (GET /api/pin). Si lo pide, aparece el pinpad (js/pin.js) y no se entra hasta
+ * que los 4 dígitos estén bien; al cuarto dígito se verifica solo (no hay botón de
+ * entrar) y el servidor abre la sesión. Si no pide PIN, se entra sola como siempre:
+ * se le pide una sesión al servidor (POST /api/acceso) y el API la abre con la
+ * cuenta del taller, sin correo ni contraseña (no hay pantalla de login: ver
+ * js/acceso.js y el encabezado de api/functions/api.js).
+ * Con la sesión lista se pide /api/bootstrap (configuración, tablero y folio de una
+ * sola vez) y recién entonces se pinta. Después, cada 15 s se vuelve a preguntar
+ * por el tablero: así lo que envía o mueve otro compañero aparece solo.
  * Se expone como window.App */
 (function () {
   'use strict';
@@ -74,6 +77,9 @@
   function render() {
     // Sin sesión manda la pantalla de acceso: no hay nada que pintar todavía.
     if (!window.Api.haySesion()) return;
+
+    // Y con el pinpad delante tampoco: todavía no se entró.
+    if (window.Pin && window.Pin.visible()) return;
 
     // Las rutas viejas se reescriben antes de pintar (ver normalizarRuta).
     if (normalizarRuta()) return;
@@ -175,6 +181,29 @@
     });
   }
 
+  // Muestra el pinpad: el cotizador no se abre hasta que los 4 dígitos estén bien
+  // (ver js/pin.js). El fondo queda quieto, como con el aviso de arranque.
+  function pedirPin(mensaje) {
+    detenerSondeo();
+    if (!window.Pin) return;    // frontend viejo en caché: no hay pinpad que mostrar
+    window.Pin.mostrar(mensaje || '');
+  }
+
+  // El arranque de verdad: primero se averigua si este cotizador pide PIN. Si lo
+  // pide, se muestra el pinpad y se espera (el servidor no da sesión sin los 4
+  // dígitos); si no, se entra sola como siempre.
+  function arrancar() {
+    // api.js viejo en caché (sin la ruta del PIN): se entra como antes.
+    if (!window.Api.pinRequerido) return entrarSolo('');
+    return window.Api.pinRequerido().then(function (datos) {
+      if (datos && datos.requerido) {
+        pedirPin(datos.aviso || '');
+        return null;
+      }
+      return entrarSolo('');
+    });
+  }
+
   // Trae todo de la base en UNA llamada (config + tablero + folio) y recién ahí
   // pinta. Si el API no contesta, se vuelve al acceso con el motivo a la vista.
   function iniciar() {
@@ -182,6 +211,7 @@
       window.Store.init(datos.config, datos.configActualizada);
       window.Proceso.init(datos);
       window.Acceso.ocultar();
+      if (window.Pin) window.Pin.ocultar();   // si se entró con PIN, se va el pinpad
       pintarUsuario(datos.usuario);
       arrancarSondeo();
       if (!location.hash) location.hash = '#/' + DEFAULT_ROUTE;
@@ -214,10 +244,11 @@
     });
   }
 
-  // Si el servidor dice que la sesión venció (o borraron la cuenta), se pide una
-  // nueva y se sigue: acá no hay nada que escribir.
+  // Si el servidor dice que la sesión venció (o borraron la cuenta), se vuelve a
+  // arrancar: con PIN puesto lo va a pedir de nuevo, y sin PIN se pide una sesión
+  // nueva sin que haya nada que escribir.
   window.Api.onSesionVencida(function () {
-    entrarSolo('');
+    arrancar();
   });
 
   window.addEventListener('hashchange', render);
@@ -231,20 +262,27 @@
     parseHash: parseHash,
     ALIASES: ALIASES,
     iniciar: iniciar,
-    entrarSolo: entrarSolo
+    entrarSolo: entrarSolo,
+    arrancar: arrancar
   };
 
   // El carrito es un borrador local: se muestra en el chip aunque todavía no se
   // haya entrado, así al entrar ya está todo a la vista.
   refreshCartChip();
 
-  // Arranque: con sesión guardada se entra directo; sin sesión (o si venció) el
-  // servidor abre una nueva. Acá no hay formularios: `Acceso.init` sólo conecta el
-  // botón «Reintentar» del aviso con este mismo arranque.
-  window.Acceso.init(function () { entrarSolo(''); });
-  if (window.Api.haySesion()) {
-    iniciar();
-  } else {
-    entrarSolo('');
+  // Arranque. `Acceso.init` conecta el «Reintentar» del aviso con este mismo
+  // arranque, y `Pin.init` deja el pinpad listo: cuando los 4 dígitos están bien,
+  // el servidor ya abrió la sesión y sólo hay que entrar (el pinpad se oculta solo
+  // antes de avisar). Si el cotizador no pide PIN, todo esto se saltea y se entra
+  // sola, como siempre.
+  window.Acceso.init(arrancar);
+  // `Pin` puede faltar si el navegador quedó con una mezcla vieja en caché: sin él
+  // no hay pinpad, pero la app no se rompe (y el servidor no da sesión igual).
+  if (window.Pin) {
+    window.Pin.init({
+      verificar: function (pin) { return window.Api.verificarPin(pin); },
+      alEntrar: function () { iniciar(); }
+    });
   }
+  arrancar();
 })();

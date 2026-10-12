@@ -287,9 +287,19 @@ nueva. `ACCESO_CLAVE` en `api/.env` sirve sólo para crearla (en Postgres queda 
 Si algo impide entrar (servidor apagado, base sin cuentas), la app muestra un aviso con el motivo y
 un botón **Reintentar**; nunca pide credenciales.
 
+**El PIN (opcional):** con `PIN="3008"` en `api/.env` —o en las variables del sitio— la página queda
+cerrada con llave. Al abrirla aparece un **pinpad** y al **cuarto dígito** se verifica solo: no hay
+botón de entrar ni campo de contraseña. Con PIN puesto, `/api/acceso` ya no entrega sesión (contesta
+`{ automatico: false, pin: true }`), así que la única puerta es `POST /api/pin`, y el servidor abre la
+misma sesión de treinta días de siempre. Son 10.000 números: **es una llave, no una contraseña**
+(los intentos fallidos se cuentan de a 5 cada 15 minutos por instancia). Si la variable tiene otra cosa
+que no sean 4 dígitos, el cotizador no se abre y lo dice en pantalla; sin la variable, entra sola como
+antes.
+
 > **Ojo con el sitio desplegado:** el `.env` es sólo para tu máquina; en Netlify estas variables van
 > en *Site configuration → Environment variables*. Y como el acceso ya no pide nada, **cualquiera
-> que tenga el enlace del sitio entra**: para cerrarlo, `ACCESO_LIBRE="false"`. Ahí `/api/acceso` no
+> que tenga el enlace del sitio entra** (salvo que pongas el `PIN`): para cerrarlo del todo,
+> `ACCESO_LIBRE="false"`. Ahí `/api/acceso` no
 > entrega sesión y la única puerta es `POST /api/login` (correo + contraseña), pensada para
 > herramientas y scripts.
 
@@ -338,6 +348,7 @@ cotizador/
     ├── proceso.js              # tablero Kanban: tarjetas congeladas (por el API)
     ├── pdf.js                  # plantilla A4 de la cotización y de la PO + visor + impresión/PDF
     ├── acceso.js               # aviso de arranque: entra sola, y si no puede, dice por qué
+    ├── pin.js                  # la pantalla del PIN: se verifica al cuarto dígito (sin botón)
     ├── views/
     │   ├── productos.js        # menú de productos + formularios Llaveros y Clicker + carrito
     │   ├── carrito.js          # desglose: cantidades, datos, vista previa A4 y envío al tablero
@@ -353,7 +364,7 @@ cotizador/
   en `netlify/functions/api.mjs` para publicarlo junto al sitio: el frontend **no** ganó
   dependencias ni pasos de armado. Abrir `index.html` con doble clic sigue funcionando igual.
 - Orden de carga en `index.html`: `utils` → `api` → `store` → `clicer` → `po` → `cart` → `proceso`
-  → `pdf` → `acceso` → `views` → `app`.
+  → `pdf` → `acceso` → `pin` → `views` → `app`.
 - El enrutador soporta sub-rutas (`#/productos/llaveros`, `#/productos/clicers`), así el botón **atrás**
   del navegador funciona; `ALIASES` traduce las rutas viejas (`cotizacion`, `trabajos`) a las nuevas.
 - `Cart.setMeta()` **no** avisa a los suscriptores a propósito: son datos de cabecera, no líneas del

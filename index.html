@@ -47,6 +47,45 @@
     </div>
   </section>
 
+  <!-- El PIN: el cotizador no se abre hasta que los 4 dígitos estén bien. El PIN
+       vive en el servidor (variable PIN del api/.env), así que acá no hay nada que
+       comparar: se juntan los 4 dígitos y se mandan al API. Por eso NO hay botón de
+       entrar: al cuarto dígito se verifica solo (js/pin.js). El «⌫» es para
+       corregir un dígito antes de llegar al cuarto. -->
+  <section class="acceso acceso--pin" id="pin" hidden aria-labelledby="pin-titulo">
+    <div class="acceso__card">
+      <img class="acceso__logo" src="icons/cubica-logo.png" alt="" width="56" height="56" />
+      <h2 class="acceso__title" id="pin-titulo">Cotizador Cubica3D</h2>
+      <p class="acceso__hint">Escribí el PIN de 4 dígitos para entrar.</p>
+
+      <div class="pin__puntos" id="pin-puntos" role="status" aria-live="polite"
+        aria-label="Dígitos del PIN escritos">
+        <span class="pin__punto" data-punto="1"></span>
+        <span class="pin__punto" data-punto="2"></span>
+        <span class="pin__punto" data-punto="3"></span>
+        <span class="pin__punto" data-punto="4"></span>
+      </div>
+
+      <div class="pin__teclas" id="pin-teclas" role="group" aria-label="Teclado del PIN">
+        <button class="pin__tecla" type="button" data-digito="1">1</button>
+        <button class="pin__tecla" type="button" data-digito="2">2</button>
+        <button class="pin__tecla" type="button" data-digito="3">3</button>
+        <button class="pin__tecla" type="button" data-digito="4">4</button>
+        <button class="pin__tecla" type="button" data-digito="5">5</button>
+        <button class="pin__tecla" type="button" data-digito="6">6</button>
+        <button class="pin__tecla" type="button" data-digito="7">7</button>
+        <button class="pin__tecla" type="button" data-digito="8">8</button>
+        <button class="pin__tecla" type="button" data-digito="9">9</button>
+        <button class="pin__tecla pin__tecla--borrar" type="button" data-borrar="1"
+          aria-label="Borrar el último dígito">⌫</button>
+        <button class="pin__tecla" type="button" data-digito="0">0</button>
+        <span class="pin__tecla pin__tecla--hueco" aria-hidden="true"></span>
+      </div>
+
+      <p class="acceso__error" id="pin-error" hidden></p>
+    </div>
+  </section>
+
   <main class="app-main" id="view"></main>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
@@ -56,7 +95,8 @@
   <div id="print-root" aria-hidden="true"></div>
 
   <!-- Orden importante: utils -> api -> store -> clicer -> cart -> proceso -> pdf
-       -> acceso -> vistas -> app (clicer.js = producto «Clicker de Nombre») -->
+       -> acceso -> pin -> vistas -> app (clicer.js = producto «Clicker de Nombre»,
+       pin.js = la pantalla del PIN de entrada) -->
   <script src="js/utils.js"></script>
   <script src="js/api.js"></script>
   <script src="js/store.js"></script>
@@ -66,6 +106,7 @@
   <script src="js/proceso.js"></script>
   <script src="js/pdf.js"></script>
   <script src="js/acceso.js"></script>
+  <script src="js/pin.js"></script>
   <script src="js/views/productos.js"></script>
   <script src="js/views/carrito.js"></script>
   <script src="js/views/proceso.js"></script>
