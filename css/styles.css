@@ -346,6 +346,15 @@ button { font-family: inherit; cursor: pointer; }
 }
 .tecla .field__row { gap: 6px; }
 .tecla .field__input { width: 100%; min-width: 0; padding: 6px 8px; font-size: .85rem; }
+/* La fila del símbolo: en la columna de la letra no va una letra sino su nombre
+   escrito a mano («estrella»), así que esa columna crece para que se lea entero. */
+.tecla--simbolo { grid-template-columns: minmax(74px, 130px) repeat(4, minmax(0, 1fr)); }
+.tecla__letra--simbolo {
+  font-size: .76rem;
+  line-height: 1.2;
+  word-break: break-word;
+  color: var(--muted);
+}
 
 /* ---------- Cotización actual ---------- */
 .cart__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
@@ -955,6 +964,7 @@ button { font-family: inherit; cursor: pointer; }
 
   /* El clicker en el móvil: la letra arriba y sus cuatro piezas en dos columnas. */
   .tecla { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tecla--simbolo { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .tecla__letra { grid-column: 1 / -1; padding-bottom: 0; text-align: left; }
   .app-header { justify-content: center; }
   .tabs { width: 100%; justify-content: center; }

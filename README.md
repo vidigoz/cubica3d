@@ -98,26 +98,37 @@ de Productos, así que esa pestaña sigue activa.
 
 ### Producto "Clicker de Nombre"
 
-Cada **letra** del nombre lleva **tres piezas**: la **base** (color + acabado **Corrugado** o **Liso**),
-la **tecla** y la **letra** impresa. Las tres se eligen de los colores en stock y se pueden poner
-**iguales para todo el nombre** o **letra por letra**.
+Cada **letra** del nombre —y el **símbolo**, si lo hay, que es una más— lleva **tres piezas**: la
+**base** (color + acabado **Corrugado** o **Liso**), la **tecla** y la **letra** impresa. Las tres se
+eligen de los colores en stock y se pueden poner **iguales para todo el nombre** o **letra por letra**.
 
 - Campo **Nombre** (obligatorio): una sola palabra, sólo letras (acentos y Ñ incluidos). Con cada
   letra que escribes aparece **una fila nueva** debajo (base + acabado + tecla + letra de esa letra),
   así se ve enseguida en cuántas se va.
+- Campo **Símbolo** (opcional): para los nombres que llevan una **estrella**, un **corazón**, un
+  **logo**… Se escribe **tal cual** («estrella») y **no se mapea** a ningún carácter: se fabrica como
+  se lee. Cuenta como **una letra más** («Ana» + símbolo se cotiza como **4 letras**) y abajo sale su
+  **propia fila** (marcada con ◆), con sus mismas tres piezas, así que se le puede dar su color igual
+  que a cualquier letra. Máximo **24 caracteres**; no admite el `·` (se cambia por un espacio) porque
+  es el que separa el carácter de la pieza en los rótulos (`estrella · Base`). El título de la línea
+  en el carrito queda «ANA + estrella», para reconocerla de un vistazo.
 - **Menús «de todas»** (arriba): *Base · Acabado de todas*, *Base · Color de todas*,
   *Tecla · Color de todas* y *Letra · Color de todas*. Con eso queda el nombre entero igual de una
   vez; al mover cualquiera de los cuatro, todas las letras vuelven a seguir ese menú.
 - **Letra por letra** (abajo): cada fila tiene los cuatro menús de su letra, así se cambia sólo la
   que quieras sin tocar las demás. Lo elegido se conserva al seguir escribiendo el nombre (y se
-  recorta si borras letras). La muestra de color se actualiza al instante.
-- **Precio por letra**, con dos tramos (se configuran en *Configuración → Precios*, ver abajo):
+  recorta si borras letras). La muestra de color se actualiza al instante. La fila del **símbolo** sale
+  marcada con ◆ y funciona igual que las de las letras (base, acabado, tecla y letra del símbolo).
+- **Precio por letra** —el símbolo cuenta como **una letra más**—, con dos tramos (se configuran en
+  *Configuración → Precios*, ver abajo):
   - Hasta *N* letras (por defecto **5**) → precio **por letra corto**.
   - De *N+1* letras en adelante → precio **por letra largo**.
   - Debajo del precio se ve la cuenta (`6 letras × $30.00 (precio de 6 letras o más)`).
-- Botón **Agregar al carrito** → entra con **cantidad 1** y un **desglose completo** (por cada letra:
-  `A · Base`, `A · Tecla`, `A · Letra`, cada pieza con su color y la base con su acabado), que es lo
-  que viaja al carrito, al PDF y al tablero: con eso se fabrica sin tener que preguntar nada.
+- Botón **Agregar al carrito** → entra con **cantidad 1** y un **desglose completo** (por cada letra
+  —y el símbolo—: `A · Base`, `A · Tecla`, `A · Letra`, `estrella · Base`…, cada pieza con su color y
+  la base con su acabado), que es lo que viaja al carrito, al PDF y al tablero: con eso se fabrica sin
+  tener que preguntar nada. En la **orden de producción** el símbolo aparece como su propia forma
+  (`estrella ×1`) dentro de su tanda, así el taller sabe que tiene que imprimir esa pieza.
 
 ## Carrito de cotización
 
@@ -321,7 +332,7 @@ cotizador/
     ├── utils.js                # helpers: uuid, moneda, escape
     ├── api.js                  # cliente del API: la única puerta del navegador hacia la base
     ├── store.js                # configuración del negocio: colores en stock y precios (por el API)
-    ├── clicer.js               # producto Clicker de Nombre: letras, piezas por letra, precio y desglose
+    ├── clicer.js               # producto Clicker de Nombre: letras (y símbolo), piezas por letra, precio y desglose
     ├── po.js                   # orden de producción: agrupa lo vendido en tandas por color y orden
     ├── cart.js                 # carrito + datos de la cotización (borrador de este navegador)
     ├── proceso.js              # tablero Kanban: tarjetas congeladas (por el API)

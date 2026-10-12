@@ -5,6 +5,10 @@
  *   · la base  — color + acabado (Corrugado o Liso),
  *   · la tecla — color,
  *   · la letra — color de la letra impresa.
+ * A la última letra del nombre se le puede sumar UN símbolo escrito a mano
+ * («estrella», «corazón»…): es una tecla más —lleva sus tres piezas y cuenta
+ * como una letra en el precio— pero NO se mapea a ningún carácter, se fabrica
+ * tal como se lee (ver simboloDe).
  * Todo se puede poner igual para el nombre entero (los menús «todas») o letra
  * por letra. El precio sale de la configuración del negocio (Configuración →
  * Precios), por letra, con dos tramos: el corto hasta `letrasCorte` letras y el
@@ -21,6 +25,13 @@
   // Una sola palabra y sólo letras (acentos y Ñ incluidos): es lo que se puede
   // imprimir como tecla. Espacios, números y signos no son teclas.
   var SOLO_LETRAS = /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+$/;
+
+  // El símbolo es la tecla que se escribe a mano («estrella», «corazón», «logo»):
+  // no se mapea a ningún carácter, así que no tiene que ser una letra. Sólo se
+  // limpia —se le saca el · (que separa el carácter de la pieza en los rótulos)
+  // y se enderezan los espacios— y se acota el largo para que el rótulo y el
+  // título de la línea entren en los límites del API.
+  var SIMBOLO_MAX = 24;
 
   // Acabados de la base. Son del producto (no se cotizan distinto); el color sí
   // sale del stock de colores y se elige al cotizar.
@@ -53,20 +64,62 @@
     return null;
   }
 
+  // El símbolo tal como se va a fabricar: '' si no escribieron ninguno.
+  //   simboloDe('  Estrella  ') -> { ok: true, texto: 'Estrella' }
+  //   simboloDe('')            -> { ok: true, texto: '' }   (sin símbolo)
+  //   simboloDe('a · b')       -> { ok: true, texto: 'a b' } (el · es del rótulo)
+  function simboloDe(valor) {
+    var limpio = String(valor == null ? '' : valor)
+      .replace(/[\u00b7·]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (!limpio) return { ok: true, texto: '', error: '' };
+    if (limpio.length > SIMBOLO_MAX) {
+      return {
+        ok: false,
+        texto: '',
+        error: 'El símbolo no puede pasar de ' + SIMBOLO_MAX + ' caracteres.'
+      };
+    }
+    return { ok: true, texto: limpio, error: '' };
+  }
+
   // "Victor" -> { ok: true, nombre: "Victor", letras: ["V","I","C","T","O","R"] }
-  // Si el nombre no sirve, devuelve ok:false con el motivo ya en castellano.
-  function letrasDe(nombre) {
+  // Con símbolo, la última «letra» es el símbolo escrito a mano, así que el
+  // nombre y el precio lo cuentan como una más:
+  //   letrasDe("Ana", "estrella") -> letras ["A","N","A","estrella"], 4 letras
+  // `indiceSimbolo` dice cuál es (-1 cuando no hay), que es lo que la vista usa
+  // para marcar esa fila. Si el nombre no sirve, devuelve ok:false con el motivo
+  // ya en castellano.
+  function letrasDe(nombre, simbolo) {
     var limpio = Utils.normalize(nombre);
-    if (!limpio) return { ok: false, error: 'Escribe el nombre.', nombre: '', letras: [] };
+    var sim = simboloDe(simbolo);
+    if (!sim.ok) return { ok: false, error: sim.error, nombre: '', letras: [], simbolo: '', indiceSimbolo: -1 };
+    if (!limpio) return { ok: false, error: 'Escribe el nombre.', nombre: '', letras: [], simbolo: '', indiceSimbolo: -1 };
     if (!SOLO_LETRAS.test(limpio)) {
       return {
         ok: false,
         error: 'El nombre tiene que ser una sola palabra, sólo con letras (sin espacios, números ni signos).',
         nombre: '',
-        letras: []
+        letras: [],
+        simbolo: '',
+        indiceSimbolo: -1
       };
     }
-    return { ok: true, error: '', nombre: limpio, letras: limpio.toUpperCase().split('') };
+    var letras = limpio.toUpperCase().split('');
+    var indiceSimbolo = -1;
+    if (sim.texto) {
+      indiceSimbolo = letras.length;
+      letras.push(sim.texto);
+    }
+    return {
+      ok: true,
+      error: '',
+      nombre: limpio,
+      letras: letras,
+      simbolo: sim.texto,
+      indiceSimbolo: indiceSimbolo
+    };
   }
 
   // Los precios del clicer tal como quedaron en Configuración.
@@ -134,8 +187,9 @@
   }
 
   // Desglose que viaja al carrito, al tablero y al PDF: por CADA letra del
-  // nombre, sus tres piezas con su color (y la base con su acabado). Va completo
-  // porque es lo que se necesita para fabricar sin preguntar nada.
+  // nombre —y el símbolo, si lo hay, que entra como una letra más— sus tres
+  // piezas con su color (y la base con su acabado). Va completo porque es lo que
+  // se necesita para fabricar sin preguntar nada.
   function detallesDe(piezas) {
     var lista = [];
     (piezas || []).forEach(function (p) {
@@ -164,9 +218,11 @@
     ACABADOS: acabados(),
     PIEZAS: PIEZAS.map(function (p) { return { id: p.id, nombre: p.nombre }; }),
     PRECIOS_POR_DEFECTO: PRECIOS_POR_DEFECTO,
+    SIMBOLO_MAX: SIMBOLO_MAX,
     acabados: acabados,
     buscarAcabado: buscarAcabado,
     letrasDe: letrasDe,
+    simboloDe: simboloDe,
     alinear: alinear,
     piezasDe: piezasDe,
     preciosDe: preciosDe,
