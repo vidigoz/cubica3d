@@ -580,7 +580,18 @@ button { font-family: inherit; cursor: pointer; }
 .btn-mover:disabled { opacity: .35; cursor: not-allowed; }
 /* min-width:0 deja que un nombre largo de columna se recorte con puntos suspensivos */
 .btn-mover__texto { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tarjeta__iconos { display: flex; gap: 6px; margin-left: auto; }
+/* El grupo de iconos (Ensamble, PO, Ver, 🖨, ✕), pegado al borde derecho de la
+   tarjeta. Puede envolver: en el tablero de cuatro columnas la tarjeta mide 192px
+   y los cinco botones juntos necesitan ~254px, así que sin `wrap` los últimos
+   (🖨 y ✕) se salían del recuadro y quedaban pintados encima de la columna
+   vecina. Ahora el que no entra baja a un segundo renglón, alineado a la derecha. */
+.tarjeta__iconos {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-left: auto;
+}
 /* Botón «Ver» de la tarjeta: abre la cotización completa en pantalla. Va con
    los iconos, pero con texto, porque en el móvil no hay tooltip que valga. */
 .btn-ver {
