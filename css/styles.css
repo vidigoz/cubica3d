@@ -457,7 +457,7 @@ button { font-family: inherit; cursor: pointer; }
 /* ---------- Proceso: tablero kanban (#/proceso) ---------- */
 .kanban {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 14px;
   align-items: start;
 }
@@ -502,6 +502,7 @@ button { font-family: inherit; cursor: pointer; }
 .tarjeta:hover { border-color: var(--primary); }
 .tarjeta:focus-visible { outline: 3px solid var(--primary-soft); outline-offset: 1px; }
 .tarjeta--realizado { border-left-color: #15803d; }
+.tarjeta--entregado { border-left-color: #0f766e; }
 
 .tarjeta__top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
 .tarjeta__folio {
@@ -512,6 +513,21 @@ button { font-family: inherit; cursor: pointer; }
   color: var(--muted);
 }
 .tarjeta__total { font-weight: 800; color: var(--primary); white-space: nowrap; }
+/* El tilde del pago: debajo del importe, chico y a la izquierda. Se tilda solo al
+   entrar a «Entregado» y se puede destildar (a veces se cobra después). */
+.tarjeta__pagado {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  min-height: 24px;
+  font-size: .76rem;
+  font-weight: 700;
+  color: var(--muted);
+  cursor: pointer;
+}
+.tarjeta__pagado input { width: 15px; height: 15px; accent-color: #15803d; cursor: pointer; }
+.tarjeta--pagado .tarjeta__pagado { color: #15803d; }
 .tarjeta__cliente { font-weight: 700; }
 .tarjeta__sin-cliente { font-weight: 400; font-style: italic; color: var(--muted); }
 .tarjeta__meta { font-size: .78rem; color: var(--muted); }
@@ -596,6 +612,27 @@ button { font-family: inherit; cursor: pointer; }
 }
 .btn-po:hover { background: var(--primary); border-color: var(--primary); }
 
+/* Botón «Ensamble»: la receta de armado, letra por letra. Sólo aparece en las
+   tarjetas de «Realizado» (ver tarjetaTemplate), de ahí el verde que ya usa esa
+   columna en la pestaña izquierda de la tarjeta. */
+.btn-ensamble {
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  padding: 0 9px;
+  border: 1px solid #15803d;
+  border-radius: 8px;
+  background: #15803d;
+  color: #fff;
+  font: inherit;
+  font-size: .72rem;
+  font-weight: 800;
+  letter-spacing: .04em;
+  touch-action: manipulation;
+  transition: all .15s ease;
+}
+.btn-ensamble:hover { background: #166534; border-color: #166534; }
+
 /* Resumen de la orden de producción en la tarjeta (qué hay que fabricar). */
 .tarjeta__po {
   margin-top: 2px;
@@ -629,12 +666,63 @@ button { font-family: inherit; cursor: pointer; }
 .t-linea__nombre { font-weight: 700; }
 .t-linea__precio { font-weight: 700; white-space: nowrap; }
 
+/* ---------- Lotes del taller: qué imprimir, en corto ----------
+   Las mismas tandas de la orden de producción, dentro de la tarjeta: la
+   cantidad, los colores (con su bolita) y qué letras lleva cada tanda. No sale
+   en «Cotización»: ahí todavía no hay nada que fabricar (ver lotesTemplate). */
+.t-lotes {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border);
+}
+.t-lotes__sec {
+  margin-top: 8px;
+  font-size: .68rem;
+  font-weight: 800;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: var(--primary-dark);
+}
+.t-lotes__nota { margin-top: 2px; font-size: .7rem; color: var(--muted); }
+.t-lote-lista { display: flex; flex-direction: column; margin-top: 4px; }
+.t-lote {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 3px 0;
+  border-bottom: 1px solid var(--border);
+}
+.t-lote:last-child { border-bottom: 0; }
+.t-lote__cant {
+  flex: 0 0 26px;
+  text-align: right;
+  font-weight: 800;
+  color: var(--primary);
+  white-space: nowrap;
+}
+.t-lote__piezas {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  min-width: 0;
+}
+.t-lote__lleva { font-size: .7rem; color: var(--muted); letter-spacing: .02em; }
+.t-lotes__total { margin-top: 8px; font-size: .7rem; color: var(--muted); }
+
 .doc-preview {
   overflow-x: auto;
   padding: 10px;
   border-radius: var(--radius-sm);
   background: var(--surface-2);
 }
+
+/* La vista previa del carrito encoge la hoja para que entre a lo ancho (ver
+   PDF.encajarHoja): el marco reserva el hueco ya encogido y la hoja se achica
+   desde su esquina. Así se ve entera en el móvil, sin arrastrar de costado. */
+.doc-preview__marco { position: relative; margin: 0 auto; }
+.doc-preview__hoja { position: absolute; top: 0; left: 0; transform-origin: 0 0; }
 
 /* ---------- La hoja: documento A4 (se imprime tal cual se ve) ----------
    Todo lo visual de la cotización se define aquí. Las reglas de impresión solo
@@ -892,6 +980,107 @@ button { font-family: inherit; cursor: pointer; }
 }
 .visor__pista { display: none; }
 
+/* ---------- Ventana del ensamble ----------
+   La receta de armado, letra por letra, sólo en «Realizado». Mismo molde que el
+   visor: ventana propia sobre fondo oscuro, se cierra con Esc o con un clic
+   afuera. La tabla lleva cinco columnas —letra, color de base, estilo de base,
+   color de la tecla y color de la letra—; si no caben a lo ancho, el bloque se
+   corre para el costado (en el móvil es lo normal). */
+.ensamble {
+  width: min(820px, 96vw);
+  max-width: none;
+  max-height: 90vh;
+  margin: auto;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.ensamble[open] { display: flex; flex-direction: column; }
+.ensamble::backdrop { background: rgba(15, 23, 42, .55); }
+.ensamble__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.ensamble__title { margin: 0; font-size: 1rem; font-weight: 800; }
+.ensamble__meta { margin: 0; font-size: .8rem; color: var(--muted); }
+.ensamble__cerrar { margin-left: auto; }
+.ensamble__lienzo {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--surface-2);
+}
+.ensamble__bloque {
+  overflow-x: auto;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+.ensamble__nombre { margin: 0; font-size: .95rem; font-weight: 800; }
+.ensamble__cant {
+  margin-left: 8px;
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .02em;
+  color: var(--muted);
+}
+.ensamble__nota { margin: 2px 0 8px; font-size: .72rem; color: var(--muted); }
+.ensamble__tabla {
+  width: 100%;
+  min-width: 460px;
+  border-collapse: collapse;
+  font-size: .8rem;
+}
+.ensamble__tabla th {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  font-size: .66rem;
+  font-weight: 800;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: var(--primary-dark);
+  white-space: nowrap;
+}
+.ensamble__tabla td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+.ensamble__tabla tr:last-child td { border-bottom: 0; }
+.ensamble__letra { font-size: 1rem; font-weight: 800; white-space: nowrap; }
+.ensamble__simbolo {
+  margin-left: 4px;
+  font-size: .6rem;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.ensamble__vacio { color: var(--muted); }
+.ensamble__cant-cel { font-weight: 800; color: var(--primary); }
+.ensamble__titulos { display: block; margin-top: 2px; font-size: .72rem; color: var(--muted); }
+.ensamble__pie {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: flex-end;
+  padding: 10px 14px;
+  border-top: 1px solid var(--border);
+}
+
 /* ---------- Impresión: solo la hoja de la cotización ----------
    Dos caminos:
    1) PDF.imprimir() deja la hoja lista en #print-root y marca body.app-print:
@@ -921,8 +1110,15 @@ button { font-family: inherit; cursor: pointer; }
   body:not(.app-print) .panel--doc .cart__head { display: none; }
   body:not(.app-print) .doc-preview { padding: 0; overflow: visible; background: none; }
 
-  /* El visor nunca sale en el papel: lo que se imprime es #print-root. */
-  .visor { display: none !important; }
+  /* En pantalla la vista previa va encogida para entrar a lo ancho (ver
+     PDF.encajarHoja): en el papel la hoja vuelve a su tamaño real. */
+  body:not(.app-print) .doc-preview__marco { width: auto !important; height: auto !important; }
+  body:not(.app-print) .doc-preview__marco > * { position: static; transform: none !important; }
+
+  /* El visor y la ventana del ensamble nunca salen en el papel: lo que se
+     imprime es #print-root. */
+  .visor,
+  .ensamble { display: none !important; }
 
   .hoja {
     width: auto;
@@ -956,6 +1152,9 @@ button { font-family: inherit; cursor: pointer; }
   .btn-mover { min-height: 44px; font-size: .84rem; }
   .btn-ver { height: 40px; padding: 0 12px; font-size: .8rem; }
   .btn-po { height: 40px; padding: 0 14px; font-size: .8rem; }
+  .btn-ensamble { height: 40px; padding: 0 14px; font-size: .8rem; }
+  .tarjeta__pagado { min-height: 36px; font-size: .84rem; }
+  .tarjeta__pagado input { width: 20px; height: 20px; }
   .tarjeta__acciones { gap: 10px; }
 }
 
@@ -976,10 +1175,55 @@ button { font-family: inherit; cursor: pointer; }
   .q-table { font-size: .82rem; }
   .q-table td { padding: 10px 6px; }
 
+  /* El ensamble: la tabla de cinco columnas no entra a lo ancho (el color de la
+     letra quedaba fuera y había que arrastrar). En el móvil cada letra pasa a
+     ser un bloque con sus cuatro datos, cada uno con su rótulo (data-campo). */
+  .ensamble__tabla { min-width: 0; }
+  .ensamble__tabla thead { display: none; }
+  .ensamble__tabla tbody { display: block; }
+  .ensamble__tabla tr {
+    display: grid;
+    grid-template-columns: 2.6rem minmax(0, 1fr);
+    column-gap: 10px;
+    padding: 9px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .ensamble__tabla tr:last-child { border-bottom: 0; }
+  .ensamble__tabla td { display: block; padding: 0; border: 0; }
+  .ensamble__letra { grid-row: span 4; align-self: start; }
+  .ensamble__cant-cel { grid-row: span 2; align-self: start; }
+  .ensamble__tabla td[data-campo]::before {
+    content: attr(data-campo) ': ';
+    font-size: .66rem;
+    font-weight: 800;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: var(--primary-dark);
+  }
+
   /* En el móvil el visor pone los botones uno debajo de otro, a lo ancho. */
   .visor__pie { flex-direction: column-reverse; align-items: stretch; }
   .visor__pie .btn { width: 100%; }
   .visor__pista { display: block; margin: 0; text-align: center; font-size: .78rem; color: var(--muted); }
+}
+
+/* Teléfonos: la tabla de productos del carrito pedía un mínimo de ~380px y
+   estiraba la página (había que arrastrar de costado). Dos cosas: el precio
+   unitario se esconde —es el dato que menos se usa al armar el carrito en el
+   teléfono, y sigue estando en la vista previa A4, en la PO y en el PDF— y las
+   etiquetas pueden romper de línea. Con eso el nombre del producto y las
+   etiquetas de color entran enteros. */
+@media (max-width: 480px) {
+  .q-table { font-size: .78rem; }
+  .q-table th, .q-table td { padding: 8px 4px; }
+  .qty__value { min-width: 20px; }
+  .q-table thead th:nth-child(3),
+  .q-table tbody td:nth-child(3) { display: none; }
+  .q-table .cart-line__type,
+  .q-table .meta-tag { overflow-wrap: anywhere; }
+  /* Las dos etiquetas de color de una línea van seguidas y con menos aire: en un
+     teléfono chico la segunda entraba cortada a media palabra. */
+  .q-table .cart-line__meta { gap: 6px; font-size: .74rem; }
 }
 
 

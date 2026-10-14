@@ -185,9 +185,9 @@ async function principal() {
   const columnas = Proceso.COLUMNAS.map((c) => Proceso.getTarjetas(c.id));
   const total = Proceso.getTarjetas().length;
   afirmar(columnas.reduce((suma, lista) => suma + lista.length, 0) === total,
-    "las tres columnas suman el tablero entero (" + total + " tarjeta/s)");
+    "las cuatro columnas suman el tablero entero (" + total + " tarjeta/s)");
   afirmar(columnas.every((lista, i) => lista.every((t) => t.columna === Proceso.COLUMNAS[i].id)),
-    "cada columna trae sólo las suyas (ninguna repetida en las tres)");
+    "cada columna trae sólo las suyas (ninguna repetida en las cuatro)");
   afirmar(columnas[0].filter((t) => t.id === tarjeta.id).length === 1,
     "la cotización nueva aparece una sola vez, en «Cotización»");
 
@@ -203,16 +203,36 @@ async function principal() {
   afirmar(Proceso.getTarjetas("cotizacion").every((t) => t.id !== tarjeta.id),
     "ya no está en «Cotización»: se movió, no se copió");
 
-  titulo("8) Quitar la tarjeta del tablero (DELETE /api/cotizaciones/:id)");
+  titulo("8) «Pagado»: se tilda solo al entrar a «Entregado» y se puede destildar");
+  // Al entrar a «Entregado» el pago se tilda solo: el frontend lo adelanta para
+  // que se vea en el acto y el servidor lo hace igual (es la regla de verdad).
+  const entregada = Proceso.mover(tarjeta.id, "entregado");
+  afirmar(!!entregada && entregada.columna === "entregado" && entregada.pagado === true,
+    "al pasar a «Entregado» el pago se tilda solo");
+  await esperar(800);
+  revisado = await servidor();
+  const pagada = revisado.cotizaciones.filter((t) => t.id === tarjeta.id)[0];
+  afirmar(!!pagada && pagada.columna === "entregado" && pagada.pagado === true,
+    "la base guardó las dos cosas (la regla no depende del navegador)");
+
+  // Y se puede destildar a mano sin mover la tarjeta (a veces se cobra después).
+  afirmar(Proceso.cambiarPagado(tarjeta.id, false), "el frontend lo destildó");
+  await esperar(800);
+  revisado = await servidor();
+  const sinPagar = revisado.cotizaciones.filter((t) => t.id === tarjeta.id)[0];
+  afirmar(!!sinPagar && sinPagar.pagado === false && sinPagar.columna === "entregado",
+    "quedó sin pagar y en la misma columna");
+
+  titulo("9) Quitar la tarjeta del tablero (DELETE /api/cotizaciones/:id)");
   afirmar(Proceso.remove(tarjeta.id), "el frontend la quitó de la vista");
   await esperar(800);
   revisado = await servidor();
   afirmar(!revisado.cotizaciones.some((t) => t.id === tarjeta.id),
     "ya no aparece en el tablero que devuelve la base");
   afirmar(Proceso.getTarjetas().every((t) => t.id !== tarjeta.id),
-    "tampoco quedó en ninguna de las tres columnas");
+    "tampoco quedó en ninguna de las cuatro columnas");
 
-  titulo("9) Salir (POST /api/logout)");
+  titulo("10) Salir (POST /api/logout)");
   await Api.logout();
   afirmar(!Api.haySesion(), "la sesión se borró del navegador");
 

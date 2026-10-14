@@ -1,10 +1,12 @@
 /* Vista de Proceso: tablero Kanban de las cotizaciones enviadas.
  * Ruta: #/proceso. Se expone como window.Views.proceso
  *
- * Las tarjetas cambian de columna (Cotización -> Trabajo -> Realizado) con los
- * botones de la propia tarjeta: «← Atrás» y «Adelante →», que además llevan el
- * nombre de la columna a la que van. No hay arrastrar y soltar: con el dedo el
- * gesto se confundía con el scroll de la página.
+ * Las tarjetas cambian de columna (Cotización -> Trabajo -> Realizado ->
+ * Entregado) con los botones de la propia tarjeta: «← Atrás» y «Adelante →», que
+ * además llevan el nombre de la columna a la que van. No hay arrastrar y soltar:
+ * con el dedo el gesto se confundía con el scroll de la página.
+ * Cada tarjeta trae el tilde de «Pagado» al lado del importe: se tilda solo al
+ * entrar a «Entregado» (lo hace el servidor) y se puede destildar a mano.
  * La cotización completa se ve con el botón «Ver» (PDF.ver) y se descarga con 🖨. */
 (function () {
   'use strict';
@@ -53,28 +55,123 @@
     }).join(' \u00b7 ');
   }
 
-  // Detalle completo para fabricar: qué lleva cada pieza y de qué colores.
+  // Los nombres a fabricar, uno por línea y sin colores: «1× Allison». Los
+  // colores son cosa del taller y aparecen más abajo, en los lotes, recién
+  // cuando la cotización salió de «Cotización» y hay una orden de producción
+  // (ver lotesTemplate). El detalle con todos los colores sigue estando en el
+  // botón «Ver» y en el PDF.
   function lineasTemplate(items) {
     return items.map(function (item) {
-      var detalles = (item.detalles || []).map(function (d) {
-        return '<span class="meta-tag">' + Utils.escapeHtml(d.label) + ' ' +
-          '<span class="dot" style="background:' + Utils.escapeHtml(d.hex) + '"></span>' +
-          Utils.escapeHtml(d.nombre) + '</span>';
-      }).join('');
-
       return '' +
         '<li class="t-linea">' +
           '<span class="t-linea__cant">' + item.cantidad + '\u00d7</span>' +
           '<span class="t-linea__info">' +
-            '<span class="t-linea__tipo">' + Utils.escapeHtml(item.tipo) + '</span>' +
+            '<span class="t-linea__nombre">' +
+              Utils.escapeHtml(item.titulo || item.tipo) + '</span>' +
             (item.titulo
-              ? '<span class="t-linea__nombre">' + Utils.escapeHtml(item.titulo) + '</span>'
+              ? '<span class="t-linea__tipo">' + Utils.escapeHtml(item.tipo) + '</span>'
               : '') +
-            (detalles ? '<span class="cart-line__meta">' + detalles + '</span>' : '') +
           '</span>' +
           '<span class="t-linea__precio">' + Utils.formatMoney(importeLinea(item)) + '</span>' +
         '</li>';
     }).join('');
+  }
+
+  /* ------------------ Lo que hay que fabricar, en corto ------------------
+     Las mismas tandas de la orden de producción (las cuentas las hace
+     window.PO), pero dentro de la tarjeta: para saber qué imprimir sin abrir
+     la hoja. Van en el idioma del taller —cantidad, colores y qué letras
+     lleva cada tanda— y con la misma agrupación que la PO: las bases por color
+     y acabado, y las teclas con su letra y en ese orden. */
+
+  // «● Café» con su nombre: el color como se pide al proveedor.
+  function colorTexto(etiqueta, nombre, hex) {
+    return '<span class="meta-tag">' + (etiqueta ? Utils.escapeHtml(etiqueta) + ' ' : '') +
+      '<span class="dot" style="background:' + Utils.escapeHtml(hex) + '"></span>' +
+      Utils.escapeHtml(nombre) + '</span>';
+  }
+
+  function coloresTexto(piezas) {
+    return (piezas || []).map(function (p) {
+      return colorTexto(p.label, p.nombre, p.hex);
+    }).join('');
+  }
+
+  // «Luis ×2, Ana»: de qué líneas de la cotización sale la tanda.
+  function titulosTexto(titulos) {
+    return (titulos || []).map(function (t) {
+      return Utils.escapeHtml(t.nombre) + (t.cantidad > 1 ? ' \u00d7' + t.cantidad : '');
+    }).join(', ');
+  }
+
+  // «A ×2 · L · I» — las letras que entran en la tanda.
+  function formasTexto(formas) {
+    return (formas || []).map(function (f) {
+      return Utils.escapeHtml(f.caracter) + (f.cantidad > 1 ? ' \u00d7' + f.cantidad : '');
+    }).join(' \u00b7 ');
+  }
+
+  // Una tanda: cantidad, lo que se imprime y qué letras lleva.
+  function loteTemplate(cantidad, piezas, lleva) {
+    return '' +
+      '<li class="t-lote">' +
+        '<span class="t-lote__cant">' + cantidad + '</span>' +
+        '<span class="t-lote__piezas">' + piezas + '</span>' +
+        (lleva ? '<span class="t-lote__lleva">' + lleva + '</span>' : '') +
+      '</li>';
+  }
+
+  function loteGrupoTemplate(titulo, filas, nota) {
+    if (!filas.length) return '';
+    return '' +
+      '<p class="t-lotes__sec">' + Utils.escapeHtml(titulo) + '</p>' +
+      (nota ? '<p class="t-lotes__nota">' + Utils.escapeHtml(nota) + '</p>' : '') +
+      '<ul class="t-lote-lista">' + filas.join('') + '</ul>';
+  }
+
+  // El desglose del taller: las secciones de la PO que tengan algo (bases del
+  // clicker, teclas con su letra, llaveros y otros productos) y, al final, el
+  // resumen de piezas. Sin nada que fabricar (o en la primera columna, ver
+  // poDe) no se pinta nada.
+  function lotesTemplate(po) {
+    if (!po) return '';
+
+    var bases = po.bases.map(function (g) {
+      return loteTemplate(g.cantidad,
+        colorTexto('', g.nombre, g.hex) +
+          (g.acabado ? '<span class="po-acabado">' + Utils.escapeHtml(g.acabado) + '</span>' : ''),
+        formasTexto(g.formas));
+    });
+    var teclas = po.teclas.map(function (g) {
+      return loteTemplate(g.cantidad,
+        colorTexto('Tecla', g.tecla.nombre, g.tecla.hex) +
+          colorTexto('Letra', g.letra.nombre, g.letra.hex),
+        formasTexto(g.formas));
+    });
+    var llaveros = po.llaveros.map(function (g) {
+      return loteTemplate(g.cantidad, coloresTexto(g.piezas), titulosTexto(g.titulos));
+    });
+    var otros = po.otros.map(function (g) {
+      return loteTemplate(g.cantidad,
+        '<b>' + Utils.escapeHtml(g.tipo) + '</b> ' + coloresTexto(g.piezas),
+        titulosTexto(g.titulos));
+    });
+
+    var secciones =
+      loteGrupoTemplate('Bases del clicker (' + po.totales.bases + ')', bases,
+        'Todas las del mismo color y acabado se imprimen juntas.') +
+      loteGrupoTemplate('Teclas con su letra (' + po.totales.teclas + ')', teclas,
+        'La tecla y la letra de arriba van juntas, en ese orden.') +
+      loteGrupoTemplate('Llaveros (' + po.totales.llaveros + ')', llaveros) +
+      loteGrupoTemplate('Otros productos (' + po.totales.otros + ')', otros);
+    if (!secciones) return '';
+
+    return '' +
+      '<div class="t-lotes">' +
+        secciones +
+        '<p class="t-lotes__total">' + Utils.escapeHtml(poResumenTexto(po.totales)) +
+          ' \u00b7 ' + po.totales.piezas + ' piezas</p>' +
+      '</div>';
   }
 
   // Botón que mueve la tarjeta una columna: paso -1 (atrás) o +1 (adelante).
@@ -123,17 +220,38 @@
     return partes.join(' \u00b7 ');
   }
 
+  // El tilde del pago, pegado al importe. Se puede cambiar en cualquier columna
+  // (a veces se cobra por adelantado y a veces se entrega y se cobra después); al
+  // pasar la tarjeta a «Entregado» llega tildado solo. Lo guarda Proceso.
+  function pagadoTemplate(t) {
+    return '' +
+      '<label class="tarjeta__pagado">' +
+        '<input type="checkbox" data-pagado' + (t.pagado ? ' checked' : '') +
+          ' title="Marcar la cotización como pagada">' +
+        '<span>Pagado</span>' +
+      '</label>';
+  }
+
   function tarjetaTemplate(t) {
     var indice = Proceso.indiceColumna(t.columna);
     var po = poDe(t);
+    // El botón de ensamble sólo aparece en «Realizado»: es la receta de armado
+    // (letra por letra) y se mira con el trabajo ya terminado (ventana aparte,
+    // ver abrirEnsamble). Se calcula acá para saber si la cotización tiene
+    // clickers con receta; el contenido de la ventana se arma al abrirla.
+    var recetas = t.columna === 'realizado' && PO && PO.ensamble ? PO.ensamble(t.items) : [];
 
     return '' +
-      '<article class="tarjeta' + (t.columna === 'realizado' ? ' tarjeta--realizado' : '') + '"' +
+      '<article class="tarjeta' +
+        (t.columna === 'realizado' ? ' tarjeta--realizado' : '') +
+        (t.columna === 'entregado' ? ' tarjeta--entregado' : '') +
+        (t.pagado ? ' tarjeta--pagado' : '') + '"' +
         ' data-id="' + Utils.escapeHtml(t.id) + '" tabindex="0">' +
         '<div class="tarjeta__top">' +
           '<span class="tarjeta__folio">' + Utils.escapeHtml(PDF.folioTexto(t.folio)) + '</span>' +
           '<span class="tarjeta__total">' + Utils.formatMoney(t.total) + '</span>' +
         '</div>' +
+        pagadoTemplate(t) +
         '<p class="tarjeta__cliente">' +
           (t.cliente
             ? Utils.escapeHtml(t.cliente)
@@ -153,6 +271,11 @@
           moverBotonTemplate(indice, -1) +
           moverBotonTemplate(indice, 1) +
           '<span class="tarjeta__iconos">' +
+            (recetas.length
+              ? '<button class="btn-ensamble" type="button" data-ensamble ' +
+                  'title="Ensamble: qu\u00e9 base, qu\u00e9 tecla y qu\u00e9 color de letra lleva cada ' +
+                  'letra del nombre" aria-label="Ver el ensamble, letra por letra">Ensamble</button>'
+              : '') +
             (po
               ? '<button class="btn-po" type="button" data-po ' +
                   'title="Orden de producci\u00f3n: qu\u00e9 fabricar, agrupado por color y por ' +
@@ -171,6 +294,7 @@
         '<details class="tarjeta__detalle"' + (abiertas[t.id] ? ' open' : '') + '>' +
           '<summary>Detalle para fabricar</summary>' +
           '<ul class="t-lineas">' + lineasTemplate(t.items) + '</ul>' +
+          lotesTemplate(po) +
           (t.notas
             ? '<p class="tarjeta__notas"><b>Notas:</b> ' + Utils.escapeHtml(t.notas) + '</p>'
             : '') +
@@ -210,6 +334,137 @@
             : '<p class="kanban__empty">' + vacioTemplate(col) + '</p>') +
         '</div>' +
       '</section>';
+  }
+
+  /* ------------------------------ Ensamble ------------------------------
+     La receta de armado, en una ventana propia y con el mismo comportamiento
+     que el visor de la hoja (window.PDF): se cierra con Esc, con un clic
+     afuera o con su botón, y al cerrarse se borra del DOM (no queda colgado
+     nada si la cotización cambia de columna o se borra). Los datos son de
+     window.PO: letra por letra, en el orden del nombre, con la base (color y
+     acabado cada uno en su columna), la tecla y el color de la letra impresa.
+     Los llaveros no tienen letras: van en su propio bloque, en corto. */
+
+  var ensambleEl = null;
+
+  function cerrarEnsamble() {
+    if (!ensambleEl) return;
+    var el = ensambleEl;
+    ensambleEl = null;                 // antes de cerrar: 'close' vuelve a entrar acá
+    if (el.open) el.close();
+    el.remove();
+  }
+
+  // Cada dato lleva su encabezado en data-campo: en el móvil la tabla se rearma
+  // como bloques y el rótulo sale de ahí (ver .ensamble__tabla en styles.css).
+  function ensambleFilaTemplate(l) {
+    return '' +
+      '<tr>' +
+        '<td class="ensamble__letra">' + Utils.escapeHtml(l.caracter) +
+          (l.simbolo ? ' <span class="ensamble__simbolo">s\u00edmbolo</span>' : '') + '</td>' +
+        '<td data-campo="Color de base">' + colorTexto('', l.base.nombre, l.base.hex) + '</td>' +
+        '<td data-campo="Estilo de base">' + (l.acabado
+          ? Utils.escapeHtml(l.acabado)
+          : '<span class="ensamble__vacio">\u2014</span>') + '</td>' +
+        '<td data-campo="Color tecla">' + colorTexto('', l.tecla.nombre, l.tecla.hex) + '</td>' +
+        '<td data-campo="Color de letra">' + colorTexto('', l.letra.nombre, l.letra.hex) + '</td>' +
+      '</tr>';
+  }
+
+  // Un clicker por bloque: su nombre, cuántos son y una fila por letra.
+  function ensambleBloqueTemplate(receta) {
+    return '' +
+      '<section class="ensamble__bloque">' +
+        '<h3 class="ensamble__nombre">' + Utils.escapeHtml(receta.nombre) +
+          '<span class="ensamble__cant">' + receta.cantidad +
+          (receta.cantidad === 1 ? ' clicker' : ' clickers') + '</span></h3>' +
+        '<p class="ensamble__nota">Una fila por letra, en el orden del nombre; la receta es de un clicker.</p>' +
+        '<table class="ensamble__tabla">' +
+          '<thead><tr>' +
+            '<th>Letra</th>' +
+            '<th>Color de base</th>' +
+            '<th>Estilo de base</th>' +
+            '<th>Color tecla</th>' +
+            '<th>Color de letra</th>' +
+          '</tr></thead>' +
+          '<tbody>' + receta.letras.map(ensambleFilaTemplate).join('') + '</tbody>' +
+        '</table>' +
+      '</section>';
+  }
+
+  // Los llaveros, en corto: cuerpo y nombre de arriba, cada uno de su color.
+  function ensambleLlaverosTemplate(llavos) {
+    var cuantos = llavos.reduce(function (suma, g) { return suma + g.cantidad; }, 0);
+    var filas = llavos.map(function (g) {
+      var piezas = g.piezas || [];
+      var cuerpo = piezas[0] || { nombre: '', hex: '' };
+      var nombre = piezas.slice(1);
+      return '' +
+        '<tr>' +
+          '<td class="ensamble__cant-cel" data-campo="Cant.">' + g.cantidad + '</td>' +
+          '<td data-campo="Cuerpo">' + colorTexto('', cuerpo.nombre, cuerpo.hex) + '</td>' +
+          '<td data-campo="Nombre impreso">' + (nombre.length ? coloresTexto(nombre) : '') +
+            (g.titulos.length
+              ? '<span class="ensamble__titulos">' + titulosTexto(g.titulos) + '</span>'
+              : '') + '</td>' +
+        '</tr>';
+    });
+
+    return '' +
+      '<section class="ensamble__bloque">' +
+        '<h3 class="ensamble__nombre">Llaveros' +
+          '<span class="ensamble__cant">' + cuantos +
+          (cuantos === 1 ? ' llavero' : ' llaveros') + '</span></h3>' +
+        '<p class="ensamble__nota">Cuerpo y nombre de arriba, cada uno de su color.</p>' +
+        '<table class="ensamble__tabla">' +
+          '<thead><tr><th>Cant.</th><th>Cuerpo</th><th>Nombre impreso</th></tr></thead>' +
+          '<tbody>' + filas.join('') + '</tbody>' +
+        '</table>' +
+      '</section>';
+  }
+
+  // Abre la ventana. Devuelve true si había algo que mostrar (si no, no se
+  // asoma nada: la cotización no tiene clickers con receta).
+  function abrirEnsamble(t) {
+    var recetas = PO && PO.ensamble ? PO.ensamble(t.items) : [];
+    var po = poDe(t);
+    var llavos = po ? po.llaveros : [];
+    if (!recetas.length && !llavos.length) return false;
+    if (typeof document.createElement('dialog').showModal !== 'function') return false;
+
+    cerrarEnsamble();
+
+    var dlg = document.createElement('dialog');
+    dlg.className = 'ensamble';
+    dlg.innerHTML = '' +
+      '<header class="ensamble__head">' +
+        '<div>' +
+          '<h2 class="ensamble__title">Ensamble</h2>' +
+          '<p class="ensamble__meta">' + Utils.escapeHtml(PDF.folioTexto(t.folio)) +
+            ' \u00b7 ' + Utils.escapeHtml(t.cliente || 'Sin cliente') +
+            ' \u00b7 ' + Utils.escapeHtml(PDF.fechaTexto(t.fecha)) + '</p>' +
+        '</div>' +
+        '<button class="icon-btn ensamble__cerrar" type="button" data-cerrar ' +
+          'title="Cerrar" aria-label="Cerrar">\u2715</button>' +
+      '</header>' +
+      '<div class="ensamble__lienzo">' +
+        recetas.map(ensambleBloqueTemplate).join('') +
+        (llavos.length ? ensambleLlaverosTemplate(llavos) : '') +
+      '</div>' +
+      '<footer class="ensamble__pie">' +
+        '<button class="btn" type="button" data-cerrar>Cerrar</button>' +
+      '</footer>';
+
+    dlg.addEventListener('click', function (e) {
+      if (e.target.closest('[data-cerrar]')) { cerrarEnsamble(); return; }
+      if (e.target === dlg) cerrarEnsamble();      // clic en el fondo oscuro
+    });
+    dlg.addEventListener('close', cerrarEnsamble);  // Esc y el botón del navegador
+
+    document.body.appendChild(dlg);
+    dlg.showModal();
+    ensambleEl = dlg;
+    return true;
   }
 
   /* ---------------------------- Pintado ---------------------------- */
@@ -289,6 +544,13 @@
         return;
       }
 
+      // El ensamble: la receta de armado de cada clicker, letra por letra.
+      if (e.target.closest('[data-ensamble]')) {
+        var ens = Proceso.getTarjeta(id);
+        if (ens) abrirEnsamble(ens);
+        return;
+      }
+
       // Reimprime con los datos congelados de la tarjeta: no toca el carrito.
       if (e.target.closest('[data-pdf]')) {
         var t = Proceso.getTarjeta(id);
@@ -305,6 +567,17 @@
         Proceso.remove(id);
         window.App.toast('Cotizaci\u00f3n ' + folio + ' quitada del tablero');
       }
+    });
+
+    // El tilde de «Pagado»: se pinta al instante y se manda al servidor por atrás
+    // (Proceso.cambiarPagado; si falla, el tablero vuelve atrás y avisa).
+    rootEl.addEventListener('change', function (e) {
+      if (!e.target || typeof e.target.closest !== 'function') return;
+      var casilla = e.target.closest('[data-pagado]');
+      if (!casilla) return;
+      var tarjetaEl = casilla.closest('.tarjeta');
+      if (!tarjetaEl) return;
+      Proceso.cambiarPagado(tarjetaEl.getAttribute('data-id'), casilla.checked);
     });
 
     // El detalle desplegado no se cierra al repintar (el evento 'toggle' no

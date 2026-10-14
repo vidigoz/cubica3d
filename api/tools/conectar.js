@@ -1,4 +1,4 @@
-/* Devuelve `{ query, cerrar, motor }` con la base que corresponda:
+/* Devuelve `{ query, exec, cerrar, motor }` con la base que corresponda:
  *
  *   · con DATABASE_URL (o DATABASE_URL_UNPOOLED) en el .env o en el entorno ->
  *     Postgres de Neon/remoto, como siempre;
@@ -7,7 +7,8 @@
  *     vez, así que todos los comandos funcionan sin nube y sin tocar nada.
  *
  * `query(sql, parametros)` es idéntico en los dos casos, que es justo lo que
- * necesitan los utilitarios.
+ * necesitan los utilitarios. `exec(sql)` es para el SQL de varios comandos de una
+ * sola vez (db/schema.sql): sin parámetros, porque va por el protocolo simple.
  *
  * Sin dependencias para leer la configuración: se leen api/.env y api/.env.local
  * (en ese orden) y lo que ya esté exportado en el entorno tiene prioridad (podés
@@ -59,7 +60,7 @@ export async function conectar() {
     console.log("Base: local (" + base.carpeta + ")" +
       (base.nueva ? " — la creé recién con db/schema.sql" : "") +
       "   ·   para usar Neon, sacá BASE_LOCAL y poné DATABASE_URL en api/.env");
-    return { query: base.query, cerrar: base.cerrar, motor: "local" };
+    return { query: base.query, exec: base.exec, cerrar: base.cerrar, motor: "local" };
   }
 
   const cadena = process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL;
@@ -70,6 +71,9 @@ export async function conectar() {
   const pool = new pg.Pool({ connectionString: cadena, max: 2, connectionTimeoutMillis: 15000 });
   return {
     query: (sql, parametros) => pool.query(sql, parametros),
+    // Sin parámetros, `pg` va por el protocolo simple y acepta varios comandos de
+    // una sola vez (es lo que necesita `npm run schema` con db/schema.sql).
+    exec: (sql) => pool.query(sql),
     cerrar: () => pool.end(),
     motor: "postgres"
   };

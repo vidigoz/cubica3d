@@ -71,7 +71,7 @@
           '<h3 class="panel__title">Vista previa del PDF</h3>' +
           '<span class="panel__hint">Se imprime tal cual se ve aquí (hoja A4).</span>' +
         '</div>' +
-        '<div class="doc-preview"><div id="carrito-doc"></div></div>' +
+        '<div class="doc-preview"><div class="doc-preview__marco" id="carrito-doc"></div></div>' +
       '</section>';
   }
 
@@ -172,12 +172,17 @@
     syncDatos();
   }
 
-  // Vuelve a dibujar la hoja A4: es la misma que se imprime.
+  // Vuelve a dibujar la hoja A4 (es la misma que se imprime) y la encaja a lo
+  // ancho de la pantalla: en el móvil la hoja de 210mm no cabe y así se ve
+  // entera sin arrastrar de costado (ver PDF.encajarHoja).
   function repaintDoc() {
     if (!rootEl) return;
     var doc = rootEl.querySelector('#carrito-doc');
     if (!doc) return;
-    doc.innerHTML = Cart.getCount() ? PDF.documento() : '';
+    doc.innerHTML = Cart.getCount()
+      ? '<div class="doc-preview__hoja">' + PDF.documento() + '</div>'
+      : '';
+    if (Cart.getCount()) PDF.encajarHoja(doc);
   }
 
   // Refresca los campos de datos, salvo el que el usuario esté usando.

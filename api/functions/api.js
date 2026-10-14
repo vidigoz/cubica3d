@@ -20,7 +20,8 @@
  *                                                          porLetraLargo,
  *                                                          letrasCorte } }
  *   POST   /api/cotizaciones          { clientId, meta, items }      -> tarjeta creada
- *   PATCH  /api/cotizaciones/:id      { columna }                    -> tarjeta movida
+ *   PATCH  /api/cotizaciones/:id      { columna }  o  { pagado }     -> tarjeta movida o
+ *                                                                       con «Pagado» cambiado
  *   DELETE /api/cotizaciones/:id                                     -> { ok }
  *
  * Rutas públicas: /api (saludo), /api/login, /api/pin y /api/acceso. /api/acceso es
@@ -63,7 +64,8 @@
 import { Pool } from "pg";
 import { randomBytes, scrypt, timingSafeEqual, createHash } from "node:crypto";
 
-const COLUMNAS = ["cotizacion", "trabajo", "realizado"];   // las tres del Kanban
+const COLUMNAS = ["cotizacion", "trabajo", "realizado", "entregado"];   // las cuatro del Kanban
+const COLUMNA_ENTREGADO = "entregado";   // al entrar acá el pago se tilda solo (ver PATCH)
 const DIAS_SESION = 30;
 const INTENTOS_MAX = 10;                                   // por correo...
 const INTENTOS_VENTANA_MS = 15 * 60 * 1000;                // ...cada 15 minutos
@@ -313,6 +315,7 @@ export function crearApp(opciones) {
       total: Number(fila.total),
       columna: fila.columna,
       posicion: Number(fila.posicion),
+      pagado: !!fila.pagado,
       creada: new Date(fila.creada).toISOString(),
       movida: new Date(fila.movida).toISOString(),
       creadaPor: fila.creada_por || "",
@@ -326,7 +329,7 @@ export function crearApp(opciones) {
   async function leerTablero() {
     const { rows } = await query(
       "select id, folio, to_char(fecha, 'YYYY-MM-DD') as fecha, cliente, notas, columna," +
-      " posicion, unidades, total, creada, movida, creada_por, movida_por" +
+      " posicion, unidades, total, pagado, creada, movida, creada_por, movida_por" +
       " from cotizaciones where borrada_en is null" +
       " order by columna, posicion, folio"
     );
@@ -362,7 +365,7 @@ export function crearApp(opciones) {
   async function leerTarjeta(id) {
     const { rows } = await query(
       "select id, folio, to_char(fecha, 'YYYY-MM-DD') as fecha, cliente, notas, columna," +
-      " posicion, unidades, total, creada, movida, creada_por, movida_por" +
+      " posicion, unidades, total, pagado, creada, movida, creada_por, movida_por" +
       " from cotizaciones where id = $1", [id]
     );
     if (!rows[0]) return null;
@@ -644,37 +647,69 @@ export function crearApp(opciones) {
     }, contexto.cabeceras);
   }
 
+  // Mueve la tarjeta de columna y/o cambia «Pagado». El cuerpo lleva `columna`,
+  // `pagado` o las dos cosas (el tilde solo, sin mover, es otra llamada al mismo
+  // PATCH). Entrar a «Entregado» tilda el pago solo —es lo que hace el taller al
+  // entregar— salvo que el cliente diga lo contrario (`pagado: false`), y
+  // destildarlo después es un clic: a veces se entrega y se cobra más tarde.
+  // El tilde también mueve `movida`, que es el sello con el que los demás
+  // navegadores se enteran de que hay algo nuevo (ver leerTablero).
   async function moverCotizacion(request, contexto) {
     const cuerpo = (await leerJson(request)) || {};
-    const columna = texto(cuerpo.columna);
-    if (COLUMNAS.indexOf(columna) < 0) return fallo("Columna inválida.", 400, contexto.cabeceras);
+    const columna = texto(cuerpo.columna).trim();
+    const pideColumna = !!columna;
+    const pidePagado = Object.prototype.hasOwnProperty.call(cuerpo, "pagado");
+    if (pideColumna && COLUMNAS.indexOf(columna) < 0) {
+      return fallo("Columna inválida.", 400, contexto.cabeceras);
+    }
+    if (!pideColumna && !pidePagado) return fallo("No hay nada que cambiar.", 400, contexto.cabeceras);
+    if (pidePagado && typeof cuerpo.pagado !== "boolean") {
+      return fallo("«pagado» tiene que ser true o false.", 400, contexto.cabeceras);
+    }
 
     const { rows } = await query(
-      "select columna from cotizaciones where id = $1 and borrada_en is null", [contexto.params.id]
+      "select columna, pagado from cotizaciones where id = $1 and borrada_en is null",
+      [contexto.params.id]
     );
     const actual = rows[0];
     if (!actual) return fallo("Esa cotización ya no está en el tablero.", 404, contexto.cabeceras);
-    if (actual.columna === columna) {
+
+    const mueve = pideColumna && actual.columna !== columna;
+    const pagado = pidePagado
+      ? cuerpo.pagado
+      : (mueve && columna === COLUMNA_ENTREGADO ? true : !!actual.pagado);
+    const tilda = pagado !== !!actual.pagado;
+    if (!mueve && !tilda) {
       return ok({ cotizacion: await leerTarjeta(contexto.params.id), sinCambios: true }, contexto.cabeceras);
     }
 
-    // Igual que en el frontend: la tarjeta entra ARRIBA de la columna destino.
-    const { rows: destino } = await query(
-      "select coalesce(min(posicion), 1000) - 1000 as p from cotizaciones" +
-      " where columna = $1 and borrada_en is null and id <> $2",
-      [columna, contexto.params.id]
-    );
-    await query(
-      "update cotizaciones set columna = $2, posicion = $3, movida = now(), movida_por = $4" +
-      " where id = $1",
-      [contexto.params.id, columna, Number(destino[0].p), contexto.usuario.nombre]
-    );
-    await query(
-      "insert into movimientos (cotizacion_id, de_columna, a_columna, usuario) values ($1, $2, $3, $4)",
-      [contexto.params.id, actual.columna, columna, contexto.usuario.nombre]
-    );
+    if (mueve) {
+      // Igual que en el frontend: la tarjeta entra ARRIBA de la columna destino.
+      const { rows: destino } = await query(
+        "select coalesce(min(posicion), 1000) - 1000 as p from cotizaciones" +
+        " where columna = $1 and borrada_en is null and id <> $2",
+        [columna, contexto.params.id]
+      );
+      await query(
+        "update cotizaciones set columna = $2, posicion = $3, pagado = $4, movida = now()," +
+        " movida_por = $5 where id = $1",
+        [contexto.params.id, columna, Number(destino[0].p), pagado, contexto.usuario.nombre]
+      );
+      await query(
+        "insert into movimientos (cotizacion_id, de_columna, a_columna, usuario) values ($1, $2, $3, $4)",
+        [contexto.params.id, actual.columna, columna, contexto.usuario.nombre]
+      );
+    } else {
+      // Tilde suelto: no hay movimiento que anotar en la bitácora (la columna no
+      // cambió); queda el sello de quién lo hizo y cuándo.
+      await query(
+        "update cotizaciones set pagado = $2, movida = now(), movida_por = $3 where id = $1",
+        [contexto.params.id, pagado, contexto.usuario.nombre]
+      );
+    }
     return ok({ cotizacion: await leerTarjeta(contexto.params.id) }, contexto.cabeceras);
   }
+
 
   // Borrado suave: la tarjeta sale del tablero pero queda la historia y la
   // bitácora (permite deshacer con un update, sin haber perdido nada).

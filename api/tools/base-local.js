@@ -113,6 +113,9 @@ export async function abrirBaseLocal() {
       carpeta: carpeta,
       nueva: nueva,
       query: (sql, parametros) => db.query(sql, parametros),
+      // `exec` es para el SQL de varios comandos (db/schema.sql): `query` manda
+      // cada orden como sentencia preparada y Postgres sólo admite una por vez.
+      exec: (sql) => db.exec(sql),
       // Volcado de toda la base en un .tar.gz (para copiar a otro lado).
       volcar: () => db.dumpDataDir("gzip"),
       cerrar: async function () {

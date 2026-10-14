@@ -472,6 +472,57 @@
 
 
 
+  /* ---------- La hoja encogida en la vista previa ----------
+     Es la misma hoja A4 de documento(), pero encogida para entrar a lo ancho de
+     la caja donde se muestre (la vista previa del carrito, ver .doc-preview en
+     styles.css). Sin esto, en el móvil la hoja de 210mm se sale de la pantalla
+     y hay que arrastrar de costado para leerla. El marco reserva el hueco ya
+     encogido y la hoja se achica desde su esquina; nunca crece por encima de su
+     tamaño real. Es el mismo truco del visor (ver ajustarVisor). Devuelve la
+     escala que quedó (1 = tamaño real). */
+
+  var marcoVista = null;      // la última vista previa dibujada
+  var oyenteVista = null;     // su oyente de resize: uno solo para todas
+
+  function encajarHoja(marco) {
+    if (!marco || !marco.parentElement) return 1;
+    var hoja = marco.querySelector('.hoja');
+    if (!hoja) return 1;
+
+    // Lo que se encoge es el bloque que envuelve la hoja (como en el visor: el
+    // marco deja el hueco y el envoltorio es el que lleva la escala).
+    var topo = (marco.firstElementChild === hoja || marco.firstElementChild.contains(hoja))
+      ? marco.firstElementChild
+      : hoja;
+
+    // Girar el teléfono o abrir el teclado cambia el ancho: la hoja se vuelve a
+    // encajar sola. El oyente se apaga solo cuando el marco ya no está en la
+    // página (otra ruta, otro repintado).
+    marcoVista = marco;
+    if (!oyenteVista) {
+      oyenteVista = function () {
+        if (marcoVista && marcoVista.isConnected) encajarHoja(marcoVista);
+      };
+      window.addEventListener('resize', oyenteVista);
+    }
+
+    var caja = marco.parentElement;
+    var estilo = window.getComputedStyle(caja);
+    var disponible = caja.clientWidth -
+      (parseFloat(estilo.paddingLeft) || 0) - (parseFloat(estilo.paddingRight) || 0);
+
+    var ancho = hoja.offsetWidth;    // 210mm tal cual
+    var alto = hoja.offsetHeight;    // 297mm tal cual
+    var escala = Math.min(1, disponible / ancho);
+    if (!isFinite(escala) || escala <= 0) escala = 1;
+
+    marco.style.width = Math.round(ancho * escala) + 'px';
+    marco.style.height = Math.round(alto * escala) + 'px';
+    topo.style.transformOrigin = '0 0';    // se achica desde la esquina, no del centro
+    topo.style.transform = 'scale(' + escala + ')';
+    return escala;
+  }
+
   /* -------------------- Visor en pantalla --------------------
      Enseña una hoja entera sin descargar ni generar nada: es la misma hoja A4
      de documento(), encogida para que entre completa en la ventana. Sirve para
@@ -712,6 +763,7 @@
     getNegocio: getNegocio,
     documento: documento,
     documentoPO: documentoPO,
+    encajarHoja: encajarHoja,
     ver: ver,
     verPO: verPO,
     imprimir: imprimir,

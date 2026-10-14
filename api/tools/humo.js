@@ -4,7 +4,8 @@
  *   npm run humo -- https://cubica3d.netlify.app correo@dominio.com "la-clave"
  *
  * Recorre el camino completo: salud, login, bootstrap, folio, guardar config,
- * crear la cotización, moverla de columna, sacarla del tablero y cerrar sesión.
+ * crear la cotización, moverla de columna (hasta «Entregado», con su tilde de
+ * pago), sacarla del tablero y cerrar sesión.
  * No ensucia los datos: la configuración se vuelve a guardar tal cual estaba y
  * la cotización de prueba se crea y se borra (queda en la historia, borrada).
  * Lo único que cambia es el contador de folios, que avanza uno. */
@@ -126,6 +127,24 @@ try {
     revisar("PATCH la mueve a «trabajo»", movida.estado === 200 &&
       movida.datos.cotizacion.columna === "trabajo",
       "columna " + ((movida.datos.cotizacion || {}).columna));
+
+    // La cuarta columna y el tilde de pago: al entrar a «Entregado» el pago se
+    // tilda solo (lo decide el servidor) y se puede destildar sin moverla.
+    const entregada = await pedir("PATCH", "/api/cotizaciones/" + tarjeta.id, {
+      token: token, cuerpo: { columna: "entregado" }
+    });
+    revisar("PATCH la mueve a «entregado» y tilda el pago solo", entregada.estado === 200 &&
+      entregada.datos.cotizacion.columna === "entregado" && entregada.datos.cotizacion.pagado === true,
+      "columna " + ((entregada.datos.cotizacion || {}).columna) +
+      ", pagado " + ((entregada.datos.cotizacion || {}).pagado));
+
+    const destildada = await pedir("PATCH", "/api/cotizaciones/" + tarjeta.id, {
+      token: token, cuerpo: { pagado: false }
+    });
+    revisar("el tilde se destilda sin mover la tarjeta", destildada.estado === 200 &&
+      destildada.datos.cotizacion.pagado === false && destildada.datos.cotizacion.columna === "entregado",
+      "columna " + ((destildada.datos.cotizacion || {}).columna) +
+      ", pagado " + ((destildada.datos.cotizacion || {}).pagado));
 
     const tablero = await pedir("GET", "/api/tablero", { token: token });
     revisar("GET /api/tablero la muestra", tablero.estado === 200 &&

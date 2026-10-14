@@ -1,9 +1,14 @@
 -- Base de datos compartida del cotizador Cubica3D (Neon Postgres).
 --
--- Se aplica UNA sola vez, sobre una base vacía:
+-- Se aplica sobre una base vacía:
 --   psql "$DATABASE_URL_UNPOOLED" -f db/schema.sql
 -- o, sin psql instalado:
 --   cd api && npm run schema
+--
+-- Se puede volver a aplicar las veces que haga falta: todo es `if not exists` y
+-- al final están las sentencias que ponen AL DÍA una base que ya existía (hoy:
+-- la cuarta columna del Kanban y el campo `pagado`). Por eso `npm run schema` es
+-- también la migración, sin un segundo archivo de SQL que se pueda olvidar.
 --
 -- Qué reemplaza cada tabla (antes vivía en localStorage de cada navegador):
 --   configuracion    <- cotizador.config.v1   (colores en stock + precios)
@@ -77,9 +82,10 @@ create table if not exists cotizaciones (
   fecha       date not null default current_date,
   cliente     text not null default '',
   notas       text not null default '',
-  columna     text not null default 'cotizacion' -- las tres columnas del Kanban
-                check (columna in ('cotizacion', 'trabajo', 'realizado')),
+  columna     text not null default 'cotizacion' -- las cuatro columnas del Kanban
+                check (columna in ('cotizacion', 'trabajo', 'realizado', 'entregado')),
   posicion    numeric not null default 1000,     -- orden DENTRO de la columna (entra arriba)
+  pagado      boolean not null default false,    -- se tilda solo al pasar a «Entregado»
   unidades    integer not null default 0,
   total       numeric(12,2) not null default 0,
   creada      timestamptz not null default now(),
@@ -93,6 +99,16 @@ create index if not exists cotizaciones_tablero_idx on cotizaciones (columna, po
 create index if not exists cotizaciones_cliente_idx on cotizaciones (cliente);
 create index if not exists cotizaciones_fecha_idx   on cotizaciones (fecha);
 create index if not exists cotizaciones_borrada_idx on cotizaciones (borrada_en);
+
+-- Puesta al día de una base que ya estaba: este archivo se aplicó una vez, cuando
+-- el tablero tenía tres columnas y no existía «Pagado». Las dos sentencias de
+-- abajo son idempotentes a propósito, así `npm run schema` (documentado como
+-- reaplicable) alcanza para migrar Neon y la base local, sin un segundo SQL.
+-- Postgres nombra solo un check de columna: <tabla>_<columna>_check.
+alter table cotizaciones add column if not exists pagado boolean not null default false;
+alter table cotizaciones drop constraint if exists cotizaciones_columna_check;
+alter table cotizaciones add constraint cotizaciones_columna_check
+  check (columna in ('cotizacion', 'trabajo', 'realizado', 'entregado'));
 
 -- Líneas de cada cotización. En tabla (y no en un solo JSON) para poder reportar:
 -- "cuántos llaveros se vendieron en marzo", "qué producto deja más margen", etc.

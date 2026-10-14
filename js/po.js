@@ -127,6 +127,15 @@
     return m ? m[1] : '';
   }
 
+  // El color y su acabado, cada uno por su lado: «Café (Corrugado)» ->
+  // { color: 'Café', acabado: 'Corrugado' }. Es lo que piden las dos columnas
+  // del ensamble (color de base y estilo de base), sin volver a parsear en la
+  // vista. Una base sin acabado devuelve acabado ''.
+  function colorYAcabado(nombre) {
+    var texto = String(nombre == null ? '' : nombre);
+    return { color: sinParentesis(texto), acabado: entreParentesis(texto) };
+  }
+
   /* ------------------------------ Acumuladores ------------------------------ */
 
   // Busca el grupo de una clave (lo crea la primera vez) para ir sumándole.
@@ -377,6 +386,54 @@
     return leer(items).totales;
   }
 
+  /* ------------------------------- Ensamble -------------------------------
+     La receta de armado de cada clicker: letra por letra, y en el orden del
+     nombre, qué base lleva (con el color y el acabado por separado), qué tecla
+     y de qué color va la letra impresa. Es lo que se mira en la mesa al armar;
+     cuántas piezas de cada color imprimir ya lo dice la PO (leer), así que acá
+     no se suma nada: la receta es de UNA unidad (un clicker) y la cantidad de
+     clickers va aparte, en `cantidad`.
+     Un clicker viejo —de cuando el desglose no venía de a tres piezas por
+     letra— no tiene receta: no se inventan filas, esa línea queda afuera (en la
+     PO cae en «Otros productos»). */
+
+  // Una letra suelta: sirve para distinguir una tecla del símbolo escrito a
+  // mano, que se fabrica tal como se lee («estrella», «corazón»).
+  var LETRA_SUELTA = /^[A-ZÁÉÍÓÚÜÑ]$/;
+
+  function ensamble(items) {
+    var lista = Array.isArray(items) ? items : [];
+    var clickers = [];
+
+    lista.forEach(function (item) {
+      item = item || {};
+      if (Utils.normalize(item.tipo) !== TIPO_CLICER) return;
+
+      var letras = piezasDeClicer(item.detalles).map(function (l) {
+        var base = colorYAcabado(l.base.nombre);
+        var caracter = Utils.normalize(l.caracter);
+        return {
+          caracter: caracter,
+          simbolo: !LETRA_SUELTA.test(caracter.toUpperCase()),
+          base: { nombre: base.color, hex: l.base.hex },
+          acabado: base.acabado,
+          tecla: { nombre: Utils.normalize(l.tecla.nombre), hex: l.tecla.hex },
+          letra: { nombre: Utils.normalize(l.letra.nombre), hex: l.letra.hex }
+        };
+      });
+
+      if (!letras.length) return;
+      clickers.push({
+        id: item.id || '',
+        nombre: Utils.normalize(item.titulo) || TIPO_CLICER,
+        cantidad: cantidadDe(item.cantidad),
+        letras: letras
+      });
+    });
+
+    return clickers;
+  }
+
   window.PO = {
     TIPO_CLICER: TIPO_CLICER,
     TIPO_LLAVERO: TIPO_LLAVERO,
@@ -387,6 +444,8 @@
     combinacionClave: combinacionClave,
     detallesDeClicer: detallesDeClicer,
     piezasDeClicer: piezasDeClicer,
+    colorYAcabado: colorYAcabado,
+    ensamble: ensamble,
     leer: leer,
     resumen: resumen
   };

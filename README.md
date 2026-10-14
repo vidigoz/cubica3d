@@ -176,7 +176,8 @@ El resto de la app no sabe nada del diseño: sólo llama a `window.PDF.documento
 
 ## Proceso (`#/proceso`)
 
-Tablero **Kanban** con tres columnas, que son el flujo de trabajo: **Cotización → Trabajo → Realizado**.
+Tablero **Kanban** con cuatro columnas, que son el flujo de trabajo: **Cotización → Trabajo →
+Realizado → Entregado**.
 
 - Cada tarjeta es una **copia congelada** de la cotización tal como se envió (folio, cliente, notas,
   líneas, unidades y total). Editar el carrito después **no** cambia nada de lo guardado: aquí vive
@@ -185,6 +186,11 @@ Tablero **Kanban** con tres columnas, que son el flujo de trabajo: **Cotización
   el nombre de la columna a la que van y se desactivan cuando ya no hay a dónde moverse. No hay
   arrastrar y soltar: con el dedo el gesto se confundía con el scroll de la página. Al cambiar de
   columna la tarjeta entra **arriba** de la suya y se sella la fecha del movimiento.
+- Cada tarjeta trae un tilde **Pagado** (debajo del importe) que en **Entregado** se **tilda solo**
+  —entregado se da por cobrado— y se puede destildar a mano cuando el cobro queda para después. En
+  las otras columnas también se puede marcar, para el cliente que paga por adelantado. Marcar o
+  destildar **no mueve la tarjeta**: sólo la marca (**Pagado** en verde) para ver de un vistazo qué
+  falta cobrar.
 - **Ver** abre la **cotización completa en pantalla**: la misma hoja A4 que se le envió al cliente,
   sin generar ni descargar nada (útil para enseñarla en el mostrador o compartir pantalla). Desde
   ahí, **🖨️ Descargar PDF** la saca en PDF y **Cerrar** (o **Esc**) vuelve al tablero.
@@ -200,8 +206,21 @@ Tablero **Kanban** con tres columnas, que son el flujo de trabajo: **Cotización
   5 grupos**) para no tener que abrir la hoja. Lo que no se agrupa solo (una cotización vieja de
   clicker, o cualquier otro producto) cae en **Otros productos** por su combinación de colores:
   la orden nunca deja una línea afuera.
-- **Ver detalle** despliega las líneas de la cotización y **🖨 PDF** reimprime esa hoja tal como se
-  envió (mismo diseño que la vista previa del carrito).
+- **Ensamble** aparece sólo en las tarjetas de **Realizado** que traen clickers, y abre la **receta de
+  armado** en pantalla (no se imprime): una tabla de **cinco columnas** —**letra**, **color de base**,
+  **estilo de base**, **color tecla** y **color de letra**— con **una fila por letra, en el orden del
+  nombre**, y el símbolo escrito a mano al final, marcado como símbolo. La receta es de **un clicker**
+  (el encabezado dice cuántos son), así que con 3 clickers las letras no se repiten tres veces. Los
+  llaveros, que no tienen letras, van en su propio bloque en corto (cuerpo y nombre impreso, con los
+  nombres que van adentro). Se cierra con **Esc**, con un clic afuera o con su botón, y no queda nada
+  colgado cuando se cierra.
+- **Ver detalle** despliega lo que hay que fabricar, y cambia según la columna en la que esté la
+  tarjeta: en **Cotización** son sólo los **nombres** de la venta (**1× Allison**, **1× Ana**), sin
+  colores, porque ahí todavía no se fabricó nada (el detalle con todos los colores sigue en **Ver** y
+  en el PDF); de **Trabajo** en adelante se le suman los **lotes del taller** —los mismos de la PO,
+  en corto: la cantidad, el color y el acabado de cada tanda de bases con las letras que lleva,
+  las teclas con su letra, los llaveros y **Otros productos**, y al pie el total de piezas—.
+  **🖨 PDF** reimprime esa hoja tal como se envió (mismo diseño que la vista previa del carrito).
 - **Quitar** borra la tarjeta, con confirmación.
 - Todo se guarda en el `localStorage` (clave `cotizador.proceso.v1`); el chip de cada pestaña del
   tablero muestra cuántas tarjetas tiene.
@@ -243,6 +262,13 @@ pruebas y migración— está en **[`api/README.md`](api/README.md)**.
 - **La app entra sola, sin login** (`POST /api/acceso`, ver *La app entra sola*): las tarjetas quedan
   selladas con la cuenta del taller y hay una **bitácora** de cada movimiento. Las cuentas siguen
   existiendo (`npm run usuario` las crea) para cerrar el acceso o para el API.
+- **Poner al día una base que ya estaba andando** (por ejemplo, la cuarta columna y el tilde de
+  **Pagado**): volver a aplicar el mismo esquema, `cd api && npm run schema`. Es idempotente —se puede
+  correr las veces que haga falta— y no borra ni pisa datos: agrega lo que falta y rehace el `check` de
+  las columnas para que acepte **Entregado**. Si la base es la de Neon (la del sitio desplegado), el
+  momento es **antes** de subir el cambio que usa esos campos, no después: el API que se publica lee
+  `pagado`, así que una base que todavía no la tiene contesta error. Aplicarlo primero no rompe nada,
+  porque todo lo que agrega es opcional para el código que ya estaba andando.
 - **"Quitar" es un borrado suave**: la tarjeta sale del tablero pero sus datos quedan
   guardados, así se puede reportar sobre lo vendido o deshacer un error.
 - **La cadena de conexión a la base nunca llega al navegador**: el frontend sólo habla con el
@@ -343,7 +369,7 @@ cotizador/
     ├── api.js                  # cliente del API: la única puerta del navegador hacia la base
     ├── store.js                # configuración del negocio: colores en stock y precios (por el API)
     ├── clicer.js               # producto Clicker de Nombre: letras (y símbolo), piezas por letra, precio y desglose
-    ├── po.js                   # orden de producción: agrupa lo vendido en tandas por color y orden
+    ├── po.js                   # orden de producción (tandas por color y orden) y el ensamble
     ├── cart.js                 # carrito + datos de la cotización (borrador de este navegador)
     ├── proceso.js              # tablero Kanban: tarjetas congeladas (por el API)
     ├── pdf.js                  # plantilla A4 de la cotización y de la PO + visor + impresión/PDF
@@ -352,7 +378,7 @@ cotizador/
     ├── views/
     │   ├── productos.js        # menú de productos + formularios Llaveros y Clicker + carrito
     │   ├── carrito.js          # desglose: cantidades, datos, vista previa A4 y envío al tablero
-    │   ├── proceso.js          # tablero Kanban: columnas, tarjetas y botones ← / →
+    │   ├── proceso.js          # tablero Kanban: columnas, tarjetas, desglose de fabricar y ensamble
     │   └── configuracion.js    # colores + precios
     └── app.js                  # pestañas, enrutado por hash, chip del carrito y avisos
 ```
@@ -390,6 +416,14 @@ cotizador/
   `PDF.ver()` y `PDF.imprimir()` para esa hoja, y el archivo se sugiere como
   `Produccion-0007-Cliente`. Si no hay nada que fabricar, `documentoPO` devuelve `''` y no se abre
   ni el visor ni el diálogo de impresión. La PO **no toca precios**: la plata sigue en la cotización.
+- El **ensamble** (la receta de armado) lo arma `PO.ensamble(items)`: una entrada por clicker con su
+  `cantidad` y una fila por letra (`caracter`, `simbolo`, la base con el color y el acabado por
+  separado, la tecla y la letra). Es data cruda, sin sumar nada, porque la receta es de **una unidad**:
+  cuántas piezas de cada color imprimir ya lo dice `PO.leer()`. El que parte «Café (Corrugado)» en los
+  dos campos que pide la tabla es `PO.colorYAcabado()`. Un clicker viejo (de cuando el desglose venía
+  con «Base» y «Nombre») no tiene receta, así que esa línea no aparece. La ventana vive en
+  `js/views/proceso.js` (`abrirEnsamble`): cuelga del `<body>`, se borra al cerrarse y `@media print`
+  la oculta, igual que el visor de `PDF.ver()`.
 - Las agrupaciones son por **clave ordenada**, no por conjuntos: tecla roja con letra blanca y tecla
   blanca con letra roja son dos tandas, igual que base blanca con letras negras y base negra con
   letras blancas. La clave de un color es `hex|nombre`, así que dos colores con el mismo hex pero

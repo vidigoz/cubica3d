@@ -14,7 +14,7 @@
  *   GET    /folio
  *   PUT    /config       { colores, precios }
  *   POST   /cotizaciones { clientId, meta, items }
- *   PATCH  /cotizaciones/:id  { columna }
+ *   PATCH  /cotizaciones/:id  { columna } o { pagado }
  *   DELETE /cotizaciones/:id
  *
  * La sesión (token + usuario) se guarda en localStorage: dura 30 días y así no
@@ -198,8 +198,15 @@
     });
   }
 
+  // Mueve la tarjeta de columna. Al entrar a «Entregado» el servidor tilda el
+  // pago solo (si no lo mandás en el mismo pedido).
   function moverCotizacion(id, columna) {
     return pedir('PATCH', '/cotizaciones/' + encodeURIComponent(id), { columna: columna });
+  }
+
+  // Tilda o destilda «Pagado» sin mover la tarjeta de columna.
+  function cambiarPagado(id, pagado) {
+    return pedir('PATCH', '/cotizaciones/' + encodeURIComponent(id), { pagado: !!pagado });
   }
 
   function borrarCotizacion(id) {
@@ -222,6 +229,7 @@
     guardarConfig: guardarConfig,
     crearCotizacion: crearCotizacion,
     moverCotizacion: moverCotizacion,
+    cambiarPagado: cambiarPagado,
     borrarCotizacion: borrarCotizacion
   };
 })();

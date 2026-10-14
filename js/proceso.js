@@ -1,10 +1,13 @@
 /* Tablero de proceso (Kanban) de las cotizaciones enviadas.
- * Cotización -> Trabajo -> Realizado.
+ * Cotización -> Trabajo -> Realizado -> Entregado.
  *
  * Las tarjetas viven en Postgres y viajan por el API: lo que se envía desde
  * cualquier navegador aparece acá (y al revés). El servidor guarda cada
  * cotización como COPIA CONGELADA dentro de la misma transacción que le da el
  * folio, así que editar el carrito después no altera nada de lo guardado.
+ *
+ * El pago viaja con la tarjeta (`pagado`) y se tilda solo al entrar a
+ * «Entregado»; destildarlo es un clic (Proceso.cambiarPagado).
  *
  * Cada movimiento se pinta al instante y se manda al servidor por atrás; si
  * falla, el tablero vuelve a como estaba y se recarga desde la base.
@@ -16,11 +19,12 @@
   var COLUMNAS = [
     { id: 'cotizacion', nombre: 'Cotización' },
     { id: 'trabajo', nombre: 'Trabajo' },
-    { id: 'realizado', nombre: 'Realizado' }
+    { id: 'realizado', nombre: 'Realizado' },
+    { id: 'entregado', nombre: 'Entregado' }
   ];
 
   // Tarjetas: { id, folio, fecha, cliente, notas, items: [...], unidades, total,
-  //             columna, creada, movida }
+  //             columna, pagado, creada, movida }
   var tarjetas = [];
   var listeners = [];
   var folioSiguiente = 1;   // lo lleva el servidor: nunca se repite un folio
@@ -48,6 +52,11 @@
   }
 
   function primeraColumna() { return COLUMNAS[0].id; }
+
+  // La última columna cierra el flujo: al entrar ahí el pago se tilda solo. El
+  // servidor hace lo mismo (es él quien manda), pero acá se adelanta para que se
+  // vea tildado en el acto.
+  function esEntregado(id) { return id === COLUMNAS[COLUMNAS.length - 1].id; }
 
   /* ----------------------------- Saneo ----------------------------- */
 
@@ -110,6 +119,7 @@
       unidades: items.length ? unidadesDe(items) : window.Utils.parseNumber(fila.unidades, 0),
       total: items.length ? totalDe(items) : window.Utils.parseNumber(fila.total, 0),
       columna: fila.columna || primeraColumna(),
+      pagado: !!fila.pagado,
       creada: fila.creada || ahoraISO(),
       movida: fila.movida || fila.creada || ahoraISO(),
       creadaPor: String(fila.creadaPor || ''),
@@ -244,6 +254,7 @@
 
   // Mueve una tarjeta a otra columna. Devuelve la tarjeta ya movida, o null si
   // no existe, la columna no es válida o ya estaba en esa columna.
+  // Al entrar a «Entregado» el pago se tilda solo (el servidor hace lo mismo).
   // Se pinta primero y se manda después: si el servidor rechaza el cambio, el
   // tablero vuelve a como estaba y se avisa.
   function mover(id, columna) {
@@ -257,6 +268,7 @@
     var t = tarjetas.splice(antes, 1)[0];
     t.columna = destino.id;
     t.movida = ahoraISO();
+    if (esEntregado(destino.id)) t.pagado = true;
     tarjetas.splice(indiceArribaDe(destino.id), 0, t);   // entra arriba de su columna
     notify();
 
@@ -277,6 +289,37 @@
     });
 
     return clone(t);
+  }
+
+  // Tilda o destilda «Pagado» sin mover la tarjeta. Devuelve true si cambió.
+  // Igual que mover(): se pinta al instante y, si el servidor falla, se vuelve.
+  function cambiarPagado(id, pagado) {
+    var i = indiceDe(id);
+    if (i < 0) return false;
+    pagado = !!pagado;
+    if (!!tarjetas[i].pagado === pagado) return false;
+
+    var respaldo = clone(tarjetas);
+    tarjetas[i].pagado = pagado;
+    tarjetas[i].movida = ahoraISO();
+    notify();
+
+    enVuelo++;
+    window.Api.cambiarPagado(id, pagado).then(function (datos) {
+      if (datos && datos.cotizacion) {
+        var j = indiceDe(id);
+        if (j >= 0) tarjetas[j] = sanearTarjeta(datos.cotizacion);
+      }
+      terminar();
+    }, function (error) {
+      tarjetas = respaldo;
+      notify();
+      terminar();
+      window.App.toast('No se pudo guardar el pago: ' + error.message, 'error');
+      recargar();
+    });
+
+    return true;
   }
 
   // Quita una tarjeta del tablero. El servidor la marca como borrada (borrado
@@ -322,6 +365,7 @@
     siguienteFolio: siguienteFolio,
     crear: crear,
     mover: mover,
+    cambiarPagado: cambiarPagado,
     remove: remove,
     subscribe: subscribe
   };
