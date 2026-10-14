@@ -543,6 +543,46 @@ button { font-family: inherit; cursor: pointer; }
 .tarjeta--pagado .tarjeta__pagado { color: #15803d; }
 .tarjeta__cliente { font-weight: 700; }
 .tarjeta__sin-cliente { font-weight: 400; font-style: italic; color: var(--muted); }
+/* El nombre del cliente se corrige desde la tarjeta: el botón se ve como el texto
+   (sin caja ni fondo) y se subraya al pasar el mouse, para que se note que se
+   puede tocar. Al pulsarlo se vuelve un campo (ver editarCliente, en la vista). */
+.tarjeta__cliente-btn {
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  text-align: left;
+  cursor: text;
+  overflow-wrap: anywhere;   /* un nombre largo se parte, no estira la tarjeta */
+}
+.tarjeta__cliente-btn:hover { text-decoration: underline dotted 1px; }
+.tarjeta__cliente-btn:focus-visible {
+  outline: 3px solid var(--primary-soft);
+  outline-offset: 1px;
+  border-radius: 6px;
+}
+/* El campo con el que se corrige el nombre: mismo texto y mismo alto que la
+   tarjeta. `font: inherit` lo deja en 16px, que es lo que evita el zoom de iOS al
+   enfocar un campo. */
+.tarjeta__cliente-input {
+  width: 100%;
+  min-width: 0;
+  padding: 3px 8px;
+  border: 1px solid var(--primary);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-weight: 700;
+}
+.tarjeta__cliente-input:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--primary-soft);
+}
+.tarjeta__cliente-input::placeholder { font-weight: 400; font-style: italic; color: var(--muted); }
 .tarjeta__meta { font-size: .78rem; color: var(--muted); }
 .tarjeta__resumen { font-size: .8rem; color: #334155; }
 /* Botones que mueven la tarjeta de columna. Llevan el nombre de la columna a la
@@ -1180,6 +1220,10 @@ button { font-family: inherit; cursor: pointer; }
   .tarjeta__pagado { min-height: 36px; font-size: .84rem; }
   .tarjeta__pagado input { width: 20px; height: 20px; }
   .tarjeta__acciones { gap: 10px; }
+  /* El nombre del cliente también se pulsa con el dedo: se le da alto de botón
+     (el relleno es transparente, así que se ve igual) y el campo crece un poco. */
+  .tarjeta__cliente-btn { padding: 6px 0; }
+  .tarjeta__cliente-input { padding: 8px; }
 }
 
 @media (max-width: 640px) {

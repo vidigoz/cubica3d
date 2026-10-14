@@ -31,6 +31,12 @@
   var sello = '';           // 'actualizado' de la última carga (para no repintar de gusto)
   var enVuelo = 0;          // escrituras sin confirmar: el sondeo las espera
 
+  // Tope del nombre del cliente: es el mismo que aplica el servidor al guardar
+  // (LIMITE.cliente, en api/functions/api.js). Se corta también acá para que lo
+  // que se ve en la tarjeta sea exactamente lo que quedó guardado. Lo usa el campo
+  // de la vista (maxlength) para no dejar escribir de más.
+  var CLIENTE_MAX = 120;
+
   function clone(obj) { return JSON.parse(JSON.stringify(obj)); }
 
   function ahoraISO() { return new Date().toISOString(); }
@@ -322,6 +328,43 @@
     return true;
   }
 
+  // Corrige el nombre del cliente sin mover la tarjeta de columna. Devuelve true
+  // si cambió algo; con el mismo nombre no llama al servidor (no hay nada que
+  // guardar). Igual que cambiarPagado(): se pinta al instante y, si el servidor
+  // falla, el tablero vuelve a como estaba y se avisa.
+  // El sello `movida` también se mueve: es lo que hace que los demás navegadores
+  // abiertos se enteren del nombre nuevo (ver leerTablero, en el API).
+  function cambiarCliente(id, cliente) {
+    var i = indiceDe(id);
+    if (i < 0) return false;
+    // Se limpia igual que el servidor: sin espacios de sobra y con su tope de
+    // largo, para que lo que se vea sea lo que quede guardado.
+    cliente = String(cliente == null ? '' : cliente).trim().slice(0, CLIENTE_MAX);
+    if (tarjetas[i].cliente === cliente) return false;
+
+    var respaldo = clone(tarjetas);
+    tarjetas[i].cliente = cliente;
+    tarjetas[i].movida = ahoraISO();
+    notify();
+
+    enVuelo++;
+    window.Api.cambiarCliente(id, cliente).then(function (datos) {
+      if (datos && datos.cotizacion) {
+        var j = indiceDe(id);
+        if (j >= 0) tarjetas[j] = sanearTarjeta(datos.cotizacion);
+      }
+      terminar();
+    }, function (error) {
+      tarjetas = respaldo;
+      notify();
+      terminar();
+      window.App.toast('No se pudo guardar el cliente: ' + error.message, 'error');
+      recargar();
+    });
+
+    return true;
+  }
+
   // Quita una tarjeta del tablero. El servidor la marca como borrada (borrado
   // suave): sale de la vista pero la historia y la bitácora quedan en la base.
   function remove(id) {
@@ -354,6 +397,7 @@
 
   window.Proceso = {
     COLUMNAS: clone(COLUMNAS),
+    CLIENTE_MAX: CLIENTE_MAX,
     init: init,
     recargar: recargar,
     ocupado: ocupado,
@@ -366,6 +410,7 @@
     crear: crear,
     mover: mover,
     cambiarPagado: cambiarPagado,
+    cambiarCliente: cambiarCliente,
     remove: remove,
     subscribe: subscribe
   };

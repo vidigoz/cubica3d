@@ -182,6 +182,12 @@ Realizado → Entregado**.
 - Cada tarjeta es una **copia congelada** de la cotización tal como se envió (folio, cliente, notas,
   líneas, unidades y total). Editar el carrito después **no** cambia nada de lo guardado: aquí vive
   el historial de lo que ya se le mandó al cliente.
+- El **nombre del cliente** se corrige desde la propia tarjeta: se toca el nombre —se subraya al
+  pasar el mouse—, se escribe y se guarda con **Enter** o al salir del campo; **Esc** deja el de
+  antes. Es para arreglar un dedazo del carrito sin borrar y volver a enviar la cotización, que ya
+  es una copia congelada: **no** mueve la tarjeta de columna. Dejar el campo vacío guarda la tarjeta
+  **sin cliente**, como las que se envían sin nombre. El cambio mueve el sello de la tarjeta (igual
+  que el tilde de **Pagado**), así que las otras pantallas abiertas lo ven en unos segundos.
 - Cada tarjeta trae sus propios botones para moverse: **← Atrás** y **Adelante →**, que además dicen
   el nombre de la columna a la que van y se desactivan cuando ya no hay a dónde moverse. No hay
   arrastrar y soltar: con el dedo el gesto se confundía con el scroll de la página. Al cambiar de

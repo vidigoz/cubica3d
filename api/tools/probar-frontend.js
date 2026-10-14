@@ -223,7 +223,25 @@ async function principal() {
   afirmar(!!sinPagar && sinPagar.pagado === false && sinPagar.columna === "entregado",
     "quedó sin pagar y en la misma columna");
 
-  titulo("9) Quitar la tarjeta del tablero (DELETE /api/cotizaciones/:id)");
+  titulo("9) Corregir el nombre del cliente (PATCH /api/cotizaciones/:id, sin mover la tarjeta)");
+  // La tarjeta es una copia congelada, pero el nombre se corrige: es lo que hace
+  // falta cuando el carrito se mandó con un dedazo. No mueve la tarjeta de columna.
+  afirmar(Proceso.getTarjeta(tarjeta.id).cliente === "Cliente de prueba",
+    "la tarjeta nació con el nombre que mandó el carrito");
+  afirmar(Proceso.cambiarCliente(tarjeta.id, "  Cliente Probado  "), "el frontend lo corrigió");
+  afirmar(Proceso.getTarjeta(tarjeta.id).cliente === "Cliente Probado",
+    "se pinta sin los espacios de sobra");
+  await esperar(800);
+  revisado = await servidor();
+  const renombrada = revisado.cotizaciones.filter((t) => t.id === tarjeta.id)[0];
+  afirmar(!!renombrada && renombrada.cliente === "Cliente Probado",
+    "el nombre quedó guardado en la base");
+  afirmar(!!renombrada && renombrada.columna === "entregado",
+    "y la tarjeta no se movió de columna: " + (renombrada ? renombrada.columna : "?"));
+  afirmar(Proceso.cambiarCliente(tarjeta.id, "Cliente Probado") === false,
+    "el mismo nombre no vuelve a llamar al servidor");
+
+  titulo("10) Quitar la tarjeta del tablero (DELETE /api/cotizaciones/:id)");
   afirmar(Proceso.remove(tarjeta.id), "el frontend la quitó de la vista");
   await esperar(800);
   revisado = await servidor();
@@ -232,7 +250,7 @@ async function principal() {
   afirmar(Proceso.getTarjetas().every((t) => t.id !== tarjeta.id),
     "tampoco quedó en ninguna de las cuatro columnas");
 
-  titulo("10) Salir (POST /api/logout)");
+  titulo("11) Salir (POST /api/logout)");
   await Api.logout();
   afirmar(!Api.haySesion(), "la sesión se borró del navegador");
 

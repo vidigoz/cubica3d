@@ -7,6 +7,9 @@
  * con el dedo el gesto se confundía con el scroll de la página.
  * Cada tarjeta trae el tilde de «Pagado» al lado del importe: se tilda solo al
  * entrar a «Entregado» (lo hace el servidor) y se puede destildar a mano.
+ * El nombre del cliente se corrige desde la propia tarjeta: se toca el nombre y se
+ * escribe (Enter o salir del campo guarda, Esc cancela); así se arregla un dedazo
+ * del carrito sin borrar y volver a enviar la cotización.
  * La cotización completa se ve con el botón «Ver» (PDF.ver) y se descarga con 🖨. */
 (function () {
   'use strict';
@@ -232,6 +235,19 @@
       '</label>';
   }
 
+  // El nombre del cliente, que se puede corregir ahí mismo: es un botón sin caja
+  // (se ve como el texto) y al pulsarlo se vuelve un campo (ver editarCliente).
+  // Dejarlo vacío guarda «sin nombre», como las tarjetas que se envían así.
+  function clienteTemplate(t) {
+    return '' +
+      '<button class="tarjeta__cliente-btn" type="button" data-cliente ' +
+        'title="Corregir el nombre del cliente">' +
+        (t.cliente
+          ? Utils.escapeHtml(t.cliente)
+          : '<span class="tarjeta__sin-cliente">Sin cliente</span>') +
+      '</button>';
+  }
+
   function tarjetaTemplate(t) {
     var indice = Proceso.indiceColumna(t.columna);
     var po = poDe(t);
@@ -255,11 +271,7 @@
           '<span class="tarjeta__total">' + Utils.formatMoney(t.total) + '</span>' +
         '</div>' +
         pagadoTemplate(t) +
-        '<p class="tarjeta__cliente">' +
-          (t.cliente
-            ? Utils.escapeHtml(t.cliente)
-            : '<span class="tarjeta__sin-cliente">Sin cliente</span>') +
-        '</p>' +
+        '<p class="tarjeta__cliente">' + clienteTemplate(t) + '</p>' +
         '<p class="tarjeta__meta">' +
           Utils.escapeHtml(PDF.fechaTexto(t.fecha)) + ' \u00b7 ' +
           t.unidades + (t.unidades === 1 ? ' pieza' : ' piezas') + ' \u00b7 ' +
@@ -510,6 +522,48 @@
     if (el) el.focus();
   }
 
+  // Corregir el nombre del cliente sin salir del tablero: el nombre se vuelve un
+  // campo (ver [data-cliente]), se guarda con Enter o al salir del campo y se
+  // cancela con Esc (queda el nombre de antes). Lo guarda Proceso.cambiarCliente,
+  // que pinta al instante y repinta el tablero; si no había nada que cambiar —o si
+  // se canceló— el nombre vuelve a su lugar sin tocar el resto del tablero, y así
+  // el clic que cerró el campo (por ejemplo en otra tarjeta) sigue su camino.
+  function editarCliente(id) {
+    var t = Proceso.getTarjeta(id);
+    var tarjetaEl = rootEl && rootEl.querySelector('.tarjeta[data-id="' + id + '"]');
+    var caja = tarjetaEl && tarjetaEl.querySelector('.tarjeta__cliente');
+    if (!t || !caja || caja.querySelector('input')) return;   // ya hay un campo abierto
+
+    var input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'tarjeta__cliente-input';
+    input.value = t.cliente;
+    input.maxLength = Proceso.CLIENTE_MAX;
+    input.placeholder = 'Sin cliente';
+    input.autocomplete = 'off';
+    input.setAttribute('aria-label', 'Nombre del cliente');
+    caja.innerHTML = '';
+    caja.appendChild(input);
+    input.focus();
+    input.select();
+
+    var cerrado = false;   // Esc y blur no guardan dos veces
+    function cerrar(guardar) {
+      if (cerrado) return;
+      cerrado = true;
+      var nombre = input.value;
+      if (!guardar || !Proceso.cambiarCliente(id, nombre)) {
+        caja.innerHTML = clienteTemplate(Proceso.getTarjeta(id) || t);
+      }
+    }
+
+    input.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); cerrar(true); }
+      else if (e.key === 'Escape') { e.preventDefault(); cerrar(false); }
+    });
+    input.addEventListener('blur', function () { cerrar(true); });
+  }
+
   // Listeners delegados sobre el contenedor: no hay que reengancharlos cada vez
   // que se repinta ni al volver a entrar a la ruta.
   function bind() {
@@ -524,6 +578,13 @@
       var paso = e.target.closest('[data-mover]');
       if (paso) {
         moverPaso(id, paso.getAttribute('data-mover') === 'siguiente' ? 1 : -1);
+        return;
+      }
+
+      // El nombre del cliente: se corrige ahí mismo, sin salir del tablero (el
+      // botón se vuelve un campo, ver editarCliente).
+      if (e.target.closest('[data-cliente]')) {
+        editarCliente(id);
         return;
       }
 

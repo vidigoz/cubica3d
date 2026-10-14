@@ -209,6 +209,13 @@
     return pedir('PATCH', '/cotizaciones/' + encodeURIComponent(id), { pagado: !!pagado });
   }
 
+  // Corrige el nombre del cliente de una tarjeta ya enviada, sin moverla de
+  // columna: para arreglar un dedazo del carrito sin borrar y volver a enviar la
+  // cotización (que ya es una copia congelada).
+  function cambiarCliente(id, cliente) {
+    return pedir('PATCH', '/cotizaciones/' + encodeURIComponent(id), { cliente: cliente });
+  }
+
   function borrarCotizacion(id) {
     return pedir('DELETE', '/cotizaciones/' + encodeURIComponent(id));
   }
@@ -230,6 +237,7 @@
     crearCotizacion: crearCotizacion,
     moverCotizacion: moverCotizacion,
     cambiarPagado: cambiarPagado,
+    cambiarCliente: cambiarCliente,
     borrarCotizacion: borrarCotizacion
   };
 })();

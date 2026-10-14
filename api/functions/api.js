@@ -20,8 +20,9 @@
  *                                                          porLetraLargo,
  *                                                          letrasCorte } }
  *   POST   /api/cotizaciones          { clientId, meta, items }      -> tarjeta creada
- *   PATCH  /api/cotizaciones/:id      { columna }  o  { pagado }     -> tarjeta movida o
- *                                                                       con «Pagado» cambiado
+ *   PATCH  /api/cotizaciones/:id      { columna }  o  { pagado }  o  -> tarjeta movida, con
+ *                                     { cliente } (o la combinación)    «Pagado» cambiado o
+ *                                                                       con el cliente corregido
  *   DELETE /api/cotizaciones/:id                                     -> { ok }
  *
  * Rutas públicas: /api (saludo), /api/login, /api/pin y /api/acceso. /api/acceso es
@@ -647,39 +648,55 @@ export function crearApp(opciones) {
     }, contexto.cabeceras);
   }
 
-  // Mueve la tarjeta de columna y/o cambia «Pagado». El cuerpo lleva `columna`,
-  // `pagado` o las dos cosas (el tilde solo, sin mover, es otra llamada al mismo
-  // PATCH). Entrar a «Entregado» tilda el pago solo —es lo que hace el taller al
-  // entregar— salvo que el cliente diga lo contrario (`pagado: false`), y
-  // destildarlo después es un clic: a veces se entrega y se cobra más tarde.
-  // El tilde también mueve `movida`, que es el sello con el que los demás
+  // Mueve la tarjeta de columna, cambia «Pagado» y/o corrige el nombre del
+  // cliente. El cuerpo lleva `columna`, `pagado`, `cliente` o la combinación que
+  // haga falta (mover y tildar suelen ir juntos: ES UNA SOLA LLAMADA). Entrar a
+  // «Entregado» tilda el pago solo —es lo que hace el taller al entregar— salvo
+  // que el cliente diga lo contrario (`pagado: false`), y destildarlo después es
+  // un clic: a veces se entrega y se cobra más tarde.
+  // El nombre también se corrige por acá, sin mover la tarjeta: es para arreglar
+  // un dedazo del carrito («Mria López») sin borrar y volver a enviar la
+  // cotización, que ya es una copia congelada. Como el tilde, no gasta bitácora
+  // (ver el `else` de abajo).
+  // Todo lo que se cambie acá mueve `movida`, que es el sello con el que los demás
   // navegadores se enteran de que hay algo nuevo (ver leerTablero).
   async function moverCotizacion(request, contexto) {
     const cuerpo = (await leerJson(request)) || {};
     const columna = texto(cuerpo.columna).trim();
     const pideColumna = !!columna;
     const pidePagado = Object.prototype.hasOwnProperty.call(cuerpo, "pagado");
+    const pideCliente = Object.prototype.hasOwnProperty.call(cuerpo, "cliente");
     if (pideColumna && COLUMNAS.indexOf(columna) < 0) {
       return fallo("Columna inválida.", 400, contexto.cabeceras);
     }
-    if (!pideColumna && !pidePagado) return fallo("No hay nada que cambiar.", 400, contexto.cabeceras);
+    if (!pideColumna && !pidePagado && !pideCliente) {
+      return fallo("No hay nada que cambiar.", 400, contexto.cabeceras);
+    }
     if (pidePagado && typeof cuerpo.pagado !== "boolean") {
       return fallo("«pagado» tiene que ser true o false.", 400, contexto.cabeceras);
     }
+    if (pideCliente && typeof cuerpo.cliente !== "string") {
+      return fallo("«cliente» tiene que ser texto.", 400, contexto.cabeceras);
+    }
 
     const { rows } = await query(
-      "select columna, pagado from cotizaciones where id = $1 and borrada_en is null",
+      "select columna, pagado, cliente from cotizaciones where id = $1 and borrada_en is null",
       [contexto.params.id]
     );
     const actual = rows[0];
     if (!actual) return fallo("Esa cotización ya no está en el tablero.", 404, contexto.cabeceras);
+
+    // El nombre se limpia igual que al crear la tarjeta (recortar = sin espacios de
+    // sobra y con tope de largo). Si no viene en el cuerpo, se deja el que ya estaba.
+    const cliente = pideCliente ? recortar(cuerpo.cliente, LIMITE.cliente) : actual.cliente;
+    const renombra = pideCliente && cliente !== actual.cliente;
 
     const mueve = pideColumna && actual.columna !== columna;
     const pagado = pidePagado
       ? cuerpo.pagado
       : (mueve && columna === COLUMNA_ENTREGADO ? true : !!actual.pagado);
     const tilda = pagado !== !!actual.pagado;
-    if (!mueve && !tilda) {
+    if (!mueve && !tilda && !renombra) {
       return ok({ cotizacion: await leerTarjeta(contexto.params.id), sinCambios: true }, contexto.cabeceras);
     }
 
@@ -691,20 +708,22 @@ export function crearApp(opciones) {
         [columna, contexto.params.id]
       );
       await query(
-        "update cotizaciones set columna = $2, posicion = $3, pagado = $4, movida = now()," +
-        " movida_por = $5 where id = $1",
-        [contexto.params.id, columna, Number(destino[0].p), pagado, contexto.usuario.nombre]
+        "update cotizaciones set columna = $2, posicion = $3, pagado = $4, cliente = $5," +
+        " movida = now(), movida_por = $6 where id = $1",
+        [contexto.params.id, columna, Number(destino[0].p), pagado, cliente, contexto.usuario.nombre]
       );
       await query(
         "insert into movimientos (cotizacion_id, de_columna, a_columna, usuario) values ($1, $2, $3, $4)",
         [contexto.params.id, actual.columna, columna, contexto.usuario.nombre]
       );
     } else {
-      // Tilde suelto: no hay movimiento que anotar en la bitácora (la columna no
-      // cambió); queda el sello de quién lo hizo y cuándo.
+      // Sin movimiento de columna no hay nada que anotar en la bitácora: el tilde
+      // suelto y la corrección del nombre quedan en el sello de quién lo hizo y
+      // cuándo (que es lo que avisa a los demás navegadores).
       await query(
-        "update cotizaciones set pagado = $2, movida = now(), movida_por = $3 where id = $1",
-        [contexto.params.id, pagado, contexto.usuario.nombre]
+        "update cotizaciones set pagado = $2, cliente = $3, movida = now(), movida_por = $4" +
+        " where id = $1",
+        [contexto.params.id, pagado, cliente, contexto.usuario.nombre]
       );
     }
     return ok({ cotizacion: await leerTarjeta(contexto.params.id) }, contexto.cabeceras);
