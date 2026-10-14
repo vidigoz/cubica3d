@@ -235,6 +235,10 @@
   function tarjetaTemplate(t) {
     var indice = Proceso.indiceColumna(t.columna);
     var po = poDe(t);
+    // La línea de color de la izquierda dice en qué área está (azul, amarilla,
+    // morada o verde: ver .tarjeta--* en css/styles.css). Se valida contra el
+    // catálogo de columnas para que una columna desconocida no invente un color.
+    var claseColumna = indice >= 0 ? ' tarjeta--' + t.columna : '';
     // El botón de ensamble sólo aparece en «Realizado»: es la receta de armado
     // (letra por letra) y se mira con el trabajo ya terminado (ventana aparte,
     // ver abrirEnsamble). Se calcula acá para saber si la cotización tiene
@@ -243,8 +247,7 @@
 
     return '' +
       '<article class="tarjeta' +
-        (t.columna === 'realizado' ? ' tarjeta--realizado' : '') +
-        (t.columna === 'entregado' ? ' tarjeta--entregado' : '') +
+        claseColumna +
         (t.pagado ? ' tarjeta--pagado' : '') + '"' +
         ' data-id="' + Utils.escapeHtml(t.id) + '" tabindex="0">' +
         '<div class="tarjeta__top">' +

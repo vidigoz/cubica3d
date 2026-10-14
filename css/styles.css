@@ -12,6 +12,14 @@
   --primary-soft: #eef2ff;
   --danger: #dc2626;
   --warn: #b45309;
+  /* Un color por columna del tablero (#/proceso): es la línea del borde
+     izquierdo de la tarjeta (ver .tarjeta--*), la que dice de un vistazo en qué
+     área está. Azul Cotización, amarilla Trabajo, morada Realizado y verde
+     Entregado. */
+  --columna-cotizacion: #2563eb;   /* Azul */
+  --columna-trabajo: #eab308;      /* Amarilla */
+  --columna-realizado: #7c3aed;    /* Morada */
+  --columna-entregado: #15803d;    /* Verde */
   --radius: 14px;
   --radius-sm: 10px;
   --shadow: 0 1px 2px rgba(15, 23, 42, .06), 0 8px 24px -12px rgba(15, 23, 42, .18);
@@ -501,8 +509,13 @@ button { font-family: inherit; cursor: pointer; }
 }
 .tarjeta:hover { border-color: var(--primary); }
 .tarjeta:focus-visible { outline: 3px solid var(--primary-soft); outline-offset: 1px; }
-.tarjeta--realizado { border-left-color: #15803d; }
-.tarjeta--entregado { border-left-color: #0f766e; }
+/* La línea de la izquierda lleva el color del área (los de arriba, en :root):
+   azul en Cotización, amarilla en Trabajo, morada en Realizado y verde en
+   Entregado. La pone la tarjeta con .tarjeta--<columna> (ver views/proceso.js). */
+.tarjeta--cotizacion { border-left-color: var(--columna-cotizacion); }
+.tarjeta--trabajo { border-left-color: var(--columna-trabajo); }
+.tarjeta--realizado { border-left-color: var(--columna-realizado); }
+.tarjeta--entregado { border-left-color: var(--columna-entregado); }
 
 .tarjeta__top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
 .tarjeta__folio {
