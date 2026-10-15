@@ -9,6 +9,16 @@
  * El pago viaja con la tarjeta (`pagado`) y se tilda solo al entrar a
  * «Entregado»; destildarlo es un clic (Proceso.cambiarPagado).
  *
+ * El ORDEN de cada columna vive en `posicion` (la misma columna de la base: ver
+ * api/functions/api.js). Una cotización NUEVA entra arriba de «Cotización» —es la
+ * que se acaba de mandar— y todo lo que llega por un CAMBIO de columna entra ABAJO,
+ * así los trabajos viejos quedan arriba y los nuevos abajo. Reordenar a mano
+ * (arrastrar y soltar en la vista) se manda como el número del hueco donde la
+ * soltaron: Proceso.reordenar.
+ *
+ * Mientras hay una tarjeta en la mano el tablero se congela (Proceso.arrastrando):
+ * ni el sondeo de cada 15 s ni un repintado le mueven el piso.
+ *
  * Cada movimiento se pinta al instante y se manda al servidor por atrás; si
  * falla, el tablero vuelve a como estaba y se recarga desde la base.
  * Se expone como window.Proceso */
@@ -36,6 +46,14 @@
   // que se ve en la tarjeta sea exactamente lo que quedó guardado. Lo usa el campo
   // de la vista (maxlength) para no dejar escribir de más.
   var CLIENTE_MAX = 120;
+
+  // Cuánto se separan dos posiciones vecinas: el mismo paso que usa el servidor (ver
+  // PASO_POSICION en api/functions/api.js). Reordenar toma el punto medio del hueco.
+  var PASO_POSICION = 1000;
+
+  // ¿Hay una tarjeta en la mano? Lo prende y lo apaga la vista (arrastrar y soltar).
+  // Mientras dure, el tablero no se repinta ni se sondea (ver ocupado y recargar).
+  var arrastrando = false;
 
   function clone(obj) { return JSON.parse(JSON.stringify(obj)); }
 
@@ -111,6 +129,14 @@
     return items.reduce(function (sum, item) { return sum + lineTotal(item); }, 0);
   }
 
+  // La posición con la que el servidor ordena cada columna (ver api/functions/api.js).
+  // Si un cliente viejo —o una base que todavía no la tuviera— manda cualquier cosa sin
+  // número, se cae a 0: es un número válido y ordena igual.
+  function numeroPosicion(valor) {
+    var n = Number(valor);
+    return isFinite(n) ? n : 0;
+  }
+
   // Deja una tarjeta del servidor con la misma forma que usa el frontend.
   function sanearTarjeta(fila) {
     fila = fila || {};
@@ -125,6 +151,7 @@
       unidades: items.length ? unidadesDe(items) : window.Utils.parseNumber(fila.unidades, 0),
       total: items.length ? totalDe(items) : window.Utils.parseNumber(fila.total, 0),
       columna: fila.columna || primeraColumna(),
+      posicion: numeroPosicion(fila.posicion),
       pagado: !!fila.pagado,
       creada: fila.creada || ahoraISO(),
       movida: fila.movida || fila.creada || ahoraISO(),
@@ -152,8 +179,10 @@
 
   // Trae el tablero de nuevo. La usa el sondeo cada 15 s y también cuando una
   // escritura falla. Es silenciosa: si no hay red, se queda con lo que tiene.
+  // Con una escritura en vuelo —o una tarjeta en la mano— no se pide nada: sería
+  // pisar lo que está pasando.
   function recargar() {
-    if (enVuelo) return Promise.resolve(false);   // no se pisa una escritura en curso
+    if (enVuelo || arrastrando) return Promise.resolve(false);
     return window.Api.tablero().then(function (datos) {
       return aplicar(datos.cotizaciones, datos.actualizado);
     }, function () {
@@ -200,19 +229,66 @@
     return String(folioSiguiente);
   }
 
-  // Posición donde debe entrar una tarjeta para quedar ARRIBA de su columna.
-  function indiceArribaDe(columna) {
-    for (var i = 0; i < tarjetas.length; i++) {
-      if (tarjetas[i].columna === columna) return i;
-    }
-    return tarjetas.length;
-  }
-
   function indiceDe(id) {
     for (var i = 0; i < tarjetas.length; i++) {
       if (tarjetas[i].id === id) return i;
     }
     return -1;
+  }
+
+  // Índice del arreglo donde debe entrar una tarjeta para quedar ABAJO de una columna:
+  // detrás de la última de esa columna (al final de todo, si no tiene ninguna). El
+  // arreglo se lee por columna (getTarjetas filtra), así que su orden ES el de la
+  // pantalla: las posiciones del servidor lo vuelven a confirmar al recargar.
+  function indiceAbajoDe(columna) {
+    for (var i = tarjetas.length - 1; i >= 0; i--) {
+      if (tarjetas[i].columna === columna) return i + 1;
+    }
+    return tarjetas.length;
+  }
+
+  // Dónde empieza una columna en el arreglo (para dejar una tarjeta primera). -1 si esa
+  // columna no tiene ninguna.
+  function indicePrimeroDe(columna) {
+    for (var i = 0; i < tarjetas.length; i++) {
+      if (tarjetas[i].columna === columna) return i;
+    }
+    return -1;
+  }
+
+  // Una tarjeta por id, sólo si está en esa columna: son las vecinas que mira el
+  // arrastre para saber en qué hueco cayó.
+  function tarjetaEn(columna, id) {
+    if (!id) return null;
+    for (var i = 0; i < tarjetas.length; i++) {
+      if (tarjetas[i].id === id && tarjetas[i].columna === columna) return tarjetas[i];
+    }
+    return null;
+  }
+
+  // La POSICIÓN (el número, no el índice) para entrar abajo de una columna: detrás de la
+  // última. Es la misma cuenta que hace el servidor cuando no se le manda `posicion`
+  // (posicionAbajoDe en api/functions/api.js): columna vacía en 1000, y un `max` que
+  // puede ser negativo. Así lo que se ve al instante coincide con lo que queda guardado.
+  function posicionAbajoDe(columna) {
+    var maxima = null;
+    tarjetas.forEach(function (t) {
+      if (t.columna === columna && (maxima === null || t.posicion > maxima)) maxima = t.posicion;
+    });
+    return (maxima === null ? 0 : maxima) + PASO_POSICION;
+  }
+
+  // La posición del hueco entre dos vecinas: el punto medio. Al principio o al final de
+  // la columna, un paso afuera. Con las dos vecinas en el mismo número —no pasa con las
+  // que pone el servidor, pero por si acaso— la tarjeta se corre apenas a la derecha.
+  function posicionEntre(antes, despues) {
+    if (!antes && !despues) return PASO_POSICION;
+    if (!antes) return despues.posicion - PASO_POSICION;
+    if (!despues) return antes.posicion + PASO_POSICION;
+    var medio = (antes.posicion + despues.posicion) / 2;
+    return (medio > antes.posicion && medio < despues.posicion)
+      ? medio
+      : antes.posicion + PASO_POSICION / 1000;
   }
 
   /* --------------------------- Escritura --------------------------- */
@@ -258,11 +334,12 @@
     });
   }
 
-  // Mueve una tarjeta a otra columna. Devuelve la tarjeta ya movida, o null si
-  // no existe, la columna no es válida o ya estaba en esa columna.
+  // Mueve una tarjeta a otra columna: entra ABAJO de la destino (los trabajos viejos
+  // quedan arriba y los nuevos abajo). Devuelve la tarjeta ya movida, o null si no
+  // existe, la columna no es válida o ya estaba en esa columna.
   // Al entrar a «Entregado» el pago se tilda solo (el servidor hace lo mismo).
   // Se pinta primero y se manda después: si el servidor rechaza el cambio, el
-  // tablero vuelve a como estaba y se avisa.
+  // tablero vuelve a como estaba y se avisa (sin `posicion`: la pone el servidor).
   function mover(id, columna) {
     var destino = getColumna(columna);
     if (!destino) return null;
@@ -273,9 +350,10 @@
     var respaldo = clone(tarjetas);
     var t = tarjetas.splice(antes, 1)[0];
     t.columna = destino.id;
+    t.posicion = posicionAbajoDe(destino.id);   // el número que le va a poner el servidor
     t.movida = ahoraISO();
     if (esEntregado(destino.id)) t.pagado = true;
-    tarjetas.splice(indiceArribaDe(destino.id), 0, t);   // entra arriba de su columna
+    tarjetas.splice(indiceAbajoDe(destino.id), 0, t);   // entra abajo de su columna
     notify();
 
     enVuelo++;
@@ -291,6 +369,54 @@
       notify();
       terminar();
       window.App.toast('No se pudo mover la tarjeta: ' + error.message, 'error');
+      recargar();
+    });
+
+    return clone(t);
+  }
+
+  // Pone una tarjeta en el hueco que queda entre dos vecinas: es lo que hace arrastrar y
+  // soltar. `antes` y `despues` son los ids de las tarjetas que la van a rodear en esa
+  // columna (null = al principio o al final). La posición es el punto medio del hueco, así
+  // que reordenar no renumera nada y dos arrastres seguidos al mismo lugar siguen entrando.
+  // Devuelve la tarjeta ya puesta, o null si no había nada que hacer (mismo lugar).
+  // Igual que mover(): se pinta al instante y, si el servidor falla, se vuelve atrás.
+  function reordenar(id, columna, antes, despues) {
+    var destino = getColumna(columna);
+    if (!destino) return null;
+
+    var i = indiceDe(id);
+    if (i < 0) return null;
+
+    var vecinaAntes = tarjetaEn(destino.id, antes);
+    var vecinaDespues = tarjetaEn(destino.id, despues);
+    var nueva = posicionEntre(vecinaAntes, vecinaDespues);
+    if (tarjetas[i].columna === destino.id && tarjetas[i].posicion === nueva) return null;
+
+    var respaldo = clone(tarjetas);
+    var t = tarjetas.splice(i, 1)[0];
+    t.columna = destino.id;
+    t.posicion = nueva;
+    t.movida = ahoraISO();
+    if (esEntregado(destino.id)) t.pagado = true;
+    // Se mete justo detrás de su vecina de arriba; sin vecina de arriba, al principio de la
+    // columna (o al final de todo, si la columna quedó vacía).
+    var j = vecinaAntes ? indiceDe(vecinaAntes.id) + 1 : indicePrimeroDe(destino.id);
+    tarjetas.splice(j < 0 ? tarjetas.length : j, 0, t);
+    notify();
+
+    enVuelo++;
+    window.Api.reordenarCotizacion(id, destino.id, nueva).then(function (datos) {
+      if (datos && datos.cotizacion) {
+        var k = indiceDe(id);
+        if (k >= 0) tarjetas[k] = sanearTarjeta(datos.cotizacion);
+      }
+      terminar();
+    }, function (error) {
+      tarjetas = respaldo;
+      notify();
+      terminar();
+      window.App.toast('No se pudo guardar el orden: ' + error.message, 'error');
       recargar();
     });
 
@@ -392,8 +518,13 @@
     };
   }
 
-  // ¿Hay escrituras sin confirmar? El sondeo espera a que terminen.
-  function ocupado() { return enVuelo > 0; }
+  // ¿Hay que dejar el tablero quieto? El sondeo espera a que terminen las escrituras sin
+  // confirmar y a que se suelte la tarjeta que esté en la mano (arrastrar y soltar).
+  function ocupado() { return enVuelo > 0 || arrastrando; }
+
+  // La vista avisa cuándo empieza y cuándo termina un arrastre: mientras dure, el tablero
+  // no se sondea ni se repinta (si no, la tarjeta se cae de la mano).
+  function marcarArrastre(activo) { arrastrando = !!activo; }
 
   window.Proceso = {
     COLUMNAS: clone(COLUMNAS),
@@ -409,6 +540,8 @@
     siguienteFolio: siguienteFolio,
     crear: crear,
     mover: mover,
+    reordenar: reordenar,
+    arrastrando: marcarArrastre,
     cambiarPagado: cambiarPagado,
     cambiarCliente: cambiarCliente,
     remove: remove,

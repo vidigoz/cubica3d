@@ -84,7 +84,9 @@ create table if not exists cotizaciones (
   notas       text not null default '',
   columna     text not null default 'cotizacion' -- las cuatro columnas del Kanban
                 check (columna in ('cotizacion', 'trabajo', 'realizado', 'entregado')),
-  posicion    numeric not null default 1000,     -- orden DENTRO de la columna (entra arriba)
+  posicion    numeric not null default 1000,     -- lugar DENTRO de la columna: la nueva entra
+                                                 -- arriba de «Cotización» y la que cambia de
+                                                 -- columna entra abajo (ver api/functions/api.js)
   pagado      boolean not null default false,    -- se tilda solo al pasar a «Entregado»
   unidades    integer not null default 0,
   total       numeric(12,2) not null default 0,

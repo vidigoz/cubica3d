@@ -517,6 +517,48 @@ button { font-family: inherit; cursor: pointer; }
 .tarjeta--realizado { border-left-color: var(--columna-realizado); }
 .tarjeta--entregado { border-left-color: var(--columna-entregado); }
 
+/* ---------- Arrastrar y soltar las tarjetas ---------- */
+/* Con el mouse la tarjeta se agarra y se lleva; con el dedo, después de mantenerla
+   pulsada (ver el arrastre en js/views/proceso.js). Mientras dura el gesto la página no
+   selecciona texto ni abre el menú del dedo, y el cursor dice que está agarrando algo. */
+body.arrastrando {
+  cursor: grabbing;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* La tarjeta levantada: flota pegada al puntero (las coordenadas las pone el JS, en línea)
+   y no intercepta el puntero, así se ve qué hay debajo de ella. */
+.tarjeta--volando {
+  position: fixed;
+  z-index: 60;
+  margin: 0;
+  pointer-events: none;
+  touch-action: none;
+  cursor: grabbing;
+  transform: rotate(-1deg) scale(1.02);
+  box-shadow: 0 18px 36px rgba(15, 23, 42, .28);
+}
+
+/* El hueco: dónde caería la tarjeta si la suelta ahora. Lleva el alto de la levantada. */
+.kanban__hueco {
+  border: 2px dashed var(--primary);
+  border-radius: var(--radius-sm);
+  background: var(--primary-soft);
+}
+
+/* La columna que está debajo del puntero: dónde va a caer. */
+.kanban__col--destino { border-color: var(--primary); background: var(--surface); }
+
+/* Con mouse, la tarjeta se puede agarrar: el cursor lo dice. En pantallas táctiles no hay
+   cursor que mostrar (ahí el gesto es mantener pulsada, ver js/views/proceso.js). */
+@media (hover: hover) {
+  .tarjeta { cursor: grab; }
+  .tarjeta:active { cursor: grabbing; }
+  .tarjeta--volando { cursor: grabbing; }
+}
+
 .tarjeta__top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
 .tarjeta__folio {
   font-size: .72rem;

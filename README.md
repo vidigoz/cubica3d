@@ -188,10 +188,19 @@ Realizado → Entregado**.
   es una copia congelada: **no** mueve la tarjeta de columna. Dejar el campo vacío guarda la tarjeta
   **sin cliente**, como las que se envían sin nombre. El cambio mueve el sello de la tarjeta (igual
   que el tilde de **Pagado**), así que las otras pantallas abiertas lo ven en unos segundos.
-- Cada tarjeta trae sus propios botones para moverse: **← Atrás** y **Adelante →**, que además dicen
-  el nombre de la columna a la que van y se desactivan cuando ya no hay a dónde moverse. No hay
-  arrastrar y soltar: con el dedo el gesto se confundía con el scroll de la página. Al cambiar de
-  columna la tarjeta entra **arriba** de la suya y se sella la fecha del movimiento.
+- Cada tarjeta se **arrastra** a su lugar: con el **mouse** se agarra al mover un poco y se suelta
+  donde va; con el **dedo** hay que **mantenerla pulsada** un momento y recién ahí arrastrar (si el
+  dedo se mueve antes, el gesto es el scroll de la página de siempre: por eso el tablero estuvo un
+  tiempo sin arrastre). Mientras la llevás, la tarjeta flota bajo el puntero, en su lugar queda un
+  **hueco punteado** que dice dónde va a caer y la columna destino se resalta; **Esc** (o soltarla
+  fuera del tablero) cancela y la deja como estaba. También están los botones **← Atrás** y
+  **Adelante →**, que dicen el nombre de la columna a la que van, se desactivan cuando ya no hay a
+  dónde moverse y siguen siendo lo más cómodo con el teclado o para mover de a un paso.
+- **El orden de cada columna es el de llegada**: lo que entra por un cambio de columna se suma
+  **abajo** (los trabajos viejos quedan arriba y los nuevos abajo) y la **cotización recién enviada**
+  entra **arriba** de «Cotización», que es la que hay que ver enseguida. Arrastrar cambia ese orden
+  cuando haga falta: la tarjeta queda guardada en el hueco donde la soltaron —la posición es el punto
+  medio entre sus vecinas, así que nunca se renumera la columna— y se sella la fecha del movimiento.
 - Cada tarjeta trae un tilde **Pagado** (debajo del importe) que en **Entregado** se **tilda solo**
   —entregado se da por cobrado— y se puede destildar a mano cuando el cobro queda para después. En
   las otras columnas también se puede marcar, para el cliente que paga por adelantado. Marcar o
@@ -228,8 +237,9 @@ Realizado → Entregado**.
   las teclas con su letra, los llaveros y **Otros productos**, y al pie el total de piezas—.
   **🖨 PDF** reimprime esa hoja tal como se envió (mismo diseño que la vista previa del carrito).
 - **Quitar** borra la tarjeta, con confirmación.
-- Todo se guarda en el `localStorage` (clave `cotizador.proceso.v1`); el chip de cada pestaña del
-  tablero muestra cuántas tarjetas tiene.
+- Todo se guarda en **Postgres** (ver *Datos compartidos*): la tarjeta, su columna y su lugar en la
+  columna (`cotizaciones.posicion`), así que el tablero se ve igual desde cualquier equipo. El chip
+  de cada pestaña del tablero muestra cuántas tarjetas tiene.
 - El contador de folios del carrito se sincroniza con el tablero (`Proceso.siguienteFolio()`), así
   que reiniciar el carrito nunca repite un folio ya enviado.
 

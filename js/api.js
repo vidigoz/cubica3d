@@ -14,7 +14,7 @@
  *   GET    /folio
  *   PUT    /config       { colores, precios }
  *   POST   /cotizaciones { clientId, meta, items }
- *   PATCH  /cotizaciones/:id  { columna } o { pagado }
+ *   PATCH  /cotizaciones/:id  { columna }, { posicion }, { pagado }, { cliente }
  *   DELETE /cotizaciones/:id
  *
  * La sesión (token + usuario) se guarda en localStorage: dura 30 días y así no
@@ -199,9 +199,20 @@
   }
 
   // Mueve la tarjeta de columna. Al entrar a «Entregado» el servidor tilda el
-  // pago solo (si no lo mandás en el mismo pedido).
+  // pago solo (si no lo mandás en el mismo pedido). Sin `posicion`, la tarjeta entra
+  // ABAJO de la columna destino: los trabajos viejos quedan arriba y los nuevos abajo.
   function moverCotizacion(id, columna) {
     return pedir('PATCH', '/cotizaciones/' + encodeURIComponent(id), { columna: columna });
+  }
+
+  // Pone la tarjeta en un lugar exacto de una columna (la suya u otra): es lo que hace
+  // arrastrar y soltar. `posicion` es el número que calcula Proceso —el punto medio
+  // entre las vecinas—, no un índice de la lista.
+  function reordenarCotizacion(id, columna, posicion) {
+    return pedir('PATCH', '/cotizaciones/' + encodeURIComponent(id), {
+      columna: columna,
+      posicion: posicion
+    });
   }
 
   // Tilda o destilda «Pagado» sin mover la tarjeta de columna.
@@ -236,6 +247,7 @@
     guardarConfig: guardarConfig,
     crearCotizacion: crearCotizacion,
     moverCotizacion: moverCotizacion,
+    reordenarCotizacion: reordenarCotizacion,
     cambiarPagado: cambiarPagado,
     cambiarCliente: cambiarCliente,
     borrarCotizacion: borrarCotizacion

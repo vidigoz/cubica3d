@@ -3,8 +3,12 @@
  *
  * Las tarjetas cambian de columna (Cotización -> Trabajo -> Realizado ->
  * Entregado) con los botones de la propia tarjeta: «← Atrás» y «Adelante →», que
- * además llevan el nombre de la columna a la que van. No hay arrastrar y soltar:
- * con el dedo el gesto se confundía con el scroll de la página.
+ * además llevan el nombre de la columna a la que van. Y se acomodan arrastrando:
+ * con el mouse se agarra al mover un poco, y con el dedo después de mantener
+ * pulsado —así el gesto no pelea con el scroll de la página, que fue lo que hizo
+ * descartar el arrastre antes— (ver la sección «Arrastrar y soltar»).
+ * Lo que llega a una columna por un cambio de columna entra ABAJO; la cotización
+ * nueva desde el carrito entra arriba de «Cotización», que es la que hay que ver.
  * Cada tarjeta trae el tilde de «Pagado» al lado del importe: se tilda solo al
  * entrar a «Entregado» (lo hace el servidor) y se puede destildar a mano.
  * El nombre del cliente se corrige desde la propia tarjeta: se toca el nombre y se
@@ -31,7 +35,10 @@
         '<h2 class="page__title">Proceso</h2>' +
         '<p class="page__subtitle">Cada tarjeta es una cotización enviada. Para pasarla a la ' +
           'columna siguiente pulsa <b>Adelante &rarr;</b>, y para devolverla <b>&larr; Atrás</b>: ' +
-          'los botones de la tarjeta dicen a qué columna va cada uno.</p>' +
+          'los botones de la tarjeta dicen a qué columna va cada uno. Para acomodarla, ' +
+          '<b>arrástrala</b> con el mouse &mdash;o mant&eacute;nla pulsada con el dedo&mdash; y ' +
+          'suelta donde quieras: lo que llega a una columna entra <b>abajo</b>, así los ' +
+          'trabajos viejos quedan arriba y los nuevos abajo.</p>' +
       '</div>';
   }
 
@@ -488,6 +495,10 @@
     if (container) rootEl = container;
     if (!rootEl) return;
 
+    // Si quedó una tarjeta en el aire —por ejemplo, cambiaron de pestaña en medio de un
+    // arrastre— se baja sin tocar nada: el repintado la vuelve a poner en su lugar.
+    if (arrastre) desarmarArrastre();
+
     rootEl.innerHTML =
       '<div class="page">' +
         headTemplate() +
@@ -564,6 +575,277 @@
     input.addEventListener('blur', function () { cerrar(true); });
   }
 
+  /* -------------------------- Arrastrar y soltar --------------------------
+     Llevar una tarjeta a otro lugar de su columna —o a otra columna— con el dedo o con
+     el mouse. Va con eventos de PUNTERO (pointerdown / pointermove / pointerup), que son
+     los mismos para los dos, así que hay un solo camino:
+
+      · En la PC se agarra a los 6 px de movimiento: un clic suelto no arrastra nada.
+      · En el móvil hay que MANTENER PULSADO (320 ms) y recién ahí arrastrar. Si el dedo
+        se mueve antes de tiempo, el gesto se suelta y la página hace su scroll de
+        siempre: es el motivo por el que este tablero se quedó sin arrastre la primera
+        vez (el dedo y el scroll se peleaban).
+      · La tarjeta levantada flota pegada al puntero (position: fixed, colgada del body
+        para que nada la recorte) y en su lugar queda un HUECO punteado que se va moviendo
+        por donde va a caer; la columna destino se resalta.
+      · Al soltar, Proceso.reordenar() la mete en ese hueco —el punto medio entre las
+        vecinas—, lo pinta al instante y lo manda al servidor. Esc (o que el navegador
+        corte el gesto) devuelve todo a su lugar.
+      · Mientras dura, el tablero se congela (Proceso.arrastrando): ni el sondeo de cada
+        15 s ni un repintado le mueven el piso justo debajo de la mano.
+
+     Nada de esto arranca desde un control de la tarjeta (botón, campo, tilde, «Detalle»):
+     ahí el gesto es el de siempre. Los botones ← / → siguen estando, y son lo más cómodo
+     para mover una tarjeta de a una columna con el teclado. */
+
+  var PULSADO_MS = 320;     // el dedo tiene que quedarse quieto este rato para agarrar
+  var UMBRAL_PC = 6;        // px de movimiento para agarrar con el mouse
+  var UMBRAL_DEDO = 8;      // px: si el dedo se mueve más antes de tiempo, era scroll
+  var BORDE_SCROLL = 70;    // px desde el borde de la pantalla donde se auto-desplaza
+
+  var gesto = null;         // puntero apoyado, todavía sin agarrar nada
+  var arrastre = null;      // la tarjeta levantada (y su hueco)
+  var finArrastre = 0;      // cuándo terminó el último arrastre (el clic de atrás no cuenta)
+
+  function esDedo(e) { return e.pointerType === 'touch' || e.pointerType === 'pen'; }
+
+  // El puntero se apoyó sobre la tarjeta: queda a la espera. Se engancha en document (y no
+  // en el contenedor) porque el dedo se va a otra parte de la pantalla y el gesto tiene
+  // que seguirlo.
+  function empezarGesto(e, tarjetaEl) {
+    gesto = {
+      el: tarjetaEl,
+      id: tarjetaEl.getAttribute('data-id'),
+      x0: e.clientX,
+      y0: e.clientY,
+      x: e.clientX,
+      y: e.clientY,
+      dedo: esDedo(e),
+      espera: null
+    };
+    document.addEventListener('pointermove', seguirGesto);
+    document.addEventListener('pointerup', terminarGesto);
+    document.addEventListener('pointercancel', terminarGesto);
+
+    // Con el dedo, la señal de «quiero moverla» es quedarse quieto un momento. Hasta que
+    // no pasa ese rato, la página puede scrollear sin que le estorbemos.
+    if (gesto.dedo) {
+      gesto.espera = setTimeout(function () {
+        if (!gesto) return;
+        gesto.espera = null;
+        if (!gesto.el.isConnected) { cancelarGesto(); return; }   // se repintó: ya no está
+        levantar(gesto.x, gesto.y);
+      }, PULSADO_MS);
+    }
+  }
+
+  function seguirGesto(e) {
+    if (!gesto) return;
+    gesto.x = e.clientX;
+    gesto.y = e.clientY;
+    if (arrastre) { moverArrastre(e.clientX, e.clientY); return; }
+
+    var lejos = Math.abs(e.clientX - gesto.x0) + Math.abs(e.clientY - gesto.y0);
+    if (gesto.dedo) {
+      // Se movió antes de tiempo: es el scroll de la página. Se suelta el gesto.
+      if (lejos > UMBRAL_DEDO) cancelarGesto();
+      return;
+    }
+    if (lejos > UMBRAL_PC) levantar(e.clientX, e.clientY);
+  }
+
+  // El puntero se levantó (o el navegador canceló el gesto): se suelta lo que haya.
+  function terminarGesto(e) {
+    if (!gesto) return;
+    var cortado = !!e && e.type === 'pointercancel';
+    if (gesto.espera) clearTimeout(gesto.espera);
+    gesto = null;
+    desenganchar();
+    if (!arrastre) return;
+    if (cortado) cancelarArrastre();
+    else soltarArrastre();
+  }
+
+  // Se suelta el gesto sin arrastrar nada (el dedo se movió antes de tiempo).
+  function cancelarGesto() {
+    if (!gesto) return;
+    if (gesto.espera) clearTimeout(gesto.espera);
+    gesto = null;
+    desenganchar();
+  }
+
+  function desenganchar() {
+    document.removeEventListener('pointermove', seguirGesto);
+    document.removeEventListener('pointerup', terminarGesto);
+    document.removeEventListener('pointercancel', terminarGesto);
+  }
+
+  // Levanta la tarjeta: se mide, se deja el hueco en su lugar y ella se va a flotar. El
+  // hueco es lo que muestra dónde va a caer: se mueve con el puntero (ver ubicarHueco).
+  function levantar(x, y) {
+    if (!gesto || arrastre || !gesto.el.isConnected) return;
+    var el = gesto.el;
+    var caja = el.getBoundingClientRect();
+
+    var hueco = document.createElement('div');
+    hueco.className = 'kanban__hueco';
+    hueco.style.height = Math.round(caja.height) + 'px';
+    hueco.setAttribute('aria-hidden', 'true');
+
+    arrastre = {
+      id: gesto.id,
+      el: el,
+      hueco: hueco,
+      dx: x - caja.left,   // dónde agarró la tarjeta: no se mueve de ahí bajo el puntero
+      dy: y - caja.top
+    };
+
+    el.parentNode.insertBefore(hueco, el);
+    el.classList.add('tarjeta--volando');
+    el.style.width = caja.width + 'px';
+    el.style.height = caja.height + 'px';
+    el.style.left = caja.left + 'px';
+    el.style.top = caja.top + 'px';
+    document.body.appendChild(el);
+
+    // Sin texto seleccionado por el camino (el mouse arrastra con el botón apretado).
+    var seleccion = window.getSelection ? window.getSelection() : null;
+    if (seleccion && seleccion.removeAllRanges) seleccion.removeAllRanges();
+
+    document.body.classList.add('arrastrando');
+    Proceso.arrastrando(true);     // el tablero se queda quieto mientras dure el gesto
+    document.addEventListener('touchmove', evitaScroll, { passive: false });
+    document.addEventListener('keydown', teclaArrastre);
+    ubicarHueco(x, y);
+  }
+
+  function moverArrastre(x, y) {
+    if (!arrastre) return;
+    arrastre.el.style.left = (x - arrastre.dx) + 'px';
+    arrastre.el.style.top = (y - arrastre.dy) + 'px';
+    ubicarHueco(x, y);
+    desplazarBorde(y);
+  }
+
+  // Dónde iría la tarjeta si la soltara acá: el hueco es la respuesta. Se busca la columna
+  // que está debajo del puntero y, dentro de ella, la primera tarjeta cuya mitad de arriba
+  // todavía no pasó: el hueco va justo antes de esa. Sin nada debajo del tablero, el hueco
+  // se queda donde estaba (soltar afuera no cambia nada).
+  function ubicarHueco(x, y) {
+    var bajo = document.elementFromPoint(x, y);
+    var col = bajo && bajo.closest ? bajo.closest('.kanban__col') : null;
+    if (!col) return;
+
+    var cuerpo = col.querySelector('.kanban__body');
+    if (cuerpo) {
+      var hermanas = cuerpo.querySelectorAll('.tarjeta');
+      var antesDe = null;
+      for (var i = 0; i < hermanas.length; i++) {
+        var caja = hermanas[i].getBoundingClientRect();
+        if (y < caja.top + caja.height / 2) { antesDe = hermanas[i]; break; }
+      }
+      if (antesDe) cuerpo.insertBefore(arrastre.hueco, antesDe);
+      else cuerpo.appendChild(arrastre.hueco);
+    }
+    resaltarColumna(col);
+  }
+
+  function resaltarColumna(col) {
+    if (!rootEl) return;
+    var todas = rootEl.querySelectorAll('.kanban__col');
+    for (var i = 0; i < todas.length; i++) {
+      todas[i].classList.toggle('kanban__col--destino', todas[i] === col);
+    }
+  }
+
+  function sinResaltar() {
+    if (!rootEl) return;
+    var todas = rootEl.querySelectorAll('.kanban__col');
+    for (var i = 0; i < todas.length; i++) todas[i].classList.remove('kanban__col--destino');
+  }
+
+  // Con la tarjeta en la mano, el puntero puede llegar al borde: la página se desplaza
+  // sola para poder soltarla más arriba o más abajo (la tarjeta flota, así que se queda
+  // pegada al puntero).
+  function desplazarBorde(y) {
+    if (y < BORDE_SCROLL) window.scrollBy(0, -16);
+    else if (y > window.innerHeight - BORDE_SCROLL) window.scrollBy(0, 16);
+  }
+
+  // El dedo no scrollea mientras hay una tarjeta levantada: el gesto es arrastrar.
+  function evitaScroll(e) {
+    if (arrastre) e.preventDefault();
+  }
+
+  function teclaArrastre(e) {
+    if (e.key === 'Escape' && arrastre) {
+      e.preventDefault();
+      cancelarArrastre();
+    }
+  }
+
+  // Se soltó la tarjeta: se miran sus vecinas del hueco —la de arriba y la de abajo— y
+  // Proceso.reordenar() la mete entre las dos (el punto medio de la posición). El
+  // repintado lo dispara el propio Proceso, así que la tarjeta aparece en su lugar de
+  // verdad; si no había nada que cambiar, se repinta igual, porque estaba flotando.
+  function soltarArrastre() {
+    var hueco = arrastre.hueco;
+    var cuerpo = hueco.parentNode;
+    var col = cuerpo && cuerpo.closest ? cuerpo.closest('.kanban__col') : null;
+    var columna = col ? col.getAttribute('data-col') : '';
+    var antes = vecina(hueco, 'previousElementSibling');
+    var despues = vecina(hueco, 'nextElementSibling');
+    var id = arrastre.id;
+    var original = Proceso.getTarjeta(id);
+
+    desarmarArrastre();
+
+    if (!columna) { render(); return; }   // la soltó fuera del tablero: no cambia nada
+
+    var tarjeta = Proceso.reordenar(id, columna, antes, despues);
+    if (!tarjeta) { render(); return; }   // quedó en el mismo lugar
+
+    var destino = Proceso.getColumna(tarjeta.columna).nombre;
+    var folio = PDF.folioTexto(tarjeta.folio);
+    window.App.toast(original && original.columna !== tarjeta.columna
+      ? 'Cotización ' + folio + ' \u2192 ' + destino
+      : 'Cotización ' + folio + ' \u00b7 nuevo orden en ' + destino, 'success');
+  }
+
+  // Se canceló (Esc, o el navegador cortó el gesto): no cambió nada, así que alcanza con
+  // bajar la tarjeta y repintar el tablero tal como estaba.
+  function cancelarArrastre() {
+    desarmarArrastre();
+    render();
+  }
+
+  // Baja la tarjeta que flotaba, borra el hueco y descongela el tablero. La tarjeta se
+  // saca del DOM (estaba colgada del body) y el repintado la devuelve a su lugar.
+  function desarmarArrastre() {
+    if (!arrastre) return;
+    if (arrastre.hueco && arrastre.hueco.parentNode) {
+      arrastre.hueco.parentNode.removeChild(arrastre.hueco);
+    }
+    if (arrastre.el.parentNode) arrastre.el.parentNode.removeChild(arrastre.el);
+    arrastre = null;
+    document.body.classList.remove('arrastrando');
+    document.removeEventListener('touchmove', evitaScroll, { passive: false });
+    document.removeEventListener('keydown', teclaArrastre);
+    sinResaltar();
+    Proceso.arrastrando(false);
+    // El clic que el navegador dispara atrás de un arrastre (soltar el botón también es un
+    // clic) no es un clic: se anota la hora para que el listener de click lo deje pasar.
+    finArrastre = Date.now();
+  }
+
+  // La tarjeta anterior (o siguiente) del hueco dentro de su columna: las vecinas entre
+  // las que va a caer. Se saltea lo que no sea tarjeta (el cartel de columna vacía).
+  function vecina(el, direccion) {
+    var paso = el[direccion];
+    while (paso && !(paso.classList && paso.classList.contains('tarjeta'))) paso = paso[direccion];
+    return paso ? paso.getAttribute('data-id') : null;
+  }
+
   // Listeners delegados sobre el contenedor: no hay que reengancharlos cada vez
   // que se repinta ni al volver a entrar a la ruta.
   function bind() {
@@ -571,6 +853,10 @@
     boundEl = rootEl;
 
     rootEl.addEventListener('click', function (e) {
+      // El clic que el navegador dispara atrás de un arrastre (soltar el botón también
+      // cuenta como clic) no es un clic: se descarta el que llega pegadito al arrastre.
+      if (Date.now() - finArrastre < 400) return;
+
       var tarjetaEl = e.target.closest('.tarjeta');
       if (!tarjetaEl) return;
       var id = tarjetaEl.getAttribute('data-id');
@@ -633,6 +919,22 @@
       }
     });
 
+    // El arrastre arranca acá: el puntero se apoya sobre una tarjeta y, según sea mouse o
+    // dedo, se levanta enseguida o después de mantener pulsado (ver la sección de arriba).
+    // Desde los controles de la tarjeta (botones, campos, tilde, «Detalle») NO se arrastra:
+    // ahí el gesto sigue siendo el de siempre.
+    rootEl.addEventListener('pointerdown', function (e) {
+      if (arrastre) return;                                   // ya hay una en la mano
+      if (e.button && e.button !== 0) return;                  // sólo el botón principal
+      if (!e.target || typeof e.target.closest !== 'function') return;
+
+      var tarjetaEl = e.target.closest('.tarjeta');
+      if (!tarjetaEl) return;
+      if (e.target.closest('button, input, label, summary, a, select, textarea, details')) return;
+
+      empezarGesto(e, tarjetaEl);
+    });
+
     // El tilde de «Pagado»: se pinta al instante y se manda al servidor por atrás
     // (Proceso.cambiarPagado; si falla, el tablero vuelve atrás y avisa).
     rootEl.addEventListener('change', function (e) {
@@ -655,8 +957,10 @@
   }
 
   // El tablero es compartido: si cambia (desde aquí o al enviar una cotización
-  // desde el carrito) se repinta, esté o no esta vista montada.
+  // desde el carrito) se repinta, esté o no esta vista montada. Salvo que haya una
+  // tarjeta en la mano: ahí el repintado tendría que esperar a que la suelten.
   Proceso.subscribe(function () {
+    if (arrastre) return;
     if (rootEl && rootEl.querySelector('#kanban')) render();
   });
 

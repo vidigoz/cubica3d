@@ -19,11 +19,20 @@
  *                                                clicer: { porLetraCorto,
  *                                                          porLetraLargo,
  *                                                          letrasCorte } }
- *   POST   /api/cotizaciones          { clientId, meta, items }      -> tarjeta creada
- *   PATCH  /api/cotizaciones/:id      { columna }  o  { pagado }  o  -> tarjeta movida, con
- *                                     { cliente } (o la combinación)    «Pagado» cambiado o
- *                                                                       con el cliente corregido
+ *   POST   /api/cotizaciones          { clientId, meta, items }      -> tarjeta creada (entra
+ *                                                                       ARRIBA de «Cotización»)
+ *   PATCH  /api/cotizaciones/:id      { columna } o { posicion } o   -> tarjeta movida, con
+ *                                     { pagado } o { cliente } (la        «Pagado» cambiado, con el
+ *                                     combinación que haga falta)         cliente corregido o puesta
+ *                                                                        en otro lugar (arrastre)
  *   DELETE /api/cotizaciones/:id                                     -> { ok }
+ *
+ * Orden del tablero: se lee por `columna, posicion, folio` (ver leerTablero). Una
+ * cotización NUEVA entra arriba de «Cotización» —es la que se acaba de mandar y hay que
+ * verla—; la que llega por un CAMBIO de columna entra ABAJO, así los trabajos viejos
+ * quedan arriba y los nuevos abajo. El orden fino lo manda el cliente con `posicion`
+ * (arrastrar y soltar): el servidor la valida y la guarda tal cual, porque es el hueco
+ * donde soltó la tarjeta.
  *
  * Rutas públicas: /api (saludo), /api/login, /api/pin y /api/acceso. /api/acceso es
  * el camino normal de entrada: la app no tiene pantalla de login (se sacó a
@@ -72,6 +81,12 @@ const INTENTOS_MAX = 10;                                   // por correo...
 const INTENTOS_VENTANA_MS = 15 * 60 * 1000;                // ...cada 15 minutos
 const SCRYPT = { N: 16384, r: 8, p: 1, largo: 64, sal: 16 };
 const LIMITE = { cliente: 120, notas: 600, titulo: 120, tipo: 40 };
+// Cada tarjeta guarda su lugar dentro de la columna con un número (`posicion`, ver
+// db/schema.sql). Se separan de a mil y el hueco se parte al medio entre las vecinas: así
+// reordenar NUNCA renumera la columna entera, sólo mueve una tarjeta de número.
+const PASO_POSICION = 1000;
+// Techo de cordura: un cliente modificado no puede inventar una posición absurda.
+const POSICION_MAXIMA = 1e12;
 const PIN_DIGITOS = 4;                                     // el PIN del taller tiene 4
 const INTENTOS_PIN_MAX = 5;                                // 5 intentos cada 15 minutos
 const CLAVE_PIN = "#pin";                                  // los cuenta acá (no es un correo)
@@ -128,6 +143,15 @@ const mismoPin = (candidato, esperado) =>
 // (undefined / null / ""), devuelve el de por defecto en vez de 0.
 const numeroODefecto = (valor, porDefecto) =>
   (valor == null || String(valor).trim() === "" ? porDefecto : numero(valor, porDefecto));
+
+// La posición que manda el cliente al arrastrar una tarjeta (PATCH): tiene que ser un
+// NÚMERO de verdad —no un texto, ni infinito, ni una barbaridad—; si no sirve, null y
+// la ruta contesta 400. Se exige número (y no "algo que se pueda convertir") a propósito:
+// el punto medio entre dos vecinas se calcula en el navegador y llega como número.
+const posicionValida = (valor) =>
+  (typeof valor === "number" && isFinite(valor) && Math.abs(valor) <= POSICION_MAXIMA)
+    ? valor
+    : null;
 
 // Lo que la gente escribe en el .env para decir "sí": true / 1 / si / on / yes.
 const esVerdadero = (valor) => valor === true ||
@@ -567,9 +591,12 @@ export function crearApp(opciones) {
     return ok({ config: { colores: colores, precios: precios }, configUsuario: contexto.usuario.nombre }, contexto.cabeceras);
   }
 
+  // La cotización nueva entra ARRIBA de «Cotización» (el `min - PASO` de la CTE): es la
+  // que se acaba de mandar y hay que verla sí o sí. Lo que llega por un CAMBIO de columna
+  // entra ABAJO (ver posicionAbajoDe), y el arrastre manda la posición exacta.
   const SQL_NUEVA = `
     with posicion as (
-      select coalesce(min(posicion), 1000) - 1000 as p
+      select coalesce(min(posicion), ${PASO_POSICION}) - ${PASO_POSICION} as p
         from cotizaciones where columna = 'cotizacion' and borrada_en is null
     ), nueva as (
       insert into cotizaciones (client_id, folio, fecha, cliente, notas, columna, posicion,
@@ -648,9 +675,22 @@ export function crearApp(opciones) {
     }, contexto.cabeceras);
   }
 
-  // Mueve la tarjeta de columna, cambia «Pagado» y/o corrige el nombre del
-  // cliente. El cuerpo lleva `columna`, `pagado`, `cliente` o la combinación que
-  // haga falta (mover y tildar suelen ir juntos: ES UNA SOLA LLAMADA). Entrar a
+  // Posición para entrar ABAJO de una columna: detrás de la última tarjeta. Se separan
+  // de a PASO_POSICION para que entre dos vecinas siempre quede lugar (lo que usa el
+  // arrastre: el punto medio del hueco). Una columna vacía arranca en 1000.
+  async function posicionAbajoDe(columna, id) {
+    const { rows } = await query(
+      "select coalesce(max(posicion), 0) + " + PASO_POSICION + " as p from cotizaciones" +
+      " where columna = $1 and borrada_en is null and id <> $2",
+      [columna, id]
+    );
+    return Number(rows[0].p);
+  }
+
+  // Mueve la tarjeta de columna, la reordena dentro de su columna, cambia «Pagado»
+  // y/o corrige el nombre del cliente. El cuerpo lleva `columna`, `posicion`,
+  // `pagado`, `cliente` o la combinación que haga falta (mover y tildar suelen ir
+  // juntos: ES UNA SOLA LLAMADA). Entrar a
   // «Entregado» tilda el pago solo —es lo que hace el taller al entregar— salvo
   // que el cliente diga lo contrario (`pagado: false`), y destildarlo después es
   // un clic: a veces se entrega y se cobra más tarde.
@@ -658,18 +698,31 @@ export function crearApp(opciones) {
   // un dedazo del carrito («Mria López») sin borrar y volver a enviar la
   // cotización, que ya es una copia congelada. Como el tilde, no gasta bitácora
   // (ver el `else` de abajo).
+  // Y el ORDEN dentro de la columna también se cambia por acá:
+  //  · mandando `posicion` —lo que hace arrastrar y soltar— manda el cliente: es el
+  //    hueco donde soltó la tarjeta (el navegador calcula el punto medio entre las
+  //    vecinas, así no hay que renumerar nada);
+  //  · sin `posicion`, la tarjeta que llega a otra columna entra ABAJO, para que los
+  //    trabajos viejos queden arriba y los nuevos abajo.
+  // Reordenar sin cambiar de columna no gasta bitácora (no hubo movimiento de
+  // columna), igual que el tilde y el nombre: queda el sello de quién y cuándo.
   // Todo lo que se cambie acá mueve `movida`, que es el sello con el que los demás
   // navegadores se enteran de que hay algo nuevo (ver leerTablero).
   async function moverCotizacion(request, contexto) {
     const cuerpo = (await leerJson(request)) || {};
     const columna = texto(cuerpo.columna).trim();
     const pideColumna = !!columna;
+    const pidePosicion = Object.prototype.hasOwnProperty.call(cuerpo, "posicion");
     const pidePagado = Object.prototype.hasOwnProperty.call(cuerpo, "pagado");
     const pideCliente = Object.prototype.hasOwnProperty.call(cuerpo, "cliente");
+    const posicion = pidePosicion ? posicionValida(cuerpo.posicion) : null;
     if (pideColumna && COLUMNAS.indexOf(columna) < 0) {
       return fallo("Columna inválida.", 400, contexto.cabeceras);
     }
-    if (!pideColumna && !pidePagado && !pideCliente) {
+    if (pidePosicion && posicion === null) {
+      return fallo("«posicion» tiene que ser un número.", 400, contexto.cabeceras);
+    }
+    if (!pideColumna && !pidePosicion && !pidePagado && !pideCliente) {
       return fallo("No hay nada que cambiar.", 400, contexto.cabeceras);
     }
     if (pidePagado && typeof cuerpo.pagado !== "boolean") {
@@ -680,7 +733,7 @@ export function crearApp(opciones) {
     }
 
     const { rows } = await query(
-      "select columna, pagado, cliente from cotizaciones where id = $1 and borrada_en is null",
+      "select columna, posicion, pagado, cliente from cotizaciones where id = $1 and borrada_en is null",
       [contexto.params.id]
     );
     const actual = rows[0];
@@ -692,34 +745,41 @@ export function crearApp(opciones) {
     const renombra = pideCliente && cliente !== actual.cliente;
 
     const mueve = pideColumna && actual.columna !== columna;
+    const reordena = pidePosicion && posicion !== Number(actual.posicion);
     const pagado = pidePagado
       ? cuerpo.pagado
       : (mueve && columna === COLUMNA_ENTREGADO ? true : !!actual.pagado);
     const tilda = pagado !== !!actual.pagado;
-    if (!mueve && !tilda && !renombra) {
+    if (!mueve && !reordena && !tilda && !renombra) {
       return ok({ cotizacion: await leerTarjeta(contexto.params.id), sinCambios: true }, contexto.cabeceras);
     }
 
     if (mueve) {
-      // Igual que en el frontend: la tarjeta entra ARRIBA de la columna destino.
-      const { rows: destino } = await query(
-        "select coalesce(min(posicion), 1000) - 1000 as p from cotizaciones" +
-        " where columna = $1 and borrada_en is null and id <> $2",
-        [columna, contexto.params.id]
-      );
+      // La tarjeta que llega a una columna entra ABAJO —los trabajos viejos quedan
+      // arriba y los nuevos abajo— salvo que venga con `posicion`: ahí manda el hueco
+      // donde la soltaron al arrastrarla.
+      const destino = posicion !== null ? posicion : await posicionAbajoDe(columna, contexto.params.id);
       await query(
         "update cotizaciones set columna = $2, posicion = $3, pagado = $4, cliente = $5," +
         " movida = now(), movida_por = $6 where id = $1",
-        [contexto.params.id, columna, Number(destino[0].p), pagado, cliente, contexto.usuario.nombre]
+        [contexto.params.id, columna, destino, pagado, cliente, contexto.usuario.nombre]
       );
       await query(
         "insert into movimientos (cotizacion_id, de_columna, a_columna, usuario) values ($1, $2, $3, $4)",
         [contexto.params.id, actual.columna, columna, contexto.usuario.nombre]
       );
+    } else if (reordena) {
+      // Arrastrarla dentro de la misma columna cambia el lugar y nada más: sin
+      // bitácora (no hubo cambio de columna) pero con el sello de quién y cuándo.
+      await query(
+        "update cotizaciones set posicion = $2, pagado = $3, cliente = $4, movida = now()," +
+        " movida_por = $5 where id = $1",
+        [contexto.params.id, posicion, pagado, cliente, contexto.usuario.nombre]
+      );
     } else {
-      // Sin movimiento de columna no hay nada que anotar en la bitácora: el tilde
-      // suelto y la corrección del nombre quedan en el sello de quién lo hizo y
-      // cuándo (que es lo que avisa a los demás navegadores).
+      // Sin movimiento de columna ni de lugar no hay nada que anotar en la bitácora:
+      // el tilde suelto y la corrección del nombre quedan en el sello de quién lo hizo
+      // y cuándo (que es lo que avisa a los demás navegadores).
       await query(
         "update cotizaciones set pagado = $2, cliente = $3, movida = now(), movida_por = $4" +
         " where id = $1",
