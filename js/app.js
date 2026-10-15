@@ -1,7 +1,8 @@
 /* Arranque de la app: sesión + enrutador por hash + pestañas + indicador del
  * carrito + toast.
- * Rutas: #/productos, #/productos/llaveros, #/carrito, #/proceso, #/configuracion
- * (Configuración se abre desde el engranito del encabezado, no es una pestaña.)
+ * Rutas: #/productos, #/productos/llaveros, #/carrito, #/proceso, #/estadisticas,
+ * #/configuracion (Configuración se abre desde el engranito del encabezado, no es
+ * una pestaña.)
  *
  * Secuencia de arranque: primero se le pregunta al servidor si el cotizador pide
  * PIN (GET /api/pin). Si lo pide, aparece el pinpad (js/pin.js) y no se entra hasta
@@ -17,7 +18,7 @@
 (function () {
   'use strict';
 
-  var VALID_ROUTES = ['productos', 'carrito', 'proceso', 'configuracion'];
+  var VALID_ROUTES = ['productos', 'carrito', 'proceso', 'estadisticas', 'configuracion'];
   var DEFAULT_ROUTE = 'productos';
 
   // Rutas viejas: se reescriben a las nuevas para que los enlaces guardados
@@ -59,6 +60,7 @@
     switch (route) {
       case 'carrito': return window.Views.carrito;
       case 'proceso': return window.Views.proceso;
+      case 'estadisticas': return window.Views.estadisticas;
       case 'configuracion': return window.Views.configuracion;
       default: return window.Views.productos;
     }

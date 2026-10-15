@@ -1294,6 +1294,12 @@ button { font-family: inherit; cursor: pointer; }
   .q-table .cart-line__meta { gap: 6px; font-size: .74rem; }
 }
 
+/* Teléfonos muy angostos (320px): con la tercera pestaña las tres no entraban y a
+   «Estadísticas» se le comía el borde derecho. Menos aire a los costados y listo. */
+@media (max-width: 360px) {
+  .tab { padding: 8px 10px; font-size: .85rem; }
+}
+
 
 /* ---------- Sesión: quién está adentro y pantalla de acceso ---------- */
 
@@ -1436,5 +1442,173 @@ body.con-pin { overflow: hidden; }
 @media (max-width: 620px) {
   /* En el móvil el encabezado se apila: el nombre de la cuenta va junto al carrito. */
   .user-chip { max-width: 110px; }
+}
+
+
+/* ---------- Estadísticas (#/estadisticas) ----------
+   Dos paneles: Producción (las piezas que salieron del taller, contadas de
+   «Realizado» en adelante) y Ventas (la plata de las tarjetas pagadas). El
+   ranking de colores de cada pieza es una lista con barrita: el largo de la
+   barrita es la parte que le toca a ese color dentro de esa pieza. */
+.estat-mes-sel { min-width: 190px; }
+
+.estat-resumen { font-size: .88rem; color: var(--muted); }
+.estat-resumen b { color: var(--text); }
+
+.estat-aviso {
+  font-size: .85rem;
+  color: var(--warn);
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+}
+
+.estat-none { padding: 2px 0; font-size: .82rem; color: var(--muted); }
+
+/* Cinco fichas: una por pieza que sale del taller. */
+.estat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+  gap: 12px;
+}
+.estat-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+/* Título y aclaración en columna: al lado de un título suelto el .panel__hint se
+   sube con un margen negativo, y acá (adentro de otro div) se montaría encima. */
+.estat-head { display: flex; flex-direction: column; gap: 2px; }
+.estat-head .panel__hint { margin-top: 0; }
+
+.estat-card__head {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+.estat-card__title { font-size: .95rem; font-weight: 700; }
+.estat-card__chip {
+  font-size: .7rem;
+  font-weight: 600;
+  color: var(--primary);
+  background: var(--primary-soft);
+  border-radius: 999px;
+  padding: 2px 9px;
+  white-space: nowrap;
+}
+.estat-card__nota { font-size: .78rem; color: var(--muted); }
+.estat-card__total {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px dashed var(--border);
+}
+.estat-card__total b { font-size: 1.8rem; font-weight: 800; line-height: 1; letter-spacing: -.02em; }
+.estat-card__total span { font-size: .8rem; color: var(--muted); }
+.estat-card__sub {
+  font-size: .72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--muted);
+}
+
+.estat-rank { display: flex; flex-direction: column; gap: 5px; list-style: none; margin: 0; padding: 0; }
+
+/* Ranking de colores: puesto, muestra, nombre, barrita, cuántas y qué parte.
+   El nombre va con max-content: manda lo que se lee, y la barrita se acomoda con
+   lo que sobra (la parte en % y la barrita dicen lo mismo, así que cede ella). */
+.estat-color {
+  display: grid;
+  grid-template-columns: 16px 12px minmax(0, max-content) minmax(22px, 1fr) 30px 32px;
+  align-items: center;
+  gap: 7px;
+  font-size: .8rem;
+}
+.estat-color__pos { text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+.estat-color__nombre { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.estat-color__barra { height: 8px; border-radius: 999px; background: var(--border); overflow: hidden; }
+.estat-color__barra i { display: block; height: 100%; min-width: 2px; border-radius: 999px; background: var(--primary); }
+.estat-color__cant { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
+.estat-color__parte { text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+/* El color que no se anotó: rayitas en vez de un color inventado. */
+.dot--vacio { background: repeating-linear-gradient(45deg, #e2e8f0, #e2e8f0 3px, #fff 3px, #fff 6px); }
+
+/* Reparto por mes de cada pieza. */
+.estat-meses { display: flex; flex-direction: column; gap: 4px; list-style: none; margin: 0; padding: 0; }
+.estat-mes { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; font-size: .8rem; }
+.estat-mes__nombre { color: var(--muted); }
+.estat-mes__cant { font-variant-numeric: tabular-nums; }
+/* El mes en el que no salió nada también se muestra, pero apagado. */
+.estat-mes--cero .estat-mes__nombre,
+.estat-mes--cero .estat-mes__cant { opacity: .45; }
+
+/* Cifras de arriba de la tabla de ventas. */
+.estat-cifras { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.estat-cifra {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+.estat-cifra__label {
+  font-size: .74rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--muted);
+}
+.estat-cifra__valor { font-size: 1.35rem; font-weight: 800; letter-spacing: -.02em; }
+.estat-cifra--plata .estat-cifra__valor { color: var(--primary); }
+
+/* Tabla mes por mes (y total al pie). */
+.estat-tabla-wrap { overflow-x: auto; }
+.estat-tabla { width: 100%; border-collapse: collapse; font-size: .86rem; }
+.estat-tabla th,
+.estat-tabla td { padding: 8px 10px; border-bottom: 1px solid var(--border); text-align: right; white-space: nowrap; }
+.estat-tabla th:first-child,
+.estat-tabla td:first-child { text-align: left; }
+.estat-tabla thead th {
+  font-size: .74rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--muted);
+}
+.estat-tabla tfoot td { font-weight: 800; border-top: 2px solid var(--border); border-bottom: none; }
+.estat-tabla__plata { color: var(--primary); }
+.estat-tabla__fila--mejor { background: var(--primary-soft); }
+.estat-tabla__pin {
+  font-size: .68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--primary);
+}
+
+@media (max-width: 640px) {
+  /* En el móvil el ranking se aprieta: se van la barrita y la columna del puesto. */
+  .estat-color { grid-template-columns: 14px 12px minmax(0, 1fr) 34px; }
+  .estat-color__barra,
+  .estat-color__parte { display: none; }
+  .estat-mes-sel { width: 100%; }
+  /* Y la tabla de ventas se queda con lo que se mira en el teléfono: el mes,
+     cuántas tarjetas y cuánto entró. Las unidades ya están arriba, en su cifra,
+     y el mes mejor, en su recuadro: así la tabla entra sin arrastrar de costado. */
+  .estat-tabla th:nth-child(3),
+  .estat-tabla td:nth-child(3) { display: none; }
+  .estat-tabla__pin { display: none; }
+  .estat-tabla th,
+  .estat-tabla td { padding: 8px 4px; }
 }
 
