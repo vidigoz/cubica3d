@@ -1533,7 +1533,10 @@ body.con-pin { overflow: hidden; }
   font-size: .8rem;
 }
 .estat-color__pos { text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
-.estat-color__nombre { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* El nombre del color manda: envuelve antes que cortarse, porque en la lista real
+   hay colores con acabado pegado («Lila (PETG) (Corrugado)») que no entran en el
+   ancho que le queda a la tarjeta. La barrita y el % igual muestran la proporción. */
+.estat-color__nombre { overflow-wrap: anywhere; }
 .estat-color__barra { height: 8px; border-radius: 999px; background: var(--border); overflow: hidden; }
 .estat-color__barra i { display: block; height: 100%; min-width: 2px; border-radius: 999px; background: var(--primary); }
 .estat-color__cant { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
