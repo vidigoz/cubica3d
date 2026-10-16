@@ -221,7 +221,8 @@ Realizado → Entregado**.
   5 grupos**) para no tener que abrir la hoja. Lo que no se agrupa solo (una cotización vieja de
   clicker, o cualquier otro producto) cae en **Otros productos** por su combinación de colores:
   la orden nunca deja una línea afuera.
-- **Ensamble** aparece sólo en las tarjetas de **Realizado** que traen clickers, y abre la **receta de
+- **Ensamble** aparece en las tarjetas que traen clickers, desde **Trabajo** en adelante (es la receta
+  que se consulta mientras se arma, no cuando recién se cotiza), y abre la **receta de
   armado** en pantalla (no se imprime): una tabla de **cinco columnas** —**letra**, **color de base**,
   **estilo de base**, **color tecla** y **color de letra**— con **una fila por letra, en el orden del
   nombre**, y el símbolo escrito a mano al final, marcado como símbolo. La receta es de **un clicker**
@@ -439,7 +440,9 @@ cotizador/
   dos campos que pide la tabla es `PO.colorYAcabado()`. Un clicker viejo (de cuando el desglose venía
   con «Base» y «Nombre») no tiene receta, así que esa línea no aparece. La ventana vive en
   `js/views/proceso.js` (`abrirEnsamble`): cuelga del `<body>`, se borra al cerrarse y `@media print`
-  la oculta, igual que el visor de `PDF.ver()`.
+  la oculta, igual que el visor de `PDF.ver()`. El botón se ofrece desde «Trabajo» en adelante
+  (`ENSAMBLE_DESDE` en `js/views/proceso.js`): se compara por **índice** de columna y no por nombre,
+  así una columna nueva al final del tablero lo hereda sola.
 - Las agrupaciones son por **clave ordenada**, no por conjuntos: tecla roja con letra blanca y tecla
   blanca con letra roja son dos tandas, igual que base blanca con letras negras y base negra con
   letras blancas. La clave de un color es `hex|nombre`, así que dos colores con el mismo hex pero

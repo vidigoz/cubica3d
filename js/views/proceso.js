@@ -27,6 +27,12 @@
   var boundEl = null;   // el contenedor de la app es siempre el mismo: se engancha una vez
   var abiertas = {};    // tarjetas con el detalle desplegado (sobrevive al repintado)
 
+  // Desde qué columna se ofrece «Ensamble»: la receta de armado se consulta
+  // cuando la venta ya salió al taller, así que está desde «Trabajo» en adelante
+  // (en «Cotización» todavía se está cotizando). Se guarda por NOMBRE y se compara
+  // por ÍNDICE, así una columna nueva al final lo hereda sola.
+  var ENSAMBLE_DESDE = 'trabajo';
+
   /* ---------------------------- Plantillas ---------------------------- */
 
   function headTemplate() {
@@ -212,6 +218,15 @@
     return po.vacia ? null : po;
   }
 
+  // Las recetas de armado de la tarjeta, si le toca el ensamble: desde «Trabajo»
+  // en adelante (ver ENSAMBLE_DESDE) y sólo cuando trae clickers con receta. Una
+  // tarjeta de sólo llaveros no ofrece el botón: no hay letras que armar.
+  function recetasDe(t) {
+    if (!PO || !PO.ensamble) return [];
+    if (Proceso.indiceColumna(t.columna) < Proceso.indiceColumna(ENSAMBLE_DESDE)) return [];
+    return PO.ensamble(t.items);
+  }
+
   // «7 bases · 7 teclas + 7 letras · 3 llaveros · 4 grupos»: lo que hay que
   // fabricar, en corto, para verlo en la tarjeta sin abrir la hoja.
   function poResumenTexto(totales) {
@@ -262,11 +277,12 @@
     // morada o verde: ver .tarjeta--* en css/styles.css). Se valida contra el
     // catálogo de columnas para que una columna desconocida no invente un color.
     var claseColumna = indice >= 0 ? ' tarjeta--' + t.columna : '';
-    // El botón de ensamble sólo aparece en «Realizado»: es la receta de armado
-    // (letra por letra) y se mira con el trabajo ya terminado (ventana aparte,
-    // ver abrirEnsamble). Se calcula acá para saber si la cotización tiene
-    // clickers con receta; el contenido de la ventana se arma al abrirla.
-    var recetas = t.columna === 'realizado' && PO && PO.ensamble ? PO.ensamble(t.items) : [];
+    // El ensamble: el botón aparece desde «Trabajo» en adelante (ver
+    // ENSAMBLE_DESDE) y sólo si la cotización tiene clickers con receta —es la
+    // receta de armado, letra por letra, en una ventana aparte (abrirEnsamble)—.
+    // Se calcula acá para saber si hay algo que armar; el contenido de la ventana
+    // se arma al abrirla.
+    var recetas = recetasDe(t);
 
     return '' +
       '<article class="tarjeta' +
