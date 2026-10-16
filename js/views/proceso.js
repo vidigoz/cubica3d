@@ -14,6 +14,10 @@
  * El nombre del cliente se corrige desde la propia tarjeta: se toca el nombre y se
  * escribe (Enter o salir del campo guarda, Esc cancela); así se arregla un dedazo
  * del carrito sin borrar y volver a enviar la cotización.
+ * En el «Detalle para fabricar» las dos secciones que el taller imprime de a tandas
+ * —las bases del clicker y las teclas con su letra— llevan su tilde: se marca lo que
+ * ya está hecho (Proceso.cambiarListas) para no repetir una tanda ni dejar pasar la
+ * que falta. El tilde es del tablero: no sale en la hoja ni en el PDF.
  * La cotización completa se ve con el botón «Ver» (PDF.ver) y se descarga con 🖨. */
 (function () {
   'use strict';
@@ -137,21 +141,61 @@
       '</li>';
   }
 
-  function loteGrupoTemplate(titulo, filas, nota) {
+  // El rótulo de una sección del desglose. Las que el taller fabrica de a tandas
+  // —las bases del clicker y las teclas con su letra— llevan su tilde delante y el
+  // rótulo entero es la casilla (se puede tocar, que en el móvil hace falta); las
+  // demás (llaveros, otros productos) son un rótulo sin nada que tildar.
+  // `listas` llega como { tanda, listo, pista } o sin venir, y el texto de `titulo`
+  // ya trae el conteo de piezas.
+  function loteSecTemplate(titulo, listas) {
+    var rotulo = '<span class="t-lotes__titulo">' + Utils.escapeHtml(titulo) + '</span>';
+    if (!listas) return '<p class="t-lotes__sec">' + rotulo + '</p>';
+
+    return '' +
+      '<label class="t-lotes__sec' + (listas.listo ? ' t-lotes__sec--listo' : '') + '"' +
+        ' title="' + Utils.escapeHtml(listas.pista) + '">' +
+        '<input type="checkbox" data-listas="' + Utils.escapeHtml(listas.tanda) + '"' +
+          (listas.listo ? ' checked' : '') + '>' +
+        rotulo +
+      '</label>';
+  }
+
+  function loteGrupoTemplate(titulo, filas, nota, listas) {
     if (!filas.length) return '';
     return '' +
-      '<p class="t-lotes__sec">' + Utils.escapeHtml(titulo) + '</p>' +
+      loteSecTemplate(titulo, listas) +
       (nota ? '<p class="t-lotes__nota">' + Utils.escapeHtml(nota) + '</p>' : '') +
-      '<ul class="t-lote-lista">' + filas.join('') + '</ul>';
+      '<ul class="t-lote-lista' + (listas && listas.listo ? ' t-lote-lista--listo' : '') + '">' +
+        filas.join('') +
+      '</ul>';
+  }
+
+  // Los tildes de una tarjeta: qué tandas del taller ya están hechas. Es lo que
+  // guarda Proceso (`basesListas` y `teclasListas`, por tarjeta) y acá sólo se pinta.
+  // Se arman de una vez los dos para que `lotesTemplate` los pase tal cual.
+  function listasDe(t) {
+    return {
+      bases: {
+        tanda: 'bases',
+        listo: !!(t && t.basesListas),
+        pista: 'Las bases del clicker ya est\u00e1n hechas'
+      },
+      teclas: {
+        tanda: 'teclas',
+        listo: !!(t && t.teclasListas),
+        pista: 'Las teclas con su letra ya est\u00e1n hechas'
+      }
+    };
   }
 
   // El desglose del taller: las secciones de la PO que tengan algo (bases del
   // clicker, teclas con su letra, llaveros y otros productos) y, al final, el
   // resumen de piezas. Sin nada que fabricar (o en la primera columna, ver
-  // poDe) no se pinta nada.
-  function lotesTemplate(po) {
+  // poDe) no se pinta nada. La tarjeta (`t`) trae los tildes de lo ya hecho.
+  function lotesTemplate(po, t) {
     if (!po) return '';
 
+    var listas = listasDe(t);
     var bases = po.bases.map(function (g) {
       return loteTemplate(g.cantidad,
         colorTexto('', g.nombre, g.hex) +
@@ -175,9 +219,9 @@
 
     var secciones =
       loteGrupoTemplate('Bases del clicker (' + po.totales.bases + ')', bases,
-        'Todas las del mismo color y acabado se imprimen juntas.') +
+        'Todas las del mismo color y acabado se imprimen juntas.', listas.bases) +
       loteGrupoTemplate('Teclas con su letra (' + po.totales.teclas + ')', teclas,
-        'La tecla y la letra de arriba van juntas, en ese orden.') +
+        'La tecla y la letra de arriba van juntas, en ese orden.', listas.teclas) +
       loteGrupoTemplate('Llaveros (' + po.totales.llaveros + ')', llaveros) +
       loteGrupoTemplate('Otros productos (' + po.totales.otros + ')', otros);
     if (!secciones) return '';
@@ -332,7 +376,7 @@
         '<details class="tarjeta__detalle"' + (abiertas[t.id] ? ' open' : '') + '>' +
           '<summary>Detalle para fabricar</summary>' +
           '<ul class="t-lineas">' + lineasTemplate(t.items) + '</ul>' +
-          lotesTemplate(po) +
+          lotesTemplate(po, t) +
           (t.notas
             ? '<p class="tarjeta__notas"><b>Notas:</b> ' + Utils.escapeHtml(t.notas) + '</p>'
             : '') +
@@ -951,15 +995,28 @@
       empezarGesto(e, tarjetaEl);
     });
 
-    // El tilde de «Pagado»: se pinta al instante y se manda al servidor por atrás
-    // (Proceso.cambiarPagado; si falla, el tablero vuelve atrás y avisa).
+    // Los tildes de la tarjeta: el de «Pagado» y los del taller (qué tandas del
+    // desglose ya están hechas). Se pintan al instante y se mandan al servidor por
+    // atrás (Proceso.cambiarPagado / cambiarListas; si falla, el tablero vuelve
+    // atrás y avisa).
     rootEl.addEventListener('change', function (e) {
       if (!e.target || typeof e.target.closest !== 'function') return;
-      var casilla = e.target.closest('[data-pagado]');
-      if (!casilla) return;
-      var tarjetaEl = casilla.closest('.tarjeta');
+      var tarjetaEl = e.target.closest('.tarjeta');
       if (!tarjetaEl) return;
-      Proceso.cambiarPagado(tarjetaEl.getAttribute('data-id'), casilla.checked);
+      var id = tarjetaEl.getAttribute('data-id');
+
+      var casilla = e.target.closest('[data-pagado]');
+      if (casilla) { Proceso.cambiarPagado(id, casilla.checked); return; }
+
+      // Las casillas del taller van de a dos (bases y teclas): se manda la pareja,
+      // con la que se acaba de tocar cambiada y la otra como está.
+      var tanda = e.target.closest('[data-listas]');
+      if (!tanda) return;
+      var t = Proceso.getTarjeta(id);
+      if (!t) return;
+      var listas = { bases: t.basesListas, teclas: t.teclasListas };
+      listas[tanda.getAttribute('data-listas')] = tanda.checked;
+      Proceso.cambiarListas(id, listas);
     });
 
     // El detalle desplegado no se cierra al repintar (el evento 'toggle' no

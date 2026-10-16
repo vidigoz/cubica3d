@@ -9,6 +9,11 @@
  * El pago viaja con la tarjeta (`pagado`) y se tilda solo al entrar a
  * «Entregado»; destildarlo es un clic (Proceso.cambiarPagado).
  *
+ * Los tildes del taller también viajan con la tarjeta (`basesListas` y
+ * `teclasListas`): qué tandas del desglose ya se imprimieron, para no repetir una
+ * tanda hecha ni dejar pasar la que falta. Se tildan desde la propia tarjeta
+ * (Proceso.cambiarListas) y, como el pago, no mueven la tarjeta de columna.
+ *
  * El ORDEN de cada columna vive en `posicion` (la misma columna de la base: ver
  * api/functions/api.js). Una cotización NUEVA entra arriba de «Cotización» —es la
  * que se acaba de mandar— y todo lo que llega por un CAMBIO de columna entra ABAJO,
@@ -34,7 +39,7 @@
   ];
 
   // Tarjetas: { id, folio, fecha, cliente, notas, items: [...], unidades, total,
-  //             columna, pagado, creada, movida }
+  //             columna, pagado, basesListas, teclasListas, creada, movida }
   var tarjetas = [];
   var listeners = [];
   var folioSiguiente = 1;   // lo lleva el servidor: nunca se repite un folio
@@ -153,6 +158,11 @@
       columna: fila.columna || primeraColumna(),
       posicion: numeroPosicion(fila.posicion),
       pagado: !!fila.pagado,
+      // Los tildes del taller: qué tandas del desglose ya están hechas (bases del
+      // clicker y teclas con su letra). Son del tablero, no de la hoja: una base
+      // vieja que no los traiga queda sin tildar.
+      basesListas: !!fila.basesListas,
+      teclasListas: !!fila.teclasListas,
       creada: fila.creada || ahoraISO(),
       movida: fila.movida || fila.creada || ahoraISO(),
       creadaPor: String(fila.creadaPor || ''),
@@ -454,6 +464,43 @@
     return true;
   }
 
+  // Tilda lo que el taller ya hizo de una tarjeta: las bases del clicker y las teclas
+  // con su letra (`{ bases, teclas }`, las dos casillas del desglose). Sin mover la
+  // tarjeta de columna, igual que cambiarPagado(): se pinta al instante, se manda por
+  // atrás y, si el servidor falla, el tablero vuelve a como estaba y se avisa.
+  // Las dos banderas viajan juntas —es lo que se ve en la tarjeta— y si ninguna cambió
+  // no se llama al servidor: no hay nada que guardar. Devuelve true si cambió algo.
+  function cambiarListas(id, listas) {
+    var i = indiceDe(id);
+    if (i < 0) return false;
+    var bases = !!(listas && listas.bases);
+    var teclas = !!(listas && listas.teclas);
+    if (!!tarjetas[i].basesListas === bases && !!tarjetas[i].teclasListas === teclas) return false;
+
+    var respaldo = clone(tarjetas);
+    tarjetas[i].basesListas = bases;
+    tarjetas[i].teclasListas = teclas;
+    tarjetas[i].movida = ahoraISO();
+    notify();
+
+    enVuelo++;
+    window.Api.cambiarListas(id, { bases: bases, teclas: teclas }).then(function (datos) {
+      if (datos && datos.cotizacion) {
+        var j = indiceDe(id);
+        if (j >= 0) tarjetas[j] = sanearTarjeta(datos.cotizacion);
+      }
+      terminar();
+    }, function (error) {
+      tarjetas = respaldo;
+      notify();
+      terminar();
+      window.App.toast('No se pudo guardar lo fabricado: ' + error.message, 'error');
+      recargar();
+    });
+
+    return true;
+  }
+
   // Corrige el nombre del cliente sin mover la tarjeta de columna. Devuelve true
   // si cambió algo; con el mismo nombre no llama al servidor (no hay nada que
   // guardar). Igual que cambiarPagado(): se pinta al instante y, si el servidor
@@ -544,6 +591,7 @@
     arrastrando: marcarArrastre,
     cambiarPagado: cambiarPagado,
     cambiarCliente: cambiarCliente,
+    cambiarListas: cambiarListas,
     remove: remove,
     subscribe: subscribe
   };

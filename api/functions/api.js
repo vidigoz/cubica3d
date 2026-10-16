@@ -22,9 +22,10 @@
  *   POST   /api/cotizaciones          { clientId, meta, items }      -> tarjeta creada (entra
  *                                                                       ARRIBA de «Cotización»)
  *   PATCH  /api/cotizaciones/:id      { columna } o { posicion } o   -> tarjeta movida, con
- *                                     { pagado } o { cliente } (la        «Pagado» cambiado, con el
- *                                     combinación que haga falta)         cliente corregido o puesta
- *                                                                        en otro lugar (arrastre)
+ *                                     { pagado } o { cliente } o         «Pagado» cambiado, con el
+ *                                     { basesListas } o                  cliente corregido, los tildes
+ *                                     { teclasListas } (la combinación   del taller puestos o en otro
+ *                                     que haga falta)                   lugar (arrastre)
  *   DELETE /api/cotizaciones/:id                                     -> { ok }
  *
  * Orden del tablero: se lee por `columna, posicion, folio` (ver leerTablero). Una
@@ -341,6 +342,11 @@ export function crearApp(opciones) {
       columna: fila.columna,
       posicion: Number(fila.posicion),
       pagado: !!fila.pagado,
+      // Los tildes del taller: qué tandas del desglose ya están hechas (las bases
+      // del clicker y las teclas con su letra). No salen en la hoja ni en el PDF:
+      // son del tablero, para saber qué falta imprimir.
+      basesListas: !!fila.bases_listas,
+      teclasListas: !!fila.teclas_listas,
       creada: new Date(fila.creada).toISOString(),
       movida: new Date(fila.movida).toISOString(),
       creadaPor: fila.creada_por || "",
@@ -354,7 +360,8 @@ export function crearApp(opciones) {
   async function leerTablero() {
     const { rows } = await query(
       "select id, folio, to_char(fecha, 'YYYY-MM-DD') as fecha, cliente, notas, columna," +
-      " posicion, unidades, total, pagado, creada, movida, creada_por, movida_por" +
+      " posicion, unidades, total, pagado, bases_listas, teclas_listas," +
+      " creada, movida, creada_por, movida_por" +
       " from cotizaciones where borrada_en is null" +
       " order by columna, posicion, folio"
     );
@@ -390,7 +397,8 @@ export function crearApp(opciones) {
   async function leerTarjeta(id) {
     const { rows } = await query(
       "select id, folio, to_char(fecha, 'YYYY-MM-DD') as fecha, cliente, notas, columna," +
-      " posicion, unidades, total, pagado, creada, movida, creada_por, movida_por" +
+      " posicion, unidades, total, pagado, bases_listas, teclas_listas," +
+      " creada, movida, creada_por, movida_por" +
       " from cotizaciones where id = $1", [id]
     );
     if (!rows[0]) return null;
@@ -687,10 +695,11 @@ export function crearApp(opciones) {
     return Number(rows[0].p);
   }
 
-  // Mueve la tarjeta de columna, la reordena dentro de su columna, cambia «Pagado»
-  // y/o corrige el nombre del cliente. El cuerpo lleva `columna`, `posicion`,
-  // `pagado`, `cliente` o la combinación que haga falta (mover y tildar suelen ir
-  // juntos: ES UNA SOLA LLAMADA). Entrar a
+  // Mueve la tarjeta de columna, la reordena dentro de su columna, cambia «Pagado»,
+  // corrige el nombre del cliente y/o tilda lo que el taller ya hizo. El cuerpo lleva
+  // `columna`, `posicion`, `pagado`, `cliente`, `basesListas`, `teclasListas` o la
+  // combinación que haga falta (mover y tildar suelen ir juntos: ES UNA SOLA
+  // LLAMADA). Entrar a
   // «Entregado» tilda el pago solo —es lo que hace el taller al entregar— salvo
   // que el cliente diga lo contrario (`pagado: false`), y destildarlo después es
   // un clic: a veces se entrega y se cobra más tarde.
@@ -698,6 +707,10 @@ export function crearApp(opciones) {
   // un dedazo del carrito («Mria López») sin borrar y volver a enviar la
   // cotización, que ya es una copia congelada. Como el tilde, no gasta bitácora
   // (ver el `else` de abajo).
+  // Los tildes del taller (`basesListas` y `teclasListas`) son lo mismo: qué tandas
+  // del desglose de la tarjeta ya se imprimieron. Se tildan desde la propia tarjeta
+  // sin moverla ni ensuciar la bitácora, y viajan con ella para que el resto del
+  // equipo vea qué falta imprimir (ninguno de los dos sale en la hoja ni en el PDF).
   // Y el ORDEN dentro de la columna también se cambia por acá:
   //  · mandando `posicion` —lo que hace arrastrar y soltar— manda el cliente: es el
   //    hueco donde soltó la tarjeta (el navegador calcula el punto medio entre las
@@ -705,7 +718,7 @@ export function crearApp(opciones) {
   //  · sin `posicion`, la tarjeta que llega a otra columna entra ABAJO, para que los
   //    trabajos viejos queden arriba y los nuevos abajo.
   // Reordenar sin cambiar de columna no gasta bitácora (no hubo movimiento de
-  // columna), igual que el tilde y el nombre: queda el sello de quién y cuándo.
+  // columna), igual que los tildes y el nombre: queda el sello de quién y cuándo.
   // Todo lo que se cambie acá mueve `movida`, que es el sello con el que los demás
   // navegadores se enteran de que hay algo nuevo (ver leerTablero).
   async function moverCotizacion(request, contexto) {
@@ -715,6 +728,8 @@ export function crearApp(opciones) {
     const pidePosicion = Object.prototype.hasOwnProperty.call(cuerpo, "posicion");
     const pidePagado = Object.prototype.hasOwnProperty.call(cuerpo, "pagado");
     const pideCliente = Object.prototype.hasOwnProperty.call(cuerpo, "cliente");
+    const pideBases = Object.prototype.hasOwnProperty.call(cuerpo, "basesListas");
+    const pideTeclas = Object.prototype.hasOwnProperty.call(cuerpo, "teclasListas");
     const posicion = pidePosicion ? posicionValida(cuerpo.posicion) : null;
     if (pideColumna && COLUMNAS.indexOf(columna) < 0) {
       return fallo("Columna inválida.", 400, contexto.cabeceras);
@@ -722,7 +737,7 @@ export function crearApp(opciones) {
     if (pidePosicion && posicion === null) {
       return fallo("«posicion» tiene que ser un número.", 400, contexto.cabeceras);
     }
-    if (!pideColumna && !pidePosicion && !pidePagado && !pideCliente) {
+    if (!pideColumna && !pidePosicion && !pidePagado && !pideCliente && !pideBases && !pideTeclas) {
       return fallo("No hay nada que cambiar.", 400, contexto.cabeceras);
     }
     if (pidePagado && typeof cuerpo.pagado !== "boolean") {
@@ -731,9 +746,16 @@ export function crearApp(opciones) {
     if (pideCliente && typeof cuerpo.cliente !== "string") {
       return fallo("«cliente» tiene que ser texto.", 400, contexto.cabeceras);
     }
+    if (pideBases && typeof cuerpo.basesListas !== "boolean") {
+      return fallo("«basesListas» tiene que ser true o false.", 400, contexto.cabeceras);
+    }
+    if (pideTeclas && typeof cuerpo.teclasListas !== "boolean") {
+      return fallo("«teclasListas» tiene que ser true o false.", 400, contexto.cabeceras);
+    }
 
     const { rows } = await query(
-      "select columna, posicion, pagado, cliente from cotizaciones where id = $1 and borrada_en is null",
+      "select columna, posicion, pagado, cliente, bases_listas, teclas_listas" +
+      " from cotizaciones where id = $1 and borrada_en is null",
       [contexto.params.id]
     );
     const actual = rows[0];
@@ -750,7 +772,11 @@ export function crearApp(opciones) {
       ? cuerpo.pagado
       : (mueve && columna === COLUMNA_ENTREGADO ? true : !!actual.pagado);
     const tilda = pagado !== !!actual.pagado;
-    if (!mueve && !reordena && !tilda && !renombra) {
+    // Los tildes del taller, igual: si no vienen en el cuerpo se deja lo que ya había.
+    const basesListas = pideBases ? cuerpo.basesListas : !!actual.bases_listas;
+    const teclasListas = pideTeclas ? cuerpo.teclasListas : !!actual.teclas_listas;
+    const tildaLotes = basesListas !== !!actual.bases_listas || teclasListas !== !!actual.teclas_listas;
+    if (!mueve && !reordena && !tilda && !renombra && !tildaLotes) {
       return ok({ cotizacion: await leerTarjeta(contexto.params.id), sinCambios: true }, contexto.cabeceras);
     }
 
@@ -761,8 +787,9 @@ export function crearApp(opciones) {
       const destino = posicion !== null ? posicion : await posicionAbajoDe(columna, contexto.params.id);
       await query(
         "update cotizaciones set columna = $2, posicion = $3, pagado = $4, cliente = $5," +
-        " movida = now(), movida_por = $6 where id = $1",
-        [contexto.params.id, columna, destino, pagado, cliente, contexto.usuario.nombre]
+        " bases_listas = $6, teclas_listas = $7, movida = now(), movida_por = $8 where id = $1",
+        [contexto.params.id, columna, destino, pagado, cliente, basesListas, teclasListas,
+          contexto.usuario.nombre]
       );
       await query(
         "insert into movimientos (cotizacion_id, de_columna, a_columna, usuario) values ($1, $2, $3, $4)",
@@ -772,18 +799,19 @@ export function crearApp(opciones) {
       // Arrastrarla dentro de la misma columna cambia el lugar y nada más: sin
       // bitácora (no hubo cambio de columna) pero con el sello de quién y cuándo.
       await query(
-        "update cotizaciones set posicion = $2, pagado = $3, cliente = $4, movida = now()," +
-        " movida_por = $5 where id = $1",
-        [contexto.params.id, posicion, pagado, cliente, contexto.usuario.nombre]
+        "update cotizaciones set posicion = $2, pagado = $3, cliente = $4, bases_listas = $5," +
+        " teclas_listas = $6, movida = now(), movida_por = $7 where id = $1",
+        [contexto.params.id, posicion, pagado, cliente, basesListas, teclasListas,
+          contexto.usuario.nombre]
       );
     } else {
       // Sin movimiento de columna ni de lugar no hay nada que anotar en la bitácora:
-      // el tilde suelto y la corrección del nombre quedan en el sello de quién lo hizo
-      // y cuándo (que es lo que avisa a los demás navegadores).
+      // los tildes sueltos y la corrección del nombre quedan en el sello de quién lo
+      // hizo y cuándo (que es lo que avisa a los demás navegadores).
       await query(
-        "update cotizaciones set pagado = $2, cliente = $3, movida = now(), movida_por = $4" +
-        " where id = $1",
-        [contexto.params.id, pagado, cliente, contexto.usuario.nombre]
+        "update cotizaciones set pagado = $2, cliente = $3, bases_listas = $4, teclas_listas = $5," +
+        " movida = now(), movida_por = $6 where id = $1",
+        [contexto.params.id, pagado, cliente, basesListas, teclasListas, contexto.usuario.nombre]
       );
     }
     return ok({ cotizacion: await leerTarjeta(contexto.params.id) }, contexto.cabeceras);

@@ -7,8 +7,9 @@
 --
 -- Se puede volver a aplicar las veces que haga falta: todo es `if not exists` y
 -- al final están las sentencias que ponen AL DÍA una base que ya existía (hoy:
--- la cuarta columna del Kanban y el campo `pagado`). Por eso `npm run schema` es
--- también la migración, sin un segundo archivo de SQL que se pueda olvidar.
+-- la cuarta columna del Kanban, el campo `pagado` y los tildes del taller). Por
+-- eso `npm run schema` es también la migración, sin un segundo archivo de SQL
+-- que se pueda olvidar.
 --
 -- Qué reemplaza cada tabla (antes vivía en localStorage de cada navegador):
 --   configuracion    <- cotizador.config.v1   (colores en stock + precios)
@@ -88,6 +89,8 @@ create table if not exists cotizaciones (
                                                  -- arriba de «Cotización» y la que cambia de
                                                  -- columna entra abajo (ver api/functions/api.js)
   pagado      boolean not null default false,    -- se tilda solo al pasar a «Entregado»
+  bases_listas  boolean not null default false,  -- el taller ya hizo las bases del clicker
+  teclas_listas boolean not null default false,  -- y las teclas con su letra (ver la tarjeta)
   unidades    integer not null default 0,
   total       numeric(12,2) not null default 0,
   creada      timestamptz not null default now(),
@@ -103,11 +106,16 @@ create index if not exists cotizaciones_fecha_idx   on cotizaciones (fecha);
 create index if not exists cotizaciones_borrada_idx on cotizaciones (borrada_en);
 
 -- Puesta al día de una base que ya estaba: este archivo se aplicó una vez, cuando
--- el tablero tenía tres columnas y no existía «Pagado». Las dos sentencias de
--- abajo son idempotentes a propósito, así `npm run schema` (documentado como
+-- el tablero tenía tres columnas y no existía «Pagado». Las sentencias de abajo
+-- son idempotentes a propósito, así `npm run schema` (documentado como
 -- reaplicable) alcanza para migrar Neon y la base local, sin un segundo SQL.
 -- Postgres nombra solo un check de columna: <tabla>_<columna>_check.
 alter table cotizaciones add column if not exists pagado boolean not null default false;
+-- Los tildes del taller: qué tandas del desglose de la tarjeta ya están hechas
+-- (las bases del clicker y las teclas con su letra). Las tarjetas que ya estaban
+-- quedan sin tildar, que es lo honesto: nadie dijo que estuvieran hechas.
+alter table cotizaciones add column if not exists bases_listas boolean not null default false;
+alter table cotizaciones add column if not exists teclas_listas boolean not null default false;
 alter table cotizaciones drop constraint if exists cotizaciones_columna_check;
 alter table cotizaciones add constraint cotizaciones_columna_check
   check (columna in ('cotizacion', 'trabajo', 'realizado', 'entregado'));

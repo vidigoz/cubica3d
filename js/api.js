@@ -14,7 +14,8 @@
  *   GET    /folio
  *   PUT    /config       { colores, precios }
  *   POST   /cotizaciones { clientId, meta, items }
- *   PATCH  /cotizaciones/:id  { columna }, { posicion }, { pagado }, { cliente }
+ *   PATCH  /cotizaciones/:id  { columna }, { posicion }, { pagado }, { cliente },
+ *                             { basesListas }, { teclasListas }
  *   DELETE /cotizaciones/:id
  *
  * La sesión (token + usuario) se guarda en localStorage: dura 30 días y así no
@@ -227,6 +228,17 @@
     return pedir('PATCH', '/cotizaciones/' + encodeURIComponent(id), { cliente: cliente });
   }
 
+  // Tilda o destilda lo que el taller ya hizo de una tarjeta: las bases del clicker
+  // (`basesListas`) y las teclas con su letra (`teclasListas`). Va por el mismo PATCH
+  // suelto que el tilde del pago —no mueve la tarjeta de columna ni gasta bitácora— y
+  // las dos banderas viajan juntas, que es como se ven en el desglose (dos casillas).
+  function cambiarListas(id, listas) {
+    return pedir('PATCH', '/cotizaciones/' + encodeURIComponent(id), {
+      basesListas: !!(listas && listas.bases),
+      teclasListas: !!(listas && listas.teclas)
+    });
+  }
+
   function borrarCotizacion(id) {
     return pedir('DELETE', '/cotizaciones/' + encodeURIComponent(id));
   }
@@ -250,6 +262,7 @@
     reordenarCotizacion: reordenarCotizacion,
     cambiarPagado: cambiarPagado,
     cambiarCliente: cambiarCliente,
+    cambiarListas: cambiarListas,
     borrarCotizacion: borrarCotizacion
   };
 })();

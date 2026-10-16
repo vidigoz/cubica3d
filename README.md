@@ -236,6 +236,12 @@ Realizado → Entregado**.
   en el PDF); de **Trabajo** en adelante se le suman los **lotes del taller** —los mismos de la PO,
   en corto: la cantidad, el color y el acabado de cada tanda de bases con las letras que lleva,
   las teclas con su letra, los llaveros y **Otros productos**, y al pie el total de piezas—.
+  Las dos secciones que el taller imprime **de a tandas** —**Bases del clicker** y **Teclas con su
+  letra**— llevan su **casilla** delante del rótulo (se puede tocar el rótulo entero): al tildarla, la
+  sección y su tanda quedan **en verde y atenuadas**, para ver de un vistazo qué se imprimió y qué
+  falta. El tilde es **de la tarjeta**: se guarda en la base, lo ve todo el equipo, **no mueve la
+  tarjeta** de columna y **no sale en la hoja ni en el PDF** (los llaveros y otros productos, que se
+  imprimen de a uno por nombre, no lo llevan).
   **🖨 PDF** reimprime esa hoja tal como se envió (mismo diseño que la vista previa del carrito).
 - **Quitar** borra la tarjeta, con confirmación.
 - Todo se guarda en **Postgres** (ver *Datos compartidos*): la tarjeta, su columna y su lugar en la
@@ -279,12 +285,14 @@ pruebas y migración— está en **[`api/README.md`](api/README.md)**.
 - **La app entra sola, sin login** (`POST /api/acceso`, ver *La app entra sola*): las tarjetas quedan
   selladas con la cuenta del taller y hay una **bitácora** de cada movimiento. Las cuentas siguen
   existiendo (`npm run usuario` las crea) para cerrar el acceso o para el API.
-- **Poner al día una base que ya estaba andando** (por ejemplo, la cuarta columna y el tilde de
-  **Pagado**): volver a aplicar el mismo esquema, `cd api && npm run schema`. Es idempotente —se puede
+- **Poner al día una base que ya estaba andando** (por ejemplo, la cuarta columna, el tilde de
+  **Pagado** y los tildes del taller de la tarjeta): volver a aplicar el mismo esquema,
+  `cd api && npm run schema`. Es idempotente —se puede
   correr las veces que haga falta— y no borra ni pisa datos: agrega lo que falta y rehace el `check` de
   las columnas para que acepte **Entregado**. Si la base es la de Neon (la del sitio desplegado), el
   momento es **antes** de subir el cambio que usa esos campos, no después: el API que se publica lee
-  `pagado`, así que una base que todavía no la tiene contesta error. Aplicarlo primero no rompe nada,
+  `pagado` y los tildes del taller, así que una base que todavía no los tiene contesta error.
+  Aplicarlo primero no rompe nada,
   porque todo lo que agrega es opcional para el código que ya estaba andando.
 - **"Quitar" es un borrado suave**: la tarjeta sale del tablero pero sus datos quedan
   guardados, así se puede reportar sobre lo vendido o deshacer un error.

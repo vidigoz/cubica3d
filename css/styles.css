@@ -781,7 +781,15 @@ body.arrastrando {
   padding-top: 8px;
   border-top: 1px dashed var(--border);
 }
+/* El rótulo de una sección del desglose. Las dos que el taller imprime de a tandas
+   (las bases del clicker y las teclas con su letra) son además su propia casilla: se
+   tilda ahí mismo lo que ya está hecho (ver listasDe, en js/views/proceso.js). Con
+   tilde el rótulo es un <label> —y no un <p>, por eso el flex— para que se pueda
+   tocar el rótulo entero y no el cuadradito; sin tilde queda igual. */
 .t-lotes__sec {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   margin-top: 8px;
   font-size: .68rem;
   font-weight: 800;
@@ -789,6 +797,19 @@ body.arrastrando {
   text-transform: uppercase;
   color: var(--primary-dark);
 }
+label.t-lotes__sec { cursor: pointer; }
+.t-lotes__sec input {
+  flex: 0 0 auto;
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  accent-color: #15803d;
+  cursor: pointer;
+}
+/* Ya hecho: el rótulo en verde (como «Pagado») y su tanda atenuada, para ver de un
+   vistazo qué falta imprimir y qué no. */
+.t-lotes__sec--listo .t-lotes__titulo { color: #15803d; }
+.t-lote-lista--listo { opacity: .55; }
 .t-lotes__nota { margin-top: 2px; font-size: .7rem; color: var(--muted); }
 .t-lote-lista { display: flex; flex-direction: column; margin-top: 4px; }
 .t-lote {
@@ -1261,6 +1282,10 @@ body.arrastrando {
   .btn-ensamble { height: 40px; padding: 0 14px; font-size: .8rem; }
   .tarjeta__pagado { min-height: 36px; font-size: .84rem; }
   .tarjeta__pagado input { width: 20px; height: 20px; }
+  /* Las casillas del desglose también: el rótulo entero es la casilla y crece para
+     que el dedo la acierte sin apuntar. */
+  .t-lotes__sec { min-height: 32px; }
+  .t-lotes__sec input { width: 20px; height: 20px; }
   .tarjeta__acciones { gap: 10px; }
   /* El nombre del cliente también se pulsa con el dedo: se le da alto de botón
      (el relleno es transparente, así que se ve igual) y el campo crece un poco. */

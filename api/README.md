@@ -216,7 +216,7 @@ del archivo. Si cambiás de rama: `neon link && neon env pull`.
 | `GET` | `/api/folio` | El folio que va a entregar el servidor (`{ siguiente }`) |
 | `PUT` | `/api/config` | `{ colores, precios }` → guarda la configuración del negocio |
 | `POST` | `/api/cotizaciones` | `{ clientId, meta, items }` → guarda la copia congelada |
-| `PATCH` | `/api/cotizaciones/:id` | `{ columna }` → mueve la tarjeta (entra arriba del destino); `{ pagado }` → tilda o destilda el cobro. Al entrar a **Entregado** el pago se tilda solo |
+| `PATCH` | `/api/cotizaciones/:id` | `{ columna }` → mueve la tarjeta (entra arriba del destino); `{ pagado }` → tilda o destilda el cobro; `{ basesListas }` / `{ teclasListas }` → tilda lo que el taller ya hizo. Al entrar a **Entregado** el pago se tilda solo |
 | `DELETE` | `/api/cotizaciones/:id` | Borrado suave: sale del tablero, queda la historia |
 
 Todo menos `/api`, `/api/login`, `/api/pin` y `/api/acceso` exige `Authorization: Bearer <token>`. Las
@@ -239,10 +239,16 @@ o `ACCESO_LIBRE="false"` en su `.env`.
   usuario y hora.
 - **Las columnas del tablero son cuatro** (`cotizacion`, `trabajo`, `realizado`, `entregado`) y las
   vigila un `check` en la base: lo que no sea una de esas cuatro no entra. El `PATCH` acepta
-  `{ columna }`, `{ pagado }` o las dos cosas; al pasar a **Entregado** tilda `pagado` solo, y
-  `{ pagado: false }` manda sobre esa regla (se puede entregar y cobrar después). Cambiar sólo el
+  `{ columna }`, `{ pagado }`, `{ basesListas }`, `{ teclasListas }` o los que hagan falta juntos; al
+  pasar a **Entregado** tilda `pagado` solo, y
+  `{ pagado: false }` manda sobre esa regla (se puede entregar y cobrar después). Cambiar sólo un
   tilde **no** mueve la tarjeta ni gasta bitácora: queda sellado con la fecha y quién lo tocó para
   que los demás navegadores lo vean.
+- **Los dos tildes del taller** (`bases_listas` y `teclas_listas`) dicen qué tandas del desglose de
+  la tarjeta ya se imprimieron —las bases del clicker y las teclas con su letra—: se tildan desde la
+  propia tarjeta, con el mismo `PATCH` suelto que el pago, y viajan en el tablero para que todo el
+  equipo vea qué falta. Nacen en `false` (una tarjeta vieja no tiene nada dado por hecho) y no salen
+  en la hoja ni en el PDF: son del tablero.
 - **Sesiones:** se guarda el SHA-256 del token, nunca el token. Duran 30 días.
 - **Contraseñas:** `scrypt` (N=16384) con sal por usuario, comparadas en tiempo constante.
 
@@ -338,14 +344,16 @@ npm run humo -- <dirección-del-API> correo "clave"                # el API resp
 npx netlify logs --function api                                   # ver errores
 ```
 
-- **Poner al día una base que ya está en uso** (una columna nueva del tablero, el tilde de pago):
-  `npm run schema` otra vez (con el servidor cortado si es la base local). Al final de `db/schema.sql`
-  están las sentencias que actualizan una base
+- **Poner al día una base que ya está en uso** (una columna nueva del tablero, el tilde de pago, los
+  tildes del taller): `npm run schema` otra vez (con el servidor cortado si es la base local). Al
+  final de `db/schema.sql` están las sentencias que actualizan una base
   vieja sin tocar nada a mano en el panel de Neon: `add column if not exists` para lo que falta y
   `drop constraint if exists` + `add constraint` para que el `check` de las columnas acepte las
   cuatro. No borra ni pisa datos: las tarjetas que ya existían quedan como están (y las nuevas
-  columnas entran con su valor por defecto). En Neon, correrlo **antes** de desplegar el cambio que usa
-  esos campos: el código publicado lee `pagado`, así que una base que todavía no la tiene contesta
+  columnas entran con su valor por defecto, sin nada dado por hecho). En Neon, correrlo **antes** de
+  desplegar el cambio que usa
+  esos campos: el código publicado lee `pagado` y los tildes del taller, así que una base que todavía
+  no los tiene contesta
   error. Aplicarlo primero no rompe lo que está andando, porque lo que agrega es opcional para ese
   código.
 - **Sacar a alguien:** `update usuarios set activo = false where email = '...';` Sus sesiones
