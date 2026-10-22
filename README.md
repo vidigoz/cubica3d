@@ -93,7 +93,7 @@ de Productos, así que esa pestaña sigue activa.
   - Con apellido → precio *Nombre + Apellido*.
 - Botón **Agregar al carrito** → se suma al carrito compartido con su **precio unitario**
   (entra con **cantidad 1**; luego la ajustas en el desglose).
-- Botón **Ver desglose** → abre `#/carrito` para capturar los datos y exportar el PDF.
+- Botón **Siguiente →** → abre `#/carrito` para capturar los datos y exportar el PDF.
 - Botón **← Volver al menú** para regresar a la página de productos.
 
 ### Producto "Clicker de Nombre"

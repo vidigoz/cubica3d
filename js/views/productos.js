@@ -268,7 +268,7 @@
         '<div class="cart__head">' +
           '<h3 class="panel__title">Carrito de cotización</h3>' +
           '<div class="cart__actions">' +
-            '<button class="btn btn--ghost" type="button" id="cart-detail">Ver desglose</button>' +
+            '<button class="btn btn--ghost" type="button" id="cart-detail">Siguiente →</button>' +
             '<button class="btn btn--ghost" type="button" id="cart-clear">Limpiar</button>' +
           '</div>' +
         '</div>' +
