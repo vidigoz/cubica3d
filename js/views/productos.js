@@ -11,7 +11,7 @@
   var Clicer = window.Clicer;
 
   var rootEl = null;
-  var currentSub = null;   // null = menú · 'llaveros' · 'clicers' = formulario
+  var currentSub = null;   // null = menú · 'llaveros' · 'clicers' · 'manual' = formulario
 
   // Lo elegido letra por letra en el clicker, una lista por pieza (base, acabado,
   // tecla y letra), alineada con las letras del nombre (y el símbolo, si lo hay,
@@ -22,6 +22,10 @@
   var clicerAcabados = [];    // acabado de la base (Corrugado / Liso), uno por letra
   var clicerTeclas = [];      // color de la tecla, uno por letra
   var clicerLetras = [];      // color de la letra impresa, uno por letra
+
+  // Filas del desglose de la cotización manual: { concepto, detalle }. Se
+  // mantienen mientras se escribe y se pierden al salir del formulario.
+  var manualFilas = [];
 
   // Piezas del clicker que se eligen letra por letra: cada una es un menú por
   // letra. El id es el mismo que usa js/clicer.js y el que va en los data-* de
@@ -76,6 +80,8 @@
             'Elige el color de la base y del nombre. Precio con o sin apellido.', false) +
           productCard('clicers', 'productos/clicers', '🖱️', 'Clicker de Nombre',
             'Cada letra con su base (color y acabado), su tecla y su letra; todo igual o letra por letra.', false) +
+          productCard('manual', 'productos/manual', '✍️', 'Cotización manual',
+            'Para lo que no está en el menú: pones el desglose de lo que vendes y el precio a mano.', false) +
         '</div>' +
       '</section>';
   }
@@ -216,6 +222,46 @@
       '</section>';
   }
 
+  // Formulario de la Cotización manual: un título, el desglose (una fila por
+  // concepto), la cantidad y el precio puesto a mano.
+  function manualTemplate() {
+    return '' +
+      '<section class="panel">' +
+        '<button class="btn btn--ghost btn--back" type="button" data-action="back">← Volver al menú</button>' +
+        '<h3 class="panel__title">Cotización manual</h3>' +
+        '<p class="panel__hint">Para vender algo que no está en el menú. Escribe qué es, el desglose de lo que incluye y el precio; sale en el PDF igual que los demás productos.</p>' +
+        '<form class="form" id="form-manual" novalidate>' +
+          '<label class="field">' +
+            '<span class="field__label">Qué se vende</span>' +
+            '<input class="field__input" type="text" id="f-manual-titulo" maxlength="120" placeholder="Ej. Letrero luminoso para Café Luna" autocomplete="off" />' +
+          '</label>' +
+          '<div class="field">' +
+            '<span class="field__label">Desglose <em class="field__opt">(opcional, una fila por concepto)</em></span>' +
+            '<div class="manual-filas" id="manual-filas"></div>' +
+            '<button class="btn btn--ghost" type="button" id="manual-agregar">+ Agregar concepto</button>' +
+          '</div>' +
+          '<div class="form__row">' +
+            '<label class="field">' +
+              '<span class="field__label">Cantidad</span>' +
+              '<input class="field__input" type="number" id="f-manual-cantidad" min="1" step="1" value="1" inputmode="numeric" />' +
+            '</label>' +
+            '<label class="field">' +
+              '<span class="field__label">Precio unitario ($)</span>' +
+              '<input class="field__input" type="number" id="f-manual-precio" min="0" step="0.01" placeholder="0.00" inputmode="decimal" />' +
+            '</label>' +
+          '</div>' +
+          '<p class="form__error" id="manual-error" hidden></p>' +
+          '<div class="form__footer">' +
+            '<div class="price-preview">' +
+              '<span class="price-preview__label">Importe</span>' +
+              '<span class="price-preview__value" id="manual-importe">$0.00</span>' +
+            '</div>' +
+            '<button class="btn btn--primary" type="submit">Agregar al carrito</button>' +
+          '</div>' +
+        '</form>' +
+      '</section>';
+  }
+
   function cartTemplate() {
     return '' +
       '<section class="panel">' +
@@ -236,10 +282,13 @@
   // producto. Se llama desde App en cada navegación (hash) y también internamente.
   function render(container, sub) {
     if (container) rootEl = container;
-    if (sub !== undefined) currentSub = (sub === 'llaveros' || sub === 'clicers') ? sub : null;
+    if (sub !== undefined) {
+      currentSub = (sub === 'llaveros' || sub === 'clicers' || sub === 'manual') ? sub : null;
+    }
 
     var formulario = currentSub === 'llaveros' ? formTemplate()
       : currentSub === 'clicers' ? clicerTemplate()
+      : currentSub === 'manual' ? manualTemplate()
       : listTemplate();
 
     rootEl.innerHTML =
@@ -255,6 +304,12 @@
     if (currentSub === 'llaveros') {
       updateSwatches();
       updatePricePreview();
+    }
+
+    if (currentSub === 'manual') {
+      manualFilas = [{ concepto: '', detalle: '' }];
+      pintarFilasManual();
+      updateManualImporte();
     }
 
     if (currentSub === 'clicers') {
@@ -299,6 +354,33 @@
       var nomSel = container.querySelector('#f-color-nombre');
       if (baseSel) baseSel.addEventListener('change', updateSwatches);
       if (nomSel) nomSel.addEventListener('change', updateSwatches);
+    }
+
+    // Formulario de la cotización manual: filas del desglose, cantidad y precio.
+    var manualForm = container.querySelector('#form-manual');
+    if (manualForm) {
+      manualForm.addEventListener('submit', function (e) {
+        e.preventDefault();
+        addManualToCart();
+      });
+      ['#f-manual-cantidad', '#f-manual-precio'].forEach(function (selector) {
+        container.querySelector(selector).addEventListener('input', updateManualImporte);
+      });
+      container.querySelector('#manual-agregar').addEventListener('click', function () {
+        leerFilasManual();
+        manualFilas.push({ concepto: '', detalle: '' });
+        pintarFilasManual();
+        var ultima = rootEl.querySelectorAll('[data-manual-concepto]');
+        if (ultima.length) ultima[ultima.length - 1].focus();
+      });
+      // Las filas se repintan al agregar o quitar una: el listener va en el contenedor.
+      container.querySelector('#manual-filas').addEventListener('click', function (e) {
+        var quitar = e.target.closest('[data-manual-quitar]');
+        if (!quitar) return;
+        leerFilasManual();
+        manualFilas.splice(Number(quitar.getAttribute('data-manual-quitar')), 1);
+        pintarFilasManual();
+      });
     }
 
     // Formulario del clicker: los menús «todas» (base con su acabado, tecla y
@@ -471,6 +553,91 @@
     rootEl.querySelector('#f-nombre').focus();
 
     updatePricePreview();
+    window.App.toast('Agregado al carrito', 'success');
+  }
+
+  /* ------------------------- Cotización manual ------------------------- */
+
+  // Lee lo escrito en las filas del desglose y lo guarda en manualFilas.
+  function leerFilasManual() {
+    if (!rootEl) return;
+    manualFilas = [];
+    rootEl.querySelectorAll('.manual-fila').forEach(function (fila) {
+      manualFilas.push({
+        concepto: fila.querySelector('[data-manual-concepto]').value,
+        detalle: fila.querySelector('[data-manual-detalle]').value
+      });
+    });
+  }
+
+  function pintarFilasManual() {
+    var cont = rootEl && rootEl.querySelector('#manual-filas');
+    if (!cont) return;
+    if (!manualFilas.length) {
+      cont.innerHTML = '<p class="empty">Sin desglose: en el PDF sólo saldrá el título.</p>';
+      return;
+    }
+    cont.innerHTML = manualFilas.map(function (f, i) {
+      return '' +
+        '<div class="manual-fila">' +
+          '<input class="field__input" type="text" data-manual-concepto maxlength="60" ' +
+            'placeholder="Concepto (Ej. Diseño)" aria-label="Concepto ' + (i + 1) + '" ' +
+            'value="' + Utils.escapeHtml(f.concepto) + '" autocomplete="off" />' +
+          '<input class="field__input" type="text" data-manual-detalle maxlength="120" ' +
+            'placeholder="Detalle (Ej. logo a dos colores)" aria-label="Detalle ' + (i + 1) + '" ' +
+            'value="' + Utils.escapeHtml(f.detalle) + '" autocomplete="off" />' +
+          '<button class="icon-btn" type="button" data-manual-quitar="' + i + '" title="Quitar concepto">✕</button>' +
+        '</div>';
+    }).join('');
+  }
+
+  function updateManualImporte() {
+    var el = rootEl && rootEl.querySelector('#manual-importe');
+    if (!el) return;
+    var cantidad = Math.floor(Utils.parseNumber(valorDe('#f-manual-cantidad'), 1));
+    var precio = Math.max(0, Utils.parseNumber(valorDe('#f-manual-precio'), 0));
+    el.textContent = Utils.formatMoney(precio * (cantidad > 0 ? cantidad : 1));
+  }
+
+  // Agrega la cotización manual al carrito compartido. El desglose va en los
+  // detalles (concepto → label, detalle → nombre, sin color): el PDF, el carrito
+  // y la tarjeta lo muestran como a los demás productos.
+  function addManualToCart() {
+    if (!rootEl) return;
+    var titulo = Utils.normalize(valorDe('#f-manual-titulo'));
+    var precioTexto = Utils.normalize(valorDe('#f-manual-precio'));
+    var precio = Utils.parseNumber(precioTexto, NaN);
+
+    if (!titulo) {
+      showFormError('Escribe qué se vende.', '#manual-error');
+      return;
+    }
+    if (!isFinite(precio) || precio < 0) {
+      showFormError('Escribe el precio unitario (puede ser $0.00).', '#manual-error');
+      return;
+    }
+
+    leerFilasManual();
+    var detalles = manualFilas.map(function (f) {
+      return { label: Utils.normalize(f.concepto), nombre: Utils.normalize(f.detalle), hex: '' };
+    }).filter(function (d) { return d.label || d.nombre; });
+
+    Cart.add({
+      tipo: window.PO.TIPO_MANUAL,
+      titulo: titulo,
+      detalles: detalles,
+      precio: precio,
+      cantidad: valorDe('#f-manual-cantidad')
+    });
+
+    hideFormError('#manual-error');
+    rootEl.querySelector('#f-manual-titulo').value = '';
+    rootEl.querySelector('#f-manual-precio').value = '';
+    rootEl.querySelector('#f-manual-cantidad').value = '1';
+    manualFilas = [{ concepto: '', detalle: '' }];
+    pintarFilasManual();
+    updateManualImporte();
+    rootEl.querySelector('#f-manual-titulo').focus();
     window.App.toast('Agregado al carrito', 'success');
   }
 
@@ -724,7 +891,7 @@
     var lineas = items.map(function (item) {
       var detalles = (item.detalles || []).map(function (d) {
         return '<span class="meta-tag">' + Utils.escapeHtml(d.label) + ' ' +
-          '<span class="dot" style="background:' + Utils.escapeHtml(d.hex) + '"></span>' +
+          Utils.marcaDetalle(d, 'dot') +
           Utils.escapeHtml(d.nombre) + '</span>';
       }).join('');
 

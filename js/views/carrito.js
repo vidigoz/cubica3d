@@ -80,7 +80,7 @@
   function metaTagsTemplate(item) {
     return (item.detalles || []).map(function (d) {
       return '<span class="meta-tag">' + Utils.escapeHtml(d.label) + ' ' +
-        '<span class="dot" style="background:' + Utils.escapeHtml(d.hex) + '"></span>' +
+        Utils.marcaDetalle(d, 'dot') +
         Utils.escapeHtml(d.nombre) + '</span>';
     }).join('');
   }

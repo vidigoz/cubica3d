@@ -33,6 +33,7 @@
   // Los mismos nombres que usan las líneas de la cotización y del tablero.
   var TIPO_CLICER = 'Clicker de Nombre';
   var TIPO_LLAVERO = 'Llavero de Nombre';
+  var TIPO_MANUAL = 'Cotización manual';
 
   // Las piezas del clicker, tal como las nombra window.Clicer en los labels
   // («A · Base»): el label dice el carácter y la pieza, separados por ·.
@@ -272,7 +273,9 @@
       }
 
       // --- Cualquier otro producto: por su combinación de colores ---
-      var suyas = detalles.map(piezaDe);
+      // La cotización manual no tiene recetas de color: su desglose es texto
+      // para el cliente, no piezas a fabricar.
+      var suyas = tipo === TIPO_MANUAL ? [] : detalles.map(piezaDe);
       var go = grupo(indice.otros, grupos.otros, tipo + '~' + combinacionClave(suyas),
         function () {
           return {
@@ -436,6 +439,7 @@
 
   window.PO = {
     TIPO_CLICER: TIPO_CLICER,
+    TIPO_MANUAL: TIPO_MANUAL,
     TIPO_LLAVERO: TIPO_LLAVERO,
     PIEZAS: { base: PIEZA_BASE, tecla: PIEZA_TECLA, letra: PIEZA_LETRA },
     cantidadDe: cantidadDe,

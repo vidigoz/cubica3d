@@ -98,7 +98,7 @@
   function coloresTemplate(item) {
     return (item.detalles || []).map(function (d) {
       return '<span class="hoja__color">' + Utils.escapeHtml(d.label) +
-        ' <i class="hoja__dot" style="background:' + Utils.escapeHtml(d.hex) + '"></i>' +
+        ' ' + Utils.marcaDetalle(d, 'hoja__dot') +
         Utils.escapeHtml(d.nombre) + '</span>';
     }).join('');
   }
@@ -292,7 +292,7 @@
   function poColorTemplate(pieza) {
     return '<span class="hoja__color">' +
       (pieza.label ? Utils.escapeHtml(pieza.label) + ' ' : '') +
-      '<i class="hoja__dot" style="background:' + Utils.escapeHtml(pieza.hex) + '"></i>' +
+      Utils.marcaDetalle(pieza, 'hoja__dot') +
       Utils.escapeHtml(pieza.nombre) + '</span>';
   }
 

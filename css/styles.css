@@ -235,6 +235,13 @@ button { font-family: inherit; cursor: pointer; }
 .field__input:disabled { background: var(--surface-2); cursor: not-allowed; }
 .field__input--color { height: 42px; padding: 4px; cursor: pointer; }
 
+.manual-filas { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
+.manual-fila { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) auto; gap: 8px; align-items: center; }
+@media (max-width: 640px) {
+  .manual-fila { grid-template-columns: minmax(0, 1fr) auto; }
+  .manual-fila [data-manual-detalle] { grid-column: 1 / -1; grid-row: 2; }
+}
+
 .field__row { display: flex; align-items: center; gap: 10px; }
 .field__row .field__input { flex: 1; }
 

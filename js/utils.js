@@ -36,7 +36,17 @@
     return typeof fallback === 'number' ? fallback : 0;
   }
 
+  // El punto de color de un detalle («Base ● Azul»). Un detalle sin color (el
+  // desglose de una cotización manual: «Diseño · Logo de la empresa») no lleva
+  // punto: lo separa del texto con un «·».
+  function marcaDetalle(d, clase) {
+    d = d || {};
+    if (d.hex) return '<span class="' + clase + '" style="background:' + escapeHtml(d.hex) + '"></span>';
+    return d.label && d.nombre ? '\u00b7 ' : '';
+  }
+
   window.Utils = {
+    marcaDetalle: marcaDetalle,
     uid: uid,
     formatMoney: formatMoney,
     escapeHtml: escapeHtml,

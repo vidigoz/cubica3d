@@ -107,7 +107,7 @@
   // «● Café» con su nombre: el color como se pide al proveedor.
   function colorTexto(etiqueta, nombre, hex) {
     return '<span class="meta-tag">' + (etiqueta ? Utils.escapeHtml(etiqueta) + ' ' : '') +
-      '<span class="dot" style="background:' + Utils.escapeHtml(hex) + '"></span>' +
+      Utils.marcaDetalle({ label: etiqueta, nombre: nombre, hex: hex }, 'dot') +
       Utils.escapeHtml(nombre) + '</span>';
   }
 
