@@ -49,9 +49,6 @@
     return '' +
       '<div class="page__head">' +
         '<h2 class="page__title">Estadísticas</h2>' +
-        '<p class="page__subtitle">Cuántas piezas salió del taller y cuánto se vendió. La ' +
-          'producción se cuenta de <b>Realizado</b> en adelante (ahí ya hay piezas fabricadas) ' +
-          'y las ventas, de las tarjetas con <b>Pagado</b> tildado.</p>' +
       '</div>';
   }
 

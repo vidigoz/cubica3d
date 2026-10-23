@@ -218,7 +218,6 @@
       window.Views.edicionAviso() +
       '<div class="page__head">' +
         '<h2 class="page__title">Productos</h2>' +
-        '<p class="page__subtitle">Elige el producto, agrégalo al carrito y envía la cotización desde ahí.</p>' +
       '</div>';
   }
 

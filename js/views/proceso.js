@@ -47,12 +47,6 @@
     return '' +
       '<div class="page__head">' +
         '<h2 class="page__title">Proceso</h2>' +
-        '<p class="page__subtitle">Cada tarjeta es una cotización enviada. Para pasarla a la ' +
-          'columna siguiente pulsa <b>Adelante &rarr;</b>, y para devolverla <b>&larr; Atrás</b>: ' +
-          'los botones de la tarjeta dicen a qué columna va cada uno. Para acomodarla, ' +
-          '<b>arrástrala</b> con el mouse &mdash;o mant&eacute;nla pulsada con el dedo&mdash; y ' +
-          'suelta donde quieras: lo que llega a una columna entra <b>abajo</b>, así los ' +
-          'trabajos viejos quedan arriba y los nuevos abajo.</p>' +
       '</div>';
   }
 
