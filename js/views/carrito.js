@@ -176,7 +176,10 @@
           '</td>' +
           '<td class="ta-r">' + Utils.formatMoney(item.precio) + '</td>' +
           '<td class="ta-r"><b>' + Utils.formatMoney(Cart.getLineTotal(item)) + '</b></td>' +
-          '<td class="ta-c">' +
+          '<td class="ta-c carrito-acciones">' +
+            (window.Views.productos.subDe(item)
+              ? '<button class="icon-btn" type="button" data-editar-linea="' + Utils.escapeHtml(item.id) + '" title="Editar este producto: nombre, colores…" aria-label="Editar este producto">✏️</button>'
+              : '') +
             '<button class="icon-btn" type="button" data-remove="' + Utils.escapeHtml(item.id) + '" title="Quitar del carrito">✕</button>' +
           '</td>' +
         '</tr>';
@@ -404,6 +407,18 @@
 
       if (e.target.closest('[data-action="cancelar-edicion"]')) {
         cancelarEdicion();
+        return;
+      }
+
+      // Editar un producto de la lista: se abre su formulario con lo que ya tiene.
+      var editarLinea = e.target.closest('[data-editar-linea]');
+      if (editarLinea) {
+        var idLinea = editarLinea.getAttribute('data-editar-linea');
+        var linea = Cart.getLinea(idLinea);
+        var destino = linea && window.Views.productos.subDe(linea);
+        if (!destino) return;
+        Cart.setLineaEnEdicion({ id: idLinea, sub: destino });
+        window.App.navigate('productos/' + destino);
         return;
       }
 

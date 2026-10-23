@@ -96,6 +96,7 @@ de Productos, así que esa pestaña sigue activa.
 - Botón **Siguiente →** → abre `#/carrito` para capturar los datos y exportar el PDF.
 - Botón **← Volver al menú** para regresar a la página de productos.
 - **Editar una cotización ya enviada:** el botón **Editar** de su tarjeta en Proceso la carga en el carrito y regresa a Productos para agregar o quitar lo que haga falta; con **Siguiente → Guardar cambios** la tarjeta queda actualizada (mismo folio y misma columna). El carrito que tenías en armado se guarda aparte y vuelve al terminar o cancelar.
+- **Editar un producto de la lista:** en el carrito (también al editar una tarjeta) cada línea trae un ✏️ que abre el formulario de ese producto ya lleno —nombre, colores letra por letra, desglose—; con **Guardar línea** se reemplaza en el mismo lugar y con la misma cantidad. El precio del clicker y del llavero se recalcula con los precios actuales de Configuración. Un clicker de los primeros tiempos, sin receta por letra, no se puede reconstruir: se quita y se agrega de nuevo.
 
 ### Producto "Clicker de Nombre"
 

@@ -49,6 +49,168 @@
       : clicerLetras;
   }
 
+  /* ----------------------- Editar un producto del carrito -----------------------
+     Una línea del carrito sólo guarda texto y colores, no lo que se tecleó en el
+     formulario. Para editarla se reconstruye: el título dice el nombre (y el
+     símbolo del clicker), los detalles dicen los colores —se buscan en el stock por
+     su hex y su nombre— y, en el llavero, el precio dice si llevaba apellido.
+     Una línea que no se puede reconstruir (un clicker viejo) no se edita: se quita
+     y se agrega de nuevo. */
+
+  var TIPO_LLAVERO = 'Llavero de Nombre';
+  var TIPO_CLICER = 'Clicker de Nombre';
+
+  // El color del stock que corresponde a un detalle ({ nombre, hex }); null si ya no está.
+  function colorDeDetalle(d) {
+    var colores = Store.getConfig().colores;
+    var nombre = Utils.normalize(d && d.nombre).toLowerCase();
+    var hex = Utils.normalize(d && d.hex).toLowerCase();
+    var i;
+    for (i = 0; i < colores.length; i++) {
+      if (colores[i].nombre.toLowerCase() === nombre && colores[i].hex.toLowerCase() === hex) return colores[i];
+    }
+    for (i = 0; i < colores.length; i++) {
+      if (colores[i].nombre.toLowerCase() === nombre) return colores[i];
+    }
+    for (i = 0; i < colores.length; i++) {
+      if (hex && colores[i].hex.toLowerCase() === hex) return colores[i];
+    }
+    return null;
+  }
+
+  // Id del color de un detalle; si ya no está en el stock lo anota en `faltan` y deja ''.
+  function idDeDetalle(d, faltan) {
+    var c = colorDeDetalle(d);
+    if (!c) {
+      var nombre = Utils.normalize(d && d.nombre);
+      if (nombre && faltan.indexOf(nombre) < 0) faltan.push(nombre);
+      return '';
+    }
+    return c.id;
+  }
+
+  function parsearLlavero(item) {
+    var det = item.detalles || [];
+    if (det.length !== 2) return null;
+    var precios = Store.getConfig().precios;
+    var titulo = Utils.normalize(item.titulo);
+    var espacio = titulo.indexOf(' ');
+    // El título es «Nombre Apellido»: el precio dice si llevaba apellido. Si no coincide
+    // con ninguno (cambiaron los precios), un espacio se toma como apellido.
+    var conApellido = espacio > 0 && (item.precio === precios.nombreApellido ||
+      (item.precio !== precios.nombre && precios.nombre !== precios.nombreApellido));
+    var faltan = [];
+    return {
+      sub: 'llaveros',
+      nombre: conApellido ? titulo.slice(0, espacio) : titulo,
+      apellido: conApellido ? titulo.slice(espacio + 1) : '',
+      base: idDeDetalle(det[0], faltan),
+      colorNombre: idDeDetalle(det[1], faltan),
+      faltan: faltan
+    };
+  }
+
+  function parsearClicer(item) {
+    var det = item.detalles || [];
+    var titulo = Utils.normalize(item.titulo);
+    var corte = titulo.indexOf(' + ');
+    var res = Clicer.letrasDe(corte < 0 ? titulo : titulo.slice(0, corte), corte < 0 ? '' : titulo.slice(corte + 3));
+    if (!res.ok || !window.PO.detallesDeClicer(det) || det.length !== res.letras.length * 3) return null;
+    var faltan = [];
+    var datos = { sub: 'clicers', nombre: res.nombre, simbolo: res.simbolo,
+      base: [], acabado: [], tecla: [], letra: [], faltan: faltan };
+    for (var i = 0; i < res.letras.length; i++) {
+      var b = det[i * 3];
+      if (Utils.normalize(b.label) !== res.letras[i] + ' · Base') return null;
+      // «Azul (Corrugado)»: el color y, entre paréntesis, el acabado.
+      var nombreBase = Utils.normalize(b.nombre);
+      var paren = nombreBase.lastIndexOf(' (');
+      var acabadoNombre = paren > 0 && nombreBase.slice(-1) === ')' ? nombreBase.slice(paren + 2, -1) : '';
+      var colorBase = paren > 0 && acabadoNombre ? nombreBase.slice(0, paren) : nombreBase;
+      var acabado = Clicer.acabados().filter(function (a) { return a.nombre === acabadoNombre; })[0];
+      datos.base.push(idDeDetalle({ nombre: colorBase, hex: b.hex }, faltan));
+      datos.acabado.push((acabado || Clicer.acabados()[0]).id);
+      datos.tecla.push(idDeDetalle(det[i * 3 + 1], faltan));
+      datos.letra.push(idDeDetalle(det[i * 3 + 2], faltan));
+    }
+    return datos;
+  }
+
+  function parsearManual(item) {
+    var faltan = [];
+    var datos = { sub: 'manual', titulo: item.titulo, precio: item.precio, cantidad: item.cantidad,
+      filas: [], colores: [], faltan: faltan };
+    (item.detalles || []).forEach(function (d) {
+      var m = /^Color usado(?: \u00d7(\d+))?$/.exec(Utils.normalize(d.label));
+      if (!m) {
+        datos.filas.push({ concepto: d.label, detalle: d.nombre });
+        return;
+      }
+      var id = idDeDetalle(d, faltan);
+      if (id) datos.colores.push({ color: id, piezas: m[1] ? parseInt(m[1], 10) : 1 });
+    });
+    return datos;
+  }
+
+  // La línea hecha datos de formulario, o null si no se puede editar.
+  function parsear(item) {
+    item = item || {};
+    if (item.tipo === TIPO_LLAVERO) return parsearLlavero(item);
+    if (item.tipo === TIPO_CLICER) return parsearClicer(item);
+    if (item.tipo === window.PO.TIPO_MANUAL) return parsearManual(item);
+    return null;
+  }
+
+  // La ruta del formulario que edita esta línea ('llaveros', 'clicers', 'manual'), o null.
+  function subDe(item) {
+    var datos = parsear(item);
+    return datos ? datos.sub : null;
+  }
+
+  // Los datos de la línea que se está editando AHORA en este formulario, o null.
+  function datosEnEdicion() {
+    var ed = Cart.getLineaEnEdicion();
+    if (!ed || ed.sub !== currentSub) return null;
+    var linea = Cart.getLinea(ed.id);
+    return linea ? parsear(linea) : null;
+  }
+
+  function avisoLinea() {
+    var ed = Cart.getLineaEnEdicion();
+    var linea = ed && ed.sub === currentSub ? Cart.getLinea(ed.id) : null;
+    if (!linea) return '';
+    return '' +
+      '<div class="edicion-aviso" role="status">' +
+        '<span>✏️ Editando <b>' + Utils.escapeHtml(linea.titulo) + '</b>. Cambia lo que necesites y pulsa <b>Guardar línea</b>.</span>' +
+        '<button class="btn btn--ghost" type="button" data-action="cancelar-linea">Cancelar</button>' +
+      '</div>';
+  }
+
+  function etiquetaGuardar() {
+    var ed = Cart.getLineaEnEdicion();
+    return ed && ed.sub === currentSub && Cart.getLinea(ed.id) ? 'Guardar línea' : 'Agregar al carrito';
+  }
+
+  // Si el formulario está editando una línea, la reemplaza (misma posición) y vuelve
+  // al carrito. Devuelve true si lo hizo; false = hay que agregar como línea nueva.
+  function guardarLinea(item) {
+    var ed = Cart.getLineaEnEdicion();
+    if (!ed || ed.sub !== currentSub) return false;
+    var hecho = Cart.reemplazar(ed.id, item);
+    Cart.setLineaEnEdicion(null);
+    if (!hecho) return false;   // la línea ya no estaba: se agrega como nueva
+    window.App.toast('Producto actualizado', 'success');
+    window.App.navigate('carrito');
+    return true;
+  }
+
+  // Avisa de los colores de la línea que ya no están en el stock (el menú queda en otro).
+  function avisarColoresFaltantes(datos) {
+    if (datos && datos.faltan && datos.faltan.length) {
+      window.App.toast('Ya no hay en stock: ' + datos.faltan.join(', ') + '. Revisa ese color.', 'error');
+    }
+  }
+
   /* ---------------------------- Plantillas ---------------------------- */
 
   function pageHead() {
@@ -105,6 +267,7 @@
     return '' +
       '<section class="panel">' +
         '<button class="btn btn--ghost btn--back" type="button" data-action="back">← Volver al menú</button>' +
+        avisoLinea() +
         '<h3 class="panel__title">Llaveros de Nombre</h3>' +
         (sinColores
           ? '<p class="alert alert--warn">No hay colores en stock. Agrégalos en <b>⚙️ Configuración</b> (arriba a la derecha) para poder cotizar.</p>'
@@ -142,7 +305,7 @@
               '<span class="price-preview__label">Precio</span>' +
               '<span class="price-preview__value" id="price-value">$0.00</span>' +
             '</div>' +
-            '<button class="btn btn--primary" type="submit"' + dis + '>Agregar al carrito</button>' +
+            '<button class="btn btn--primary" type="submit"' + dis + '>' + etiquetaGuardar() + '</button>' +
           '</div>' +
         '</form>' +
       '</section>';
@@ -164,6 +327,7 @@
     return '' +
       '<section class="panel">' +
         '<button class="btn btn--ghost btn--back" type="button" data-action="back">← Volver al menú</button>' +
+        avisoLinea() +
         '<h3 class="panel__title">Clicker de Nombre</h3>' +
         (sinColores
           ? '<p class="alert alert--warn">No hay colores en stock. Agrégalos en <b>⚙️ Configuración</b> (arriba a la derecha) para poder cotizar.</p>'
@@ -220,7 +384,7 @@
               '<span class="price-preview__value" id="clicer-precio">$0.00</span>' +
               '<span class="price-preview__nota" id="clicer-nota"></span>' +
             '</div>' +
-            '<button class="btn btn--primary" type="submit"' + dis + '>Agregar al carrito</button>' +
+            '<button class="btn btn--primary" type="submit"' + dis + '>' + etiquetaGuardar() + '</button>' +
           '</div>' +
         '</form>' +
       '</section>';
@@ -232,6 +396,7 @@
     return '' +
       '<section class="panel">' +
         '<button class="btn btn--ghost btn--back" type="button" data-action="back">← Volver al menú</button>' +
+        avisoLinea() +
         '<h3 class="panel__title">Cotización manual</h3>' +
         '<p class="panel__hint">Para vender algo que no está en el menú. Escribe qué es, el desglose de lo que incluye y el precio; sale en el PDF igual que los demás productos.</p>' +
         '<form class="form" id="form-manual" novalidate>' +
@@ -267,7 +432,7 @@
               '<span class="price-preview__label">Importe</span>' +
               '<span class="price-preview__value" id="manual-importe">$0.00</span>' +
             '</div>' +
-            '<button class="btn btn--primary" type="submit">Agregar al carrito</button>' +
+            '<button class="btn btn--primary" type="submit">' + etiquetaGuardar() + '</button>' +
           '</div>' +
         '</form>' +
       '</section>';
@@ -297,6 +462,11 @@
       currentSub = (sub === 'llaveros' || sub === 'clicers' || sub === 'manual') ? sub : null;
     }
 
+    // La línea en edición sólo vale en SU formulario: si se sale (al menú, a otro
+    // producto), se olvida.
+    var enEdicion = Cart.getLineaEnEdicion();
+    if (enEdicion && enEdicion.sub !== currentSub) Cart.setLineaEnEdicion(null);
+
     var formulario = currentSub === 'llaveros' ? formTemplate()
       : currentSub === 'clicers' ? clicerTemplate()
       : currentSub === 'manual' ? manualTemplate()
@@ -312,14 +482,29 @@
     bind(rootEl);
     renderCart();
 
+    var previo = datosEnEdicion();   // la línea que se edita, hecha datos de formulario
+
     if (currentSub === 'llaveros') {
+      if (previo) {
+        rootEl.querySelector('#f-nombre').value = previo.nombre;
+        rootEl.querySelector('#f-apellido').value = previo.apellido;
+        if (previo.base) rootEl.querySelector('#f-color-base').value = previo.base;
+        if (previo.colorNombre) rootEl.querySelector('#f-color-nombre').value = previo.colorNombre;
+        avisarColoresFaltantes(previo);
+      }
       updateSwatches();
       updatePricePreview();
     }
 
     if (currentSub === 'manual') {
-      manualFilas = [{ concepto: '', detalle: '' }];
-      manualColores = [];
+      manualFilas = previo && previo.filas.length ? previo.filas : [{ concepto: '', detalle: '' }];
+      manualColores = previo ? previo.colores : [];
+      if (previo) {
+        rootEl.querySelector('#f-manual-titulo').value = previo.titulo;
+        rootEl.querySelector('#f-manual-precio').value = previo.precio;
+        rootEl.querySelector('#f-manual-cantidad').value = previo.cantidad;
+        avisarColoresFaltantes(previo);
+      }
       pintarFilasManual();
       pintarColoresManual();
       updateManualImporte();
@@ -327,6 +512,20 @@
 
     if (currentSub === 'clicers') {
       limpiarPiezasClicer();       // formulario recién montado: todo con lo de «todas»
+      if (previo) {
+        // El nombre, el símbolo y los menús «todas» (los de la primera letra); lo de
+        // cada letra va en las listas, y pintarTeclas() lo respeta por posición.
+        rootEl.querySelector('#f-clicer-nombre').value = previo.nombre;
+        rootEl.querySelector('#f-clicer-simbolo').value = previo.simbolo;
+        [['#f-clicer-base', previo.base], ['#f-clicer-acabado', previo.acabado],
+          ['#f-clicer-tecla-todas', previo.tecla], ['#f-clicer-letra-todas', previo.letra]]
+          .forEach(function (par) { if (par[1][0]) rootEl.querySelector(par[0]).value = par[1][0]; });
+        clicerBase = previo.base.slice();
+        clicerAcabados = previo.acabado.slice();
+        clicerTeclas = previo.tecla.slice();
+        clicerLetras = previo.letra.slice();
+        avisarColoresFaltantes(previo);
+      }
       updateSwatchesClicer();
       pintarTeclas();
       updateClicerPrecio();
@@ -347,6 +546,15 @@
     if (cancelar) {
       cancelar.addEventListener('click', function () {
         window.Views.cancelarEdicion();
+      });
+    }
+
+    // Salir de la edición de un producto sin guardar: de vuelta al carrito
+    var cancelarLinea = container.querySelector('[data-action="cancelar-linea"]');
+    if (cancelarLinea) {
+      cancelarLinea.addEventListener('click', function () {
+        Cart.setLineaEnEdicion(null);
+        window.App.navigate('carrito');
       });
     }
 
@@ -572,7 +780,7 @@
 
     var precio = apellido ? config.precios.nombreApellido : config.precios.nombre;
 
-    Cart.add({
+    var llavero = {
       tipo: 'Llavero de Nombre',
       titulo: nombre + (apellido ? ' ' + apellido : ''),
       detalles: [
@@ -580,7 +788,9 @@
         { label: 'Nombre', nombre: colorNombre.nombre, hex: colorNombre.hex }
       ],
       precio: precio
-    });
+    };
+    if (guardarLinea(llavero)) return;
+    Cart.add(llavero);
 
     hideFormError();
     rootEl.querySelector('#f-nombre').value = '';
@@ -710,13 +920,15 @@
       detalles.push({ label: window.PO.rotuloColorUsado(piezas), nombre: color.nombre, hex: color.hex });
     });
 
-    Cart.add({
+    var manual = {
       tipo: window.PO.TIPO_MANUAL,
       titulo: titulo,
       detalles: detalles,
       precio: precio,
       cantidad: valorDe('#f-manual-cantidad')
-    });
+    };
+    if (guardarLinea(manual)) return;
+    Cart.add(manual);
 
     hideFormError('#manual-error');
     rootEl.querySelector('#f-manual-titulo').value = '';
@@ -940,7 +1152,7 @@
     var precio = Clicer.precioDe(config, res.letras.length);
     var simbolo = rootEl.querySelector('#f-clicer-simbolo');
 
-    Cart.add({
+    var clicker = {
       tipo: 'Clicker de Nombre',
       // El título lleva el símbolo para que la línea se reconozca de un vistazo
       // en el carrito, en la tarjeta del tablero y en el PDF.
@@ -949,7 +1161,9 @@
         base: base, acabado: acabado, tecla: tecla, letra: letra
       })),
       precio: precio.total
-    });
+    };
+    if (guardarLinea(clicker)) return;
+    Cart.add(clicker);
 
     hideFormError('#clicer-error');
     campo.value = '';
@@ -1023,5 +1237,5 @@
   });
 
   window.Views = window.Views || {};
-  window.Views.productos = { render: render };
+  window.Views.productos = { render: render, subDe: subDe };
 })();

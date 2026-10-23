@@ -20,6 +20,10 @@
   // (el borrador en armado) espera en `aparte` hasta que termine la edición.
   var edicion = null;
   var aparte = null;     // { items, meta, clientId } del borrador que se hizo a un lado
+  // La línea cuyo producto se está editando en su formulario: { id, sub } (sub = la
+  // ruta del formulario: 'llaveros', 'clicers' o 'manual'). Sólo vive en memoria:
+  // si se recarga la página, el formulario queda vacío y se agrega como línea nueva.
+  var lineaEnEdicion = null;
   // Identificador de ESTE carrito. Viaja con el envío para que un doble clic (o
   // un reintento de red) no guarde la misma cotización dos veces: el servidor
   // reconoce el clientId y devuelve la tarjeta que ya había creado.
@@ -207,6 +211,41 @@
     return clone(linea);
   }
 
+  // Una línea del carrito (copia), o null.
+  function getLinea(id) {
+    for (var i = 0; i < items.length; i++) {
+      if (items[i].id === id) return clone(items[i]);
+    }
+    return null;
+  }
+
+  // Cambia lo que lleva una línea (su producto, sus detalles, su precio) sin moverla de
+  // lugar. Si `item` no trae cantidad, conserva la que tenía. Devuelve true si cambió.
+  function reemplazar(id, item) {
+    item = item || {};
+    for (var i = 0; i < items.length; i++) {
+      if (items[i].id !== id) continue;
+      items[i] = {
+        id: id,
+        tipo: item.tipo || items[i].tipo,
+        titulo: item.titulo || '',
+        detalles: detallesValidos(item.detalles),
+        precio: window.Utils.parseNumber(item.precio, 0),
+        cantidad: item.cantidad === undefined ? items[i].cantidad : cantidadValida(item.cantidad)
+      };
+      persist();
+      notify();
+      return true;
+    }
+    return false;
+  }
+
+  // La línea que se está editando en su formulario (ver arriba), o null.
+  function getLineaEnEdicion() { return lineaEnEdicion ? clone(lineaEnEdicion) : null; }
+  function setLineaEnEdicion(valor) {
+    lineaEnEdicion = valor && valor.id ? { id: String(valor.id), sub: String(valor.sub || '') } : null;
+  }
+
   // Cambia la cantidad de una línea (mínimo 1). Devuelve true si cambió.
   function setCantidad(id, cantidad) {
     for (var i = 0; i < items.length; i++) {
@@ -323,6 +362,10 @@
     terminarEdicion: terminarEdicion,
     setMeta: setMeta,
     add: add,
+    getLinea: getLinea,
+    reemplazar: reemplazar,
+    getLineaEnEdicion: getLineaEnEdicion,
+    setLineaEnEdicion: setLineaEnEdicion,
     setCantidad: setCantidad,
     remove: remove,
     clear: clear,
