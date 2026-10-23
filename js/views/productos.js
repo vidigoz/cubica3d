@@ -597,7 +597,7 @@
   function leerFilasManual() {
     if (!rootEl) return;
     manualFilas = [];
-    rootEl.querySelectorAll('.manual-fila').forEach(function (fila) {
+    rootEl.querySelectorAll('#manual-filas .manual-fila').forEach(function (fila) {
       manualFilas.push({
         concepto: fila.querySelector('[data-manual-concepto]').value,
         detalle: fila.querySelector('[data-manual-detalle]').value
