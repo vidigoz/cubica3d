@@ -12,17 +12,48 @@
 
   /* ---------------------------- Plantillas ---------------------------- */
 
-  function headTemplate() {
+  // El aviso de que se está editando una tarjeta del tablero, con su salida. Lo
+  // usan esta vista y la de Productos (por eso va en window.Views).
+  function edicionAviso() {
+    var ed = Cart.getEdicion();
+    if (!ed) return '';
+    var cliente = Utils.normalize(Cart.getMeta().cliente);
     return '' +
+      '<div class="edicion-aviso" role="status">' +
+        '<span>✏️ Editando la cotización <b>' + Utils.escapeHtml(PDF.folioTexto(ed.folio)) + '</b>' +
+          (cliente ? ' · ' + Utils.escapeHtml(cliente) : '') +
+          '. Agrega o quita productos y guarda los cambios con <b>Siguiente</b>.</span>' +
+        '<button class="btn btn--ghost" type="button" data-action="cancelar-edicion">Cancelar edición</button>' +
+      '</div>';
+  }
+
+  // Sale de la edición sin guardar y regresa al tablero.
+  function cancelarEdicion() {
+    if (!window.confirm('¿Cancelar la edición? Se pierden los cambios que no hayas guardado.')) return;
+    Cart.terminarEdicion();
+    window.App.navigate('proceso');
+    window.App.toast('Edición cancelada');
+  }
+
+  function etiquetaEnviar() {
+    return Cart.getEdicion() ? 'Guardar cambios' : 'Enviar cotización';
+  }
+
+  function headTemplate() {
+    var ed = Cart.getEdicion();
+    return '' +
+      edicionAviso() +
       '<div class="page__head page__head--row">' +
         '<div>' +
-          '<h2 class="page__title">Carrito de cotización</h2>' +
-          '<p class="page__subtitle">Revisa el desglose, captura los datos del cliente y envía la cotización: se guarda en <b>Proceso</b> y se abre el PDF para mandárselo.</p>' +
+          '<h2 class="page__title">' + (ed ? 'Editar cotización ' + Utils.escapeHtml(PDF.folioTexto(ed.folio)) : 'Carrito de cotización') + '</h2>' +
+          '<p class="page__subtitle">' + (ed
+            ? 'Revisa el desglose y corrige los datos. Al guardar, la tarjeta de <b>Proceso</b> queda con estos cambios; no cambia de columna.'
+            : 'Revisa el desglose, captura los datos del cliente y envía la cotización: se guarda en <b>Proceso</b> y se abre el PDF para mandárselo.') + '</p>' +
         '</div>' +
         '<div class="toolbar">' +
           '<button class="btn btn--ghost" type="button" data-action="back">← Volver a productos</button>' +
-          '<button class="btn btn--ghost" type="button" id="carrito-limpiar">Limpiar</button>' +
-          '<button class="btn btn--primary" type="button" id="carrito-enviar">Enviar cotización</button>' +
+          (ed ? '' : '<button class="btn btn--ghost" type="button" id="carrito-limpiar">Limpiar</button>') +
+          '<button class="btn btn--primary" type="button" id="carrito-enviar">' + etiquetaEnviar() + '</button>' +
           '<button class="btn btn--ghost" type="button" id="carrito-pdf">Exportar PDF</button>' +
         '</div>' +
       '</div>';
@@ -35,7 +66,8 @@
         '<div class="form__row">' +
           '<label class="field">' +
             '<span class="field__label">Folio</span>' +
-            '<input class="field__input" type="text" id="q-folio" value="' + Utils.escapeHtml(meta.folio) + '" autocomplete="off" />' +
+            '<input class="field__input" type="text" id="q-folio" value="' + Utils.escapeHtml(meta.folio) + '" autocomplete="off"' +
+              (Cart.getEdicion() ? ' disabled title="El folio de una cotización ya enviada no cambia"' : '') + ' />' +
           '</label>' +
           '<label class="field">' +
             '<span class="field__label">Fecha</span>' +
@@ -202,6 +234,10 @@
   // arranca de cero con folio nuevo: la tarjeta es una copia congelada, así que
   // la cotización enviada ya no se puede tocar por accidente.
   function enviarCotizacion() {
+    if (Cart.getEdicion()) {
+      guardarEdicion();
+      return;
+    }
     if (!Cart.getCount()) {
       window.App.toast('Agrega productos antes de enviar', 'error');
       return;
@@ -249,6 +285,35 @@
     });
   }
 
+  // Guarda lo editado sobre la misma tarjeta (mismo folio, misma columna) y
+  // regresa al tablero. El borrador que había antes de editar vuelve al carrito.
+  function guardarEdicion() {
+    var ed = Cart.getEdicion();
+    if (!ed || !Cart.getCount()) {
+      window.App.toast('La cotización no puede quedar sin productos', 'error');
+      return;
+    }
+
+    var boton = rootEl.querySelector('#carrito-enviar');
+    if (boton) {
+      boton.disabled = true;
+      boton.textContent = 'Guardando…';
+    }
+
+    Proceso.editar(ed.id, { meta: Cart.getMeta(), items: Cart.getItems() }).then(function (tarjeta) {
+      Cart.terminarEdicion();
+      window.App.navigate('proceso');
+      window.App.toast('Cotización ' + PDF.folioTexto(tarjeta.folio) + ' actualizada', 'success');
+    }).catch(function (error) {
+      // No se guardó nada: la edición sigue abierta para volver a intentar.
+      window.App.toast(error.message || 'No se pudo guardar la cotización', 'error');
+      if (boton) {
+        boton.disabled = !Cart.getCount();
+        boton.textContent = etiquetaEnviar();
+      }
+    });
+  }
+
   /* ------------------------- Interacciones ------------------------- */
 
   // Listeners delegados sobre el contenedor: no hay que reengancharlos cada vez
@@ -260,6 +325,11 @@
     rootEl.addEventListener('click', function (e) {
       if (e.target.closest('[data-action="back"]')) {
         window.App.navigate('productos');
+        return;
+      }
+
+      if (e.target.closest('[data-action="cancelar-edicion"]')) {
+        cancelarEdicion();
         return;
       }
 
@@ -331,4 +401,6 @@
 
   window.Views = window.Views || {};
   window.Views.carrito = { render: render };
+  window.Views.edicionAviso = edicionAviso;
+  window.Views.cancelarEdicion = cancelarEdicion;
 })();

@@ -216,6 +216,7 @@ del archivo. Si cambiás de rama: `neon link && neon env pull`.
 | `GET` | `/api/folio` | El folio que va a entregar el servidor (`{ siguiente }`) |
 | `PUT` | `/api/config` | `{ colores, precios }` → guarda la configuración del negocio |
 | `POST` | `/api/cotizaciones` | `{ clientId, meta, items }` → guarda la copia congelada |
+| `PUT` | `/api/cotizaciones/:id` | `{ meta, items }` → **edita** la tarjeta: reemplaza sus líneas y sus datos (fecha, cliente, notas) sin moverla ni cambiar el folio. Si cambió lo que se fabrica, destilda las bases y teclas hechas |
 | `PATCH` | `/api/cotizaciones/:id` | `{ columna }` → mueve la tarjeta (entra arriba del destino); `{ pagado }` → tilda o destilda el cobro; `{ basesListas }` / `{ teclasListas }` → tilda lo que el taller ya hizo. Al entrar a **Entregado** el pago se tilda solo |
 | `DELETE` | `/api/cotizaciones/:id` | Borrado suave: sale del tablero, queda la historia |
 

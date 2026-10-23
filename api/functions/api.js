@@ -21,6 +21,8 @@
  *                                                          letrasCorte } }
  *   POST   /api/cotizaciones          { clientId, meta, items }      -> tarjeta creada (entra
  *                                                                       ARRIBA de «Cotización»)
+ *   PUT    /api/cotizaciones/:id      { meta, items }                -> tarjeta editada: sus líneas y datos
+ *                                                                       reemplazados, sin moverla
  *   PATCH  /api/cotizaciones/:id      { columna } o { posicion } o   -> tarjeta movida, con
  *                                     { pagado } o { cliente } o         «Pagado» cambiado, con el
  *                                     { basesListas } o                  cliente corregido, los tildes
@@ -76,6 +78,7 @@ import { Pool } from "pg";
 import { randomBytes, scrypt, timingSafeEqual, createHash } from "node:crypto";
 
 const COLUMNAS = ["cotizacion", "trabajo", "realizado", "entregado"];   // las cuatro del Kanban
+const TIPO_MANUAL = "Cotización manual";   // igual que PO.TIPO_MANUAL, en js/po.js
 const COLUMNA_ENTREGADO = "entregado";   // al entrar acá el pago se tilda solo (ver PATCH)
 const DIAS_SESION = 30;
 const INTENTOS_MAX = 10;                                   // por correo...
@@ -683,6 +686,78 @@ export function crearApp(opciones) {
     }, contexto.cabeceras);
   }
 
+  // Reemplaza las líneas y los datos de una tarjeta que ya está en el tablero:
+  // es «editar la cotización» (agregar o quitar productos, cambiar cantidades o
+  // precios, corregir fecha, cliente y notas). La tarjeta NO se mueve: conserva su
+  // folio, su columna, su lugar y su pago. Todo ocurre en UN solo viaje atómico
+  // (datos, borrado de las líneas viejas y las nuevas), como al crearla.
+  // Los tildes del taller (bases y teclas hechas) hablan de lo que se fabricó: si
+  // cambió algo de lo que se fabrica —cualquier línea que no sea una cotización
+  // manual, que es sólo texto y precio— ya no valen y se destildan. Cambiar sólo
+  // precios, notas, cliente o fecha los respeta.
+  const SQL_EDITAR = `
+    with editada as (
+      update cotizaciones
+         set fecha = coalesce($2::date, fecha), cliente = $3, notas = $4,
+             unidades = $5::int, total = $6::numeric,
+             bases_listas = $7, teclas_listas = $8,
+             movida = now(), movida_por = $9
+       where id = $1 and borrada_en is null
+      returning id
+    ), viejas as (
+      delete from cotizacion_items where cotizacion_id in (select id from editada)
+      returning 1
+    ), lineas as (
+      insert into cotizacion_items (cotizacion_id, orden, tipo, titulo, precio, cantidad, detalles)
+      select e.id, i.orden, i.tipo, i.titulo, i.precio, i.cantidad, i.detalles
+        from editada e,
+             jsonb_to_recordset($10::jsonb) as i(orden int, tipo text, titulo text,
+                                                 precio numeric, cantidad int, detalles jsonb)
+      returning 1
+    )
+    select id from editada`;
+
+  // Lo que se fabrica de una línea (sin el precio): para saber si la edición
+  // cambió algo que el taller ya había tildado.
+  function huellaDeFabricacion(items) {
+    return JSON.stringify(items
+      .filter((it) => it.tipo !== TIPO_MANUAL)
+      .map((it) => [it.tipo, it.titulo, it.cantidad,
+        // Se arma clave por clave: el jsonb de la base no guarda el orden de las claves.
+        (it.detalles || []).map((d) => [d.label, d.nombre, d.hex])]));
+  }
+
+  async function editarCotizacion(request, contexto) {
+    const cuerpo = await leerJson(request);
+    if (!cuerpo) return fallo("Cuerpo JSON inválido", 400, contexto.cabeceras);
+
+    const meta = cuerpo.meta || {};
+    const items = itemsValidos(cuerpo.items);
+    if (!items.length) return fallo("La cotización no puede quedar sin productos.", 400, contexto.cabeceras);
+
+    const actual = await leerTarjeta(contexto.params.id);
+    if (!actual) return fallo("Esa cotización ya no está en el tablero.", 404, contexto.cabeceras);
+
+    const cambioLoFabricado = huellaDeFabricacion(items) !== huellaDeFabricacion(actual.items);
+    const unidades = items.reduce((suma, it) => suma + it.cantidad, 0);
+    const total = redondear(items.reduce((suma, it) => suma + it.precio * it.cantidad, 0));
+
+    const { rows } = await query(SQL_EDITAR, [
+      contexto.params.id,
+      texto(meta.fecha) || null,
+      recortar(meta.cliente, LIMITE.cliente),
+      recortar(meta.notas, LIMITE.notas),
+      unidades,
+      total,
+      cambioLoFabricado ? false : !!actual.basesListas,
+      cambioLoFabricado ? false : !!actual.teclasListas,
+      contexto.usuario.nombre,
+      JSON.stringify(items)
+    ]);
+    if (!rows[0]) return fallo("Esa cotización ya no está en el tablero.", 404, contexto.cabeceras);
+    return ok({ cotizacion: await leerTarjeta(contexto.params.id) }, contexto.cabeceras);
+  }
+
   // Posición para entrar ABAJO de una columna: detrás de la última tarjeta. Se separan
   // de a PASO_POSICION para que entre dos vecinas siempre quede lugar (lo que usa el
   // arrastre: el punto medio del hueco). Una columna vacía arranca en 1000.
@@ -852,6 +927,7 @@ export function crearApp(opciones) {
     { metodo: "GET",    patron: /^\/api\/folio$/,                                            fn: folio },
     { metodo: "PUT",    patron: /^\/api\/config$/,                                           fn: guardarConfig },
     { metodo: "POST",   patron: /^\/api\/cotizaciones$/,                                     fn: crearCotizacion },
+    { metodo: "PUT",    patron: /^\/api\/cotizaciones\/([0-9a-fA-F-]{36})$/,                 fn: editarCotizacion },
     { metodo: "PATCH",  patron: /^\/api\/cotizaciones\/([0-9a-fA-F-]{36})$/,                 fn: moverCotizacion },
     { metodo: "DELETE", patron: /^\/api\/cotizaciones\/([0-9a-fA-F-]{36})$/,                 fn: borrarCotizacion }
   ];

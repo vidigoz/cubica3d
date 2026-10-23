@@ -26,6 +26,9 @@
  * saltar de mes sola. Una tarjeta sin fecha usable cae en el cajón «Sin fecha»,
  * que va al final de la lista.
  *
+ * La cotización manual no tiene piezas propias, pero puede anotar «colores usados»:
+ * se tabulan en su propia cuenta («manual-colores») y no suman a las otras cinco.
+ *
  * Las piezas se leen con las MISMAS reglas de la orden de producción
  * (window.PO): el rótulo del detalle dice la pieza («A · Base»), el clicker
  * viene de a tres detalles por letra —base, tecla y letra— y el llavero es base
@@ -99,6 +102,11 @@
       id: 'llavero-nombre', tipo: 'Llavero de Nombre', pieza: 'Nombre',
       etiqueta: 'Nombres del llavero',
       nota: 'La pieza impresa: uno por unidad.'
+    },
+    {
+      id: 'manual-colores', tipo: 'Cotización manual', pieza: 'Color usado',
+      etiqueta: 'Colores usados en cotizaciones manuales',
+      nota: 'Los colores que se anotaron en cada cotización manual. Es una cuenta aparte: no suma a los colores de los demás productos.'
     }
   ];
 
@@ -298,7 +306,15 @@
           });
           return;
         }
-        // Otro producto: no entra en ninguna de las cinco cuentas.
+        if (tipo === PO.TIPO_MANUAL) {
+          // Los colores usados que se anotaron a mano, por las unidades de la línea.
+          // Van a su propia cuenta: no tocan los rankings de los demás productos.
+          PO.coloresUsados(item).forEach(function (color) {
+            sumar('manual-colores', color, color.cantidad * cantidad, mes);
+          });
+          return;
+        }
+        // Otro producto: no entra en ninguna de las cuentas.
       });
     });
 

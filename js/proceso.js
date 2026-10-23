@@ -344,6 +344,30 @@
     });
   }
 
+  // Guarda la edición de una tarjeta: reemplaza sus líneas y sus datos (fecha,
+  // cliente, notas) con lo que quedó en el carrito. No la mueve ni le cambia el
+  // folio. Recibe { meta, items } y devuelve una promesa con la tarjeta ya guardada.
+  // A diferencia de mover(), no se pinta antes: el servidor puede destildar lo
+  // fabricado, así que se adopta lo que confirma.
+  function editar(id, fuente) {
+    fuente = fuente || {};
+    var items = itemsValidos(fuente.items);
+    if (!items.length) return Promise.reject(new Error('La cotización no puede quedar sin productos.'));
+
+    enVuelo++;
+    return window.Api.editarCotizacion(id, { meta: fuente.meta || {}, items: items }).then(function (datos) {
+      var tarjeta = sanearTarjeta(datos.cotizacion);
+      var i = indiceDe(id);
+      if (i >= 0) tarjetas[i] = tarjeta; else tarjetas.unshift(tarjeta);
+      terminar();
+      notify();
+      return tarjeta;
+    }, function (error) {
+      terminar();
+      throw error;
+    });
+  }
+
   // Mueve una tarjeta a otra columna: entra ABAJO de la destino (los trabajos viejos
   // quedan arriba y los nuevos abajo). Devuelve la tarjeta ya movida, o null si no
   // existe, la columna no es válida o ya estaba en esa columna.
@@ -586,6 +610,7 @@
     contar: contar,
     siguienteFolio: siguienteFolio,
     crear: crear,
+    editar: editar,
     mover: mover,
     reordenar: reordenar,
     arrastrando: marcarArrastre,

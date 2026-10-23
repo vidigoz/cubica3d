@@ -297,6 +297,31 @@
     return cerrar(grupos, productos, lista.length, unidades);
   }
 
+  /* Colores usados de una COTIZACIÓN MANUAL. Son detalles sin receta de
+     producción: «Color usado» (o «Color usado ×3» si fueron tres piezas) con el
+     color. Sólo alimentan las estadísticas, en su propia cuenta. */
+  var ROTULO_COLOR_USADO = 'Color usado';
+
+  function rotuloColorUsado(piezas) {
+    return piezas > 1 ? ROTULO_COLOR_USADO + ' \u00d7' + piezas : ROTULO_COLOR_USADO;
+  }
+
+  // [{ nombre, hex, cantidad }] de una línea manual; vacío para cualquier otra.
+  function coloresUsados(item) {
+    item = item || {};
+    if (Utils.normalize(item.tipo) !== TIPO_MANUAL || !Array.isArray(item.detalles)) return [];
+    var lista = [];
+    item.detalles.forEach(function (d) {
+      var m = /^Color usado(?: \u00d7(\d+))?$/.exec(Utils.normalize(d && d.label));
+      if (!m) return;
+      var nombre = Utils.normalize(d.nombre);
+      var hex = Utils.normalize(d.hex);
+      if (!nombre && !hex) return;
+      lista.push({ nombre: nombre, hex: hex, cantidad: m[1] ? Math.max(1, parseInt(m[1], 10)) : 1 });
+    });
+    return lista;
+  }
+
   /* ------------------------------- Resultado -------------------------------
      Ordena los grupos (los más grandes primero) y saca los totales que van en
      la hoja y en el resumen de la tarjeta. */
@@ -440,6 +465,8 @@
   window.PO = {
     TIPO_CLICER: TIPO_CLICER,
     TIPO_MANUAL: TIPO_MANUAL,
+    rotuloColorUsado: rotuloColorUsado,
+    coloresUsados: coloresUsados,
     TIPO_LLAVERO: TIPO_LLAVERO,
     PIEZAS: { base: PIEZA_BASE, tecla: PIEZA_TECLA, letra: PIEZA_LETRA },
     cantidadDe: cantidadDe,

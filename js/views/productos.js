@@ -26,6 +26,9 @@
   // Filas del desglose de la cotización manual: { concepto, detalle }. Se
   // mantienen mientras se escribe y se pierden al salir del formulario.
   var manualFilas = [];
+  // Colores usados de la cotización manual: { color (id), piezas }. Opcionales:
+  // alimentan las estadísticas de colores (su propia cuenta), no el precio.
+  var manualColores = [];
 
   // Piezas del clicker que se eligen letra por letra: cada una es un menú por
   // letra. El id es el mismo que usa js/clicer.js y el que va en los data-* de
@@ -50,6 +53,7 @@
 
   function pageHead() {
     return '' +
+      window.Views.edicionAviso() +
       '<div class="page__head">' +
         '<h2 class="page__title">Productos</h2>' +
         '<p class="page__subtitle">Elige el producto, agrégalo al carrito y envía la cotización desde ahí.</p>' +
@@ -240,6 +244,13 @@
             '<div class="manual-filas" id="manual-filas"></div>' +
             '<button class="btn btn--ghost" type="button" id="manual-agregar">+ Agregar concepto</button>' +
           '</div>' +
+          '<div class="field">' +
+            '<span class="field__label">Colores usados <em class="field__opt">(opcional: cuenta en Estad\u00edsticas, aparte de los dem\u00e1s productos)</em></span>' +
+            '<div class="manual-filas" id="manual-colores"></div>' +
+            '<button class="btn btn--ghost" type="button" id="manual-color-agregar"' +
+              (Store.getConfig().colores.length ? '' : ' disabled title="No hay colores en stock (Configuraci\u00f3n)"') +
+              '>+ Agregar color</button>' +
+          '</div>' +
           '<div class="form__row">' +
             '<label class="field">' +
               '<span class="field__label">Cantidad</span>' +
@@ -266,10 +277,10 @@
     return '' +
       '<section class="panel">' +
         '<div class="cart__head">' +
-          '<h3 class="panel__title">Carrito de cotización</h3>' +
+          '<h3 class="panel__title">' + (Cart.getEdicion() ? 'Cotización en edición' : 'Carrito de cotización') + '</h3>' +
           '<div class="cart__actions">' +
             '<button class="btn btn--ghost" type="button" id="cart-detail">Siguiente →</button>' +
-            '<button class="btn btn--ghost" type="button" id="cart-clear">Limpiar</button>' +
+            (Cart.getEdicion() ? '' : '<button class="btn btn--ghost" type="button" id="cart-clear">Limpiar</button>') +
           '</div>' +
         '</div>' +
         '<div id="cart-body"></div>' +
@@ -308,7 +319,9 @@
 
     if (currentSub === 'manual') {
       manualFilas = [{ concepto: '', detalle: '' }];
+      manualColores = [];
       pintarFilasManual();
+      pintarColoresManual();
       updateManualImporte();
     }
 
@@ -328,6 +341,14 @@
         window.App.navigate(btn.getAttribute('data-route'));
       });
     });
+
+    // Salir de la edición de una tarjeta sin guardar
+    var cancelar = container.querySelector('[data-action="cancelar-edicion"]');
+    if (cancelar) {
+      cancelar.addEventListener('click', function () {
+        window.Views.cancelarEdicion();
+      });
+    }
 
     // Volver al menú principal (la página con los productos)
     var back = container.querySelector('[data-action="back"]');
@@ -380,6 +401,20 @@
         leerFilasManual();
         manualFilas.splice(Number(quitar.getAttribute('data-manual-quitar')), 1);
         pintarFilasManual();
+      });
+
+      // Los colores usados: igual que el desglose, una fila por color.
+      container.querySelector('#manual-color-agregar').addEventListener('click', function () {
+        leerColoresManual();
+        manualColores.push({ color: (Store.getConfig().colores[0] || {}).id || '', piezas: 1 });
+        pintarColoresManual();
+      });
+      container.querySelector('#manual-colores').addEventListener('click', function (e) {
+        var quitar = e.target.closest('[data-color-quitar]');
+        if (!quitar) return;
+        leerColoresManual();
+        manualColores.splice(Number(quitar.getAttribute('data-color-quitar')), 1);
+        pintarColoresManual();
       });
     }
 
@@ -591,6 +626,49 @@
     }).join('');
   }
 
+  function leerColoresManual() {
+    if (!rootEl) return;
+    manualColores = [];
+    rootEl.querySelectorAll('#manual-colores .manual-fila').forEach(function (fila) {
+      manualColores.push({
+        color: fila.querySelector('[data-color-id]').value,
+        piezas: fila.querySelector('[data-color-piezas]').value
+      });
+    });
+  }
+
+  function pintarColoresManual() {
+    var cont = rootEl && rootEl.querySelector('#manual-colores');
+    if (!cont) return;
+    if (!manualColores.length) {
+      cont.innerHTML = '<p class="empty">Sin colores anotados: no cuenta en las estad\u00edsticas de colores.</p>';
+      return;
+    }
+    var options = colorOptions(Store.getConfig().colores);
+    cont.innerHTML = manualColores.map(function (f, i) {
+      return '' +
+        '<div class="manual-fila manual-fila--color">' +
+          '<span class="field__row">' +
+            '<select class="field__input" data-color-id aria-label="Color usado ' + (i + 1) + '">' + options + '</select>' +
+            '<span class="swatch" data-color-muestra></span>' +
+          '</span>' +
+          '<input class="field__input" type="number" data-color-piezas min="1" step="1" inputmode="numeric" ' +
+            'aria-label="Piezas de este color" title="Piezas de este color (por unidad)" value="' + Utils.escapeHtml(f.piezas) + '" />' +
+          '<button class="icon-btn" type="button" data-color-quitar="' + i + '" title="Quitar color">\u2715</button>' +
+        '</div>';
+    }).join('');
+    cont.querySelectorAll('.manual-fila').forEach(function (fila, i) {
+      var sel = fila.querySelector('[data-color-id]');
+      sel.value = manualColores[i].color;
+      var pintar = function () {
+        var c = findColor(Store.getConfig().colores, sel.value);
+        fila.querySelector('[data-color-muestra]').style.background = c ? c.hex : '';
+      };
+      sel.addEventListener('change', pintar);
+      pintar();
+    });
+  }
+
   function updateManualImporte() {
     var el = rootEl && rootEl.querySelector('#manual-importe');
     if (!el) return;
@@ -622,6 +700,16 @@
       return { label: Utils.normalize(f.concepto), nombre: Utils.normalize(f.detalle), hex: '' };
     }).filter(function (d) { return d.label || d.nombre; });
 
+    // Los colores usados van como detalles «Color usado» con su color: las
+    // estad\u00edsticas los leen de ah\u00ed (ver PO.coloresUsados).
+    leerColoresManual();
+    manualColores.forEach(function (f) {
+      var color = findColor(Store.getConfig().colores, f.color);
+      if (!color) return;
+      var piezas = Math.max(1, Math.floor(Utils.parseNumber(f.piezas, 1)));
+      detalles.push({ label: window.PO.rotuloColorUsado(piezas), nombre: color.nombre, hex: color.hex });
+    });
+
     Cart.add({
       tipo: window.PO.TIPO_MANUAL,
       titulo: titulo,
@@ -635,7 +723,9 @@
     rootEl.querySelector('#f-manual-precio').value = '';
     rootEl.querySelector('#f-manual-cantidad').value = '1';
     manualFilas = [{ concepto: '', detalle: '' }];
+    manualColores = [];
     pintarFilasManual();
+    pintarColoresManual();
     updateManualImporte();
     rootEl.querySelector('#f-manual-titulo').focus();
     window.App.toast('Agregado al carrito', 'success');

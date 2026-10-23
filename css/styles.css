@@ -237,6 +237,7 @@ button { font-family: inherit; cursor: pointer; }
 
 .manual-filas { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
 .manual-fila { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) auto; gap: 8px; align-items: center; }
+.manual-fila--color { grid-template-columns: minmax(0, 2fr) minmax(70px, 1fr) auto; }
 @media (max-width: 640px) {
   .manual-fila { grid-template-columns: minmax(0, 1fr) auto; }
   .manual-fila [data-manual-detalle] { grid-column: 1 / -1; grid-row: 2; }
@@ -1689,3 +1690,19 @@ body.con-pin { overflow: hidden; }
   .estat-tabla td { padding: 8px 4px; }
 }
 
+
+/* Aviso de que se está editando una tarjeta del tablero (Productos y Carrito). */
+.edicion-aviso {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+  padding: 10px 14px;
+  border: 1px solid var(--primary);
+  border-radius: var(--radius-sm);
+  background: var(--primary-soft);
+  color: var(--text);
+  font-size: .9rem;
+}

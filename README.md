@@ -95,6 +95,7 @@ de Productos, así que esa pestaña sigue activa.
   (entra con **cantidad 1**; luego la ajustas en el desglose).
 - Botón **Siguiente →** → abre `#/carrito` para capturar los datos y exportar el PDF.
 - Botón **← Volver al menú** para regresar a la página de productos.
+- **Editar una cotización ya enviada:** el botón **Editar** de su tarjeta en Proceso la carga en el carrito y regresa a Productos para agregar o quitar lo que haga falta; con **Siguiente → Guardar cambios** la tarjeta queda actualizada (mismo folio y misma columna). El carrito que tenías en armado se guarda aparte y vuelve al terminar o cancelar.
 
 ### Producto "Clicker de Nombre"
 

@@ -97,6 +97,34 @@
     }).join('');
   }
 
+  // Abre la edición de una tarjeta. El borrador del carrito (si hay uno) se hace a
+  // un lado y vuelve solo al guardar o cancelar. Una tarjeta ya pagada o en
+  // producción pide confirmación: lo que cambie puede afectar lo que se fabrica.
+  function editarCotizacion(id) {
+    var t = Proceso.getTarjeta(id);
+    if (!t) return;
+    var folio = PDF.folioTexto(t.folio);
+
+    var enCurso = Cart.getEdicion();
+    if (enCurso && enCurso.id !== t.id) {
+      window.App.toast('Termina o cancela primero la edici\u00f3n de ' + PDF.folioTexto(enCurso.folio), 'error');
+      return;
+    }
+
+    if (!enCurso) {
+      var avisos = [];
+      if (t.columna !== Proceso.COLUMNAS[0].id) avisos.push('ya est\u00e1 en \u00ab' + Proceso.getColumna(t.columna).nombre + '\u00bb');
+      if (t.pagado) avisos.push('ya est\u00e1 pagada');
+      if (avisos.length && !window.confirm('La cotizaci\u00f3n ' + folio + ' ' + avisos.join(' y ') +
+          '. Si cambias lo que se fabrica, se destildan las bases y teclas ya hechas. \u00bfEditarla?')) return;
+
+      var habiaBorrador = Cart.getCount() > 0;
+      Cart.empezarEdicion(t);
+      if (habiaBorrador) window.App.toast('Tu carrito en armado queda guardado y vuelve al terminar');
+    }
+    window.App.navigate('productos');
+  }
+
   /* ------------------ Lo que hay que fabricar, en corto ------------------
      Las mismas tandas de la orden de producción (las cuentas las hace
      window.PO), pero dentro de la tarjeta: para saber qué imprimir sin abrir
@@ -363,6 +391,10 @@
                   'title="Orden de producci\u00f3n: qu\u00e9 fabricar, agrupado por color y por ' +
                   'orden de colores" aria-label="Ver la orden de producci\u00f3n">PO</button>'
               : '') +
+            '<button class="btn-ver" type="button" data-editar ' +
+              'title="Editar la cotizaci\u00f3n: agregar o quitar productos, corregir datos" ' +
+              'aria-label="Editar la cotizaci\u00f3n">' +
+              '<span aria-hidden="true">\u270f\ufe0f</span>Editar</button>' +
             '<button class="btn-ver" type="button" data-ver ' +
               'title="Ver la cotizaci\u00f3n completa, sin descargar nada" ' +
               'aria-label="Ver la cotizaci\u00f3n completa">' +
@@ -931,6 +963,13 @@
       // botón se vuelve un campo, ver editarCliente).
       if (e.target.closest('[data-cliente]')) {
         editarCliente(id);
+        return;
+      }
+
+      // Editar la cotización: sus líneas pasan al carrito y se regresa a Productos
+      // para agregar o quitar lo que haga falta (ver Cart.empezarEdicion).
+      if (e.target.closest('[data-editar]')) {
+        editarCotizacion(id);
         return;
       }
 

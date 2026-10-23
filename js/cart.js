@@ -15,6 +15,11 @@
   //   precio = precio UNITARIO. El importe de la línea es precio * cantidad.
   var items = [];
   var meta = null;
+  // Edición de una tarjeta que ya está en el tablero: { id, folio } mientras dura.
+  // Las líneas y los datos de ESA cotización ocupan el carrito y lo que había
+  // (el borrador en armado) espera en `aparte` hasta que termine la edición.
+  var edicion = null;
+  var aparte = null;     // { items, meta, clientId } del borrador que se hizo a un lado
   // Identificador de ESTE carrito. Viaja con el envío para que un doble clic (o
   // un reintento de red) no guarde la misma cotización dos veces: el servidor
   // reconoce el clientId y devuelve la tarjeta que ya había creado.
@@ -61,30 +66,12 @@
 
   /* ------------------------- Persistencia ------------------------- */
 
-  function persist() {
-    try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ items: items, meta: meta, clientId: clientId }));
-    } catch (e) {
-      /* Si el almacenamiento no está disponible, se sigue trabajando en memoria. */
-    }
-  }
-
-  // Carga lo guardado y lo sanea; si algo viene mal, arranca vacío.
-  function cargar() {
-    var guardado = null;
-    try {
-      var raw = window.localStorage.getItem(STORAGE_KEY);
-      if (raw) guardado = JSON.parse(raw);
-    } catch (e) {
-      guardado = null;
-    }
-
-    if (guardado && typeof guardado.clientId === 'string' && guardado.clientId) {
-      clientId = guardado.clientId;
-    }
-
-    if (guardado && Array.isArray(guardado.items)) {
-      items = guardado.items.filter(function (it) {
+  // Sanea un borrador guardado ({ items, meta }): si algo viene mal, queda vacío.
+  function leerBorrador(crudo) {
+    var lista = (crudo && Array.isArray(crudo.items)) ? crudo.items : [];
+    var m = (crudo && crudo.meta) ? crudo.meta : {};
+    return {
+      items: lista.filter(function (it) {
         return it && typeof it.titulo === 'string';
       }).map(function (it) {
         return {
@@ -95,19 +82,55 @@
           precio: window.Utils.parseNumber(it.precio, 0),
           cantidad: cantidadValida(it.cantidad)
         };
-      });
+      }),
+      meta: {
+        folio: (m.folio === '' || m.folio == null) ? '1' : String(m.folio),
+        fecha: String(m.fecha || hoyISO()),
+        cliente: m.cliente == null ? '' : String(m.cliente),
+        notas: m.notas == null ? '' : String(m.notas)
+      }
+    };
+  }
+
+  function persist() {
+    try {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        items: items, meta: meta, clientId: clientId, edicion: edicion, aparte: aparte
+      }));
+    } catch (e) {
+      /* Si el almacenamiento no está disponible, se sigue trabajando en memoria. */
+    }
+  }
+
+  // Carga lo guardado y lo sanea; si algo viene mal, arranca vacío.
+  function cargar() {
+    var crudo = null;
+    try {
+      var raw = window.localStorage.getItem(STORAGE_KEY);
+      if (raw) crudo = JSON.parse(raw);
+    } catch (e) {
+      crudo = null;
     }
 
-    var m = (guardado && guardado.meta) ? guardado.meta : {};
-    meta = {
-      folio: (m.folio === '' || m.folio == null) ? '1' : String(m.folio),
-      fecha: String(m.fecha || hoyISO()),
-      cliente: m.cliente == null ? '' : String(m.cliente),
-      notas: m.notas == null ? '' : String(m.notas)
-    };
-    // Un carrito vacío no tiene fecha propia: la que quedó guardada es del día
-    // en que se envió la cotización anterior, no la de hoy.
-    if (!items.length) meta.fecha = hoyISO();
+    if (crudo && typeof crudo.clientId === 'string' && crudo.clientId) {
+      clientId = crudo.clientId;
+    }
+
+    var lectura = leerBorrador(crudo);
+    items = lectura.items;
+    meta = lectura.meta;
+
+    // Si la página se recargó a mitad de una edición, sigue en edición.
+    if (crudo && crudo.edicion && typeof crudo.edicion.id === 'string' && crudo.edicion.id) {
+      edicion = { id: crudo.edicion.id, folio: String(crudo.edicion.folio || '') };
+      if (crudo.aparte) {
+        aparte = leerBorrador(crudo.aparte);
+        aparte.clientId = String(crudo.aparte.clientId || window.Utils.uid());
+      }
+    }
+    // Un carrito vacío (y que no es una edición) no tiene fecha propia: la que
+    // quedó guardada es del día en que se envió la cotización anterior, no la de hoy.
+    if (!items.length && !edicion) meta.fecha = hoyISO();
   }
 
   cargar();
@@ -165,7 +188,7 @@
       precio: window.Utils.parseNumber(item.precio, 0),
       cantidad: cantidadValida(item.cantidad)
     };
-    if (!items.length) meta.fecha = hoyISO();   // la cotización arranca con la fecha de hoy
+    if (!items.length && !edicion) meta.fecha = hoyISO();   // la cotización arranca con la fecha de hoy
     items.push(linea);
     persist();
     notify();
@@ -197,7 +220,7 @@
 
   // Vacía el carrito y arranca una cotización nueva (folio siguiente, datos limpios).
   function clear() {
-    if (!items.length) return false;
+    if (edicion || !items.length) return false;
     items = [];
     meta = metaNueva(folioSiguiente(meta.folio));
     clientId = window.Utils.uid();   // carrito nuevo: envío nuevo, sin duplicados
@@ -206,6 +229,47 @@
     return true;
   }
 
+  /* ---------------------------- Edición ---------------------------- */
+
+  // Pone una tarjeta del tablero en el carrito para editarla: sus líneas y sus datos
+  // pasan al carrito y el borrador que hubiera se hace a un lado (vuelve intacto al
+  // terminar o cancelar). `tarjeta` es la del tablero: { id, folio, fecha, cliente,
+  // notas, items }. Devuelve false si ya hay otra edición en curso.
+  function empezarEdicion(tarjeta) {
+    if (edicion || !tarjeta || !tarjeta.id) return false;
+    aparte = { items: items, meta: meta, clientId: clientId };
+    edicion = { id: String(tarjeta.id), folio: String(tarjeta.folio == null ? '' : tarjeta.folio) };
+    var lectura = leerBorrador({
+      items: (tarjeta.items || []).map(function (it) {
+        return { tipo: it.tipo, titulo: it.titulo, detalles: it.detalles, precio: it.precio, cantidad: it.cantidad };
+      }),
+      meta: { folio: tarjeta.folio, fecha: tarjeta.fecha, cliente: tarjeta.cliente, notas: tarjeta.notas }
+    });
+    items = lectura.items;
+    meta = lectura.meta;
+    persist();
+    notify();
+    return true;
+  }
+
+  // Termina la edición (se guardó o se canceló) y devuelve el borrador de antes.
+  function terminarEdicion() {
+    if (!edicion) return false;
+    var antes = aparte || { items: [], meta: metaNueva(meta.folio), clientId: window.Utils.uid() };
+    items = antes.items;
+    meta = antes.meta;
+    clientId = antes.clientId;
+    if (!items.length) meta.fecha = hoyISO();
+    edicion = null;
+    aparte = null;
+    persist();
+    notify();
+    return true;
+  }
+
+  // { id, folio } de la tarjeta que se está editando, o null.
+  function getEdicion() { return edicion ? { id: edicion.id, folio: edicion.folio } : null; }
+
   // Cambia los datos de la cotización (folio, fecha, cliente, notas).
   // NO avisa a los suscriptores: no son líneas del carrito, y avisar repintaría
   // la vista justo mientras el usuario está escribiendo.
@@ -213,6 +277,7 @@
     patch = patch || {};
     ['folio', 'fecha', 'cliente', 'notas'].forEach(function (clave) {
       if (patch[clave] === undefined) return;
+      if (clave === 'folio' && edicion) return;   // el folio de una tarjeta ya enviada no cambia
       meta[clave] = patch[clave] == null ? '' : String(patch[clave]);
     });
     persist();
@@ -236,6 +301,9 @@
     getTotal: getTotal,
     getMeta: getMeta,
     getClientId: getClientId,
+    getEdicion: getEdicion,
+    empezarEdicion: empezarEdicion,
+    terminarEdicion: terminarEdicion,
     setMeta: setMeta,
     add: add,
     setCantidad: setCantidad,

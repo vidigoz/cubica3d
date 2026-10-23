@@ -216,6 +216,12 @@
     });
   }
 
+  // Reemplaza las líneas y los datos de una tarjeta que ya está en el tablero (editar
+  // la cotización). No la mueve de columna ni le cambia el folio.
+  function editarCotizacion(id, cuerpo) {
+    return pedir('PUT', '/cotizaciones/' + encodeURIComponent(id), cuerpo);
+  }
+
   // Tilda o destilda «Pagado» sin mover la tarjeta de columna.
   function cambiarPagado(id, pagado) {
     return pedir('PATCH', '/cotizaciones/' + encodeURIComponent(id), { pagado: !!pagado });
@@ -258,6 +264,7 @@
     folio: folio,
     guardarConfig: guardarConfig,
     crearCotizacion: crearCotizacion,
+    editarCotizacion: editarCotizacion,
     moverCotizacion: moverCotizacion,
     reordenarCotizacion: reordenarCotizacion,
     cambiarPagado: cambiarPagado,
