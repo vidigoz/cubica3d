@@ -759,7 +759,249 @@
     return true;
   }
 
+  /* ----------------------- Descarga directa -----------------------
+     PDF o PNG que se baja solo, sin pasar por el diálogo de impresión. La hoja
+     (la misma de documento()) se dibuja en un canvas —sin librerías: se mete en
+     un SVG con foreignObject y el navegador la pinta— y de ahí sale el PNG o un
+     PDF sencillo con la hoja como imagen (una página A4 por cada 297mm de alto). */
+
+  var ESCALA_DESCARGA = 2;               // el doble de píxeles: nítido al ampliar
+  var A4_ANCHO_PT = 595.28;              // A4 en puntos (1 pt = 1/72 de pulgada)
+  var A4_ALTO_PT = 841.89;
+
+  // Todo el CSS de la app, como texto: el SVG no ve las hojas de estilo de la página.
+  function cssDeLaPagina() {
+    var partes = [];
+    Array.prototype.forEach.call(document.styleSheets, function (hoja) {
+      try {
+        Array.prototype.forEach.call(hoja.cssRules, function (regla) { partes.push(regla.cssText); });
+      } catch (e) { /* una hoja de otro origen no se puede leer: se salta */ }
+    });
+    return partes.join('\n');
+  }
+
+  function blobADataUrl(blob) {
+    return new Promise(function (resolver, rechazar) {
+      var lector = new FileReader();
+      lector.onload = function () { resolver(lector.result); };
+      lector.onerror = function () { rechazar(lector.error); };
+      lector.readAsDataURL(blob);
+    });
+  }
+
+  // Las imágenes de la hoja (el logo) viajan dentro del SVG como datos: un SVG que
+  // se usa como imagen no puede ir a buscar archivos por su cuenta. Si una no se
+  // puede leer, se quita en vez de romper la descarga.
+  function incrustarImagenes(raiz) {
+    var tareas = Array.prototype.map.call(raiz.querySelectorAll('img'), function (img) {
+      var src = img.getAttribute('src');
+      if (!src || /^data:/.test(src)) return Promise.resolve();
+      return fetch(src).then(function (r) {
+        if (!r.ok) throw new Error('imagen no disponible');
+        return r.blob();
+      }).then(blobADataUrl).then(function (datos) {
+        img.setAttribute('src', datos);
+      }).catch(function () {
+        img.parentNode.removeChild(img);
+      });
+    });
+    return Promise.all(tareas);
+  }
+
+  // Dibuja la hoja de la cotización en un canvas. Devuelve una promesa con
+  // { canvas, ancho, alto } (ancho y alto en píxeles CSS, sin la escala).
+  function hojaACanvas(html) {
+    var caja = document.createElement('div');
+    caja.setAttribute('aria-hidden', 'true');
+    caja.style.cssText = 'position:fixed;left:-10000px;top:0;visibility:hidden;';
+    caja.innerHTML = html;
+    document.body.appendChild(caja);
+
+    var hoja = caja.querySelector('.hoja');
+    if (!hoja) {
+      caja.remove();
+      return Promise.reject(new Error('No hay hoja que descargar.'));
+    }
+    hoja.style.boxShadow = 'none';
+    hoja.style.margin = '0';
+    var ancho = Math.ceil(hoja.offsetWidth);
+    var alto = Math.ceil(hoja.offsetHeight);
+
+    var copia = hoja.cloneNode(true);
+    // El SVG no hereda la tipografía del <body>: se le pasa la que usa la página.
+    copia.style.fontFamily = window.getComputedStyle(hoja).fontFamily;
+    caja.remove();
+
+    return incrustarImagenes(copia).then(function () {
+      // El CSS va dentro de un <style> XML: & y < se escapan para que el SVG sea válido.
+      var css = cssDeLaPagina().replace(/&/g, '&amp;').replace(/</g, '&lt;');
+      var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + ancho + '" height="' + alto + '">' +
+        '<foreignObject x="0" y="0" width="' + ancho + '" height="' + alto + '">' +
+          '<div xmlns="http://www.w3.org/1999/xhtml"><style>' + css + '</style>' +
+            new XMLSerializer().serializeToString(copia) +
+          '</div>' +
+        '</foreignObject></svg>';
+
+      return new Promise(function (resolver, rechazar) {
+        var imagen = new Image();
+        imagen.onload = function () {
+          var canvas = document.createElement('canvas');
+          canvas.width = ancho * ESCALA_DESCARGA;
+          canvas.height = alto * ESCALA_DESCARGA;
+          var ctx = canvas.getContext('2d');
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(imagen, 0, 0, canvas.width, canvas.height);
+          resolver({ canvas: canvas, ancho: ancho, alto: alto });
+        };
+        imagen.onerror = function () { rechazar(new Error('No se pudo dibujar la cotización.')); };
+        imagen.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+      });
+    });
+  }
+
+  function canvasABlob(canvas, tipo, calidad) {
+    return new Promise(function (resolver, rechazar) {
+      try {
+        canvas.toBlob(function (blob) {
+          if (blob) resolver(blob); else rechazar(new Error('No se pudo generar el archivo.'));
+        }, tipo, calidad);
+      } catch (e) {
+        rechazar(e);   // un canvas «manchado» (algunos navegadores) no se puede exportar
+      }
+    });
+  }
+
+  function aBytes(texto) {
+    var bytes = new Uint8Array(texto.length);
+    for (var i = 0; i < texto.length; i++) bytes[i] = texto.charCodeAt(i) & 255;
+    return bytes;
+  }
+
+  // Un PDF mínimo: una página A4 por imagen JPEG, cada una a pantalla completa.
+  // paginas = [{ jpeg: Uint8Array, ancho, alto }] (píxeles de la imagen).
+  function armarPDF(paginas) {
+    var partes = [];
+    var largo = 0;
+    var offsets = [];
+
+    function escribir(dato) {
+      var bytes = typeof dato === 'string' ? aBytes(dato) : dato;
+      partes.push(bytes);
+      largo += bytes.length;
+    }
+    function objeto(numero, cuerpo) {
+      offsets[numero] = largo;
+      escribir(numero + ' 0 obj\n');
+      cuerpo();
+      escribir('\nendobj\n');
+    }
+
+    // 1 = catálogo, 2 = lista de páginas y, por cada página, 3 objetos: la página,
+    // su contenido y su imagen.
+    var primeraPagina = 3;
+    var kids = paginas.map(function (_, i) { return (primeraPagina + i * 3) + ' 0 R'; }).join(' ');
+
+    escribir('%PDF-1.4\n');
+    objeto(1, function () { escribir('<< /Type /Catalog /Pages 2 0 R >>'); });
+    objeto(2, function () {
+      escribir('<< /Type /Pages /Kids [' + kids + '] /Count ' + paginas.length + ' >>');
+    });
+    paginas.forEach(function (pagina, i) {
+      var nPagina = primeraPagina + i * 3;
+      var nContenido = nPagina + 1;
+      var nImagen = nPagina + 2;
+      var dibujo = 'q ' + A4_ANCHO_PT + ' 0 0 ' + A4_ALTO_PT + ' 0 0 cm /Im0 Do Q';
+      objeto(nPagina, function () {
+        escribir('<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ' + A4_ANCHO_PT + ' ' + A4_ALTO_PT + ']' +
+          ' /Resources << /XObject << /Im0 ' + nImagen + ' 0 R >> >> /Contents ' + nContenido + ' 0 R >>');
+      });
+      objeto(nContenido, function () {
+        escribir('<< /Length ' + dibujo.length + ' >>\nstream\n' + dibujo + '\nendstream');
+      });
+      objeto(nImagen, function () {
+        escribir('<< /Type /XObject /Subtype /Image /Width ' + pagina.ancho + ' /Height ' + pagina.alto +
+          ' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ' +
+          pagina.jpeg.length + ' >>\nstream\n');
+        escribir(pagina.jpeg);
+        escribir('\nendstream');
+      });
+    });
+
+    var total = primeraPagina + paginas.length * 3;
+    var xref = largo;
+    var tabla = 'xref\n0 ' + total + '\n0000000000 65535 f \n';
+    for (var n = 1; n < total; n++) tabla += ('0000000000' + offsets[n]).slice(-10) + ' 00000 n \n';
+    escribir(tabla + 'trailer\n<< /Size ' + total + ' /Root 1 0 R >>\nstartxref\n' + xref + '\n%%EOF');
+    return new Blob(partes, { type: 'application/pdf' });
+  }
+
+  // Parte el canvas en hojas A4 (la proporción A4 sobre su ancho) y las pasa a JPEG.
+  function canvasAPaginas(canvas) {
+    var altoPagina = Math.round(canvas.width * A4_ALTO_PT / A4_ANCHO_PT);
+    var cuantas = Math.max(1, Math.ceil((canvas.height - 2) / altoPagina));   // 2 px de tolerancia
+    var tareas = [];
+    for (var i = 0; i < cuantas; i++) {
+      (function (indice) {
+        var trozo = document.createElement('canvas');
+        trozo.width = canvas.width;
+        trozo.height = altoPagina;
+        var ctx = trozo.getContext('2d');
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, trozo.width, trozo.height);
+        ctx.drawImage(canvas, 0, indice * altoPagina, canvas.width, altoPagina,
+          0, 0, canvas.width, altoPagina);
+        tareas.push(canvasABlob(trozo, 'image/jpeg', 0.92).then(function (blob) {
+          return blob.arrayBuffer();
+        }).then(function (buffer) {
+          return { jpeg: new Uint8Array(buffer), ancho: trozo.width, alto: trozo.height };
+        }));
+      })(i);
+    }
+    return Promise.all(tareas);
+  }
+
+  // El archivo de la cotización: promesa con { blob, nombre }. formato = 'pdf' | 'png'.
+  function archivo(fuente, formato) {
+    var origen = fuente || {};
+    var items = origen.items || window.Cart.getItems();
+    var meta = origen.meta || window.Cart.getMeta();
+    if (!items.length) return Promise.reject(new Error('No hay productos que descargar.'));
+
+    var esPDF = formato !== 'png';
+    var nombre = nombreArchivo(meta) + (esPDF ? '.pdf' : '.png');
+    return hojaACanvas(documento({ meta: meta, items: items }, 'cotizacion-hoja-descarga'))
+      .then(function (dibujo) {
+        if (!esPDF) {
+          return canvasABlob(dibujo.canvas, 'image/png').then(function (blob) {
+            return { blob: blob, nombre: nombre };
+          });
+        }
+        return canvasAPaginas(dibujo.canvas).then(function (paginas) {
+          return { blob: armarPDF(paginas), nombre: nombre };
+        });
+      });
+  }
+
+  // Baja el archivo solo: crea la cotización en PDF o PNG y la entrega al navegador.
+  function descargar(fuente, formato) {
+    return archivo(fuente, formato).then(function (res) {
+      var url = URL.createObjectURL(res.blob);
+      var enlace = document.createElement('a');
+      enlace.href = url;
+      enlace.download = res.nombre;
+      enlace.style.display = 'none';
+      document.body.appendChild(enlace);
+      enlace.click();
+      enlace.remove();
+      setTimeout(function () { URL.revokeObjectURL(url); }, 10000);
+      return res.nombre;
+    });
+  }
+
   window.PDF = {
+    archivo: archivo,
+    descargar: descargar,
     getNegocio: getNegocio,
     documento: documento,
     documentoPO: documentoPO,

@@ -48,7 +48,7 @@
           '<h2 class="page__title">' + (ed ? 'Editar cotización ' + Utils.escapeHtml(PDF.folioTexto(ed.folio)) : 'Carrito de cotización') + '</h2>' +
           '<p class="page__subtitle">' + (ed
             ? 'Revisa el desglose y corrige los datos. Al guardar, la tarjeta de <b>Proceso</b> queda con estos cambios; no cambia de columna.'
-            : 'Revisa el desglose, captura los datos del cliente y envía la cotización: se guarda en <b>Proceso</b> y se abre el PDF para mandárselo.') + '</p>' +
+            : 'Revisa el desglose, captura los datos del cliente y envía la cotización: se guarda en <b>Proceso</b> y se descarga en PDF o PNG para mandárselo.') + '</p>' +
         '</div>' +
         '<div class="toolbar">' +
           '<button class="btn btn--ghost" type="button" data-action="back">← Volver a productos</button>' +
@@ -230,9 +230,41 @@
   /* ------------------------- Envío al tablero ------------------------- */
 
   // Manda la cotización al API: queda guardada en Postgres y aparece en Proceso
-  // (#/proceso), y abre el PDF para mandárselo al cliente. Después el carrito
+  // (#/proceso), y baja el PDF o el PNG que se elija para mandárselo al cliente. Después el carrito
   // arranca de cero con folio nuevo: la tarjeta es una copia congelada, así que
   // la cotización enviada ya no se puede tocar por accidente.
+  // Pregunta en qué formato se baja la cotización: promesa con 'pdf', 'png' o
+  // null si se cancela (Esc, «Cancelar» o clic afuera). Nada se envía hasta que
+  // se elige.
+  function elegirFormato() {
+    return new Promise(function (resolver) {
+      var dlg = document.createElement('dialog');
+      dlg.className = 'formato';
+      dlg.setAttribute('aria-label', 'Formato de la cotización');
+      dlg.innerHTML =
+        '<h3 class="formato__title">Enviar cotización</h3>' +
+        '<p class="formato__texto">Se guarda en <b>Proceso</b> y se descarga el archivo. ¿En qué formato?</p>' +
+        '<div class="formato__opciones">' +
+          '<button class="btn btn--primary" type="button" data-formato="pdf">📄 PDF</button>' +
+          '<button class="btn btn--primary" type="button" data-formato="png">🖼️ PNG</button>' +
+        '</div>' +
+        '<button class="btn btn--ghost" type="button" data-formato="">Cancelar</button>';
+
+      var elegido = null;
+      dlg.addEventListener('click', function (e) {
+        var boton = e.target.closest('[data-formato]');
+        if (boton) elegido = boton.getAttribute('data-formato') || null;
+        if (boton || e.target === dlg) dlg.close();   // clic en el fondo = cancelar
+      });
+      dlg.addEventListener('close', function () {
+        dlg.remove();
+        resolver(elegido);
+      });
+      document.body.appendChild(dlg);
+      dlg.showModal();
+    });
+  }
+
   function enviarCotizacion() {
     if (Cart.getEdicion()) {
       guardarEdicion();
@@ -243,6 +275,18 @@
       return;
     }
 
+    // Navegadores sin <dialog>: se envía con PDF, como siempre.
+    if (typeof document.createElement('dialog').showModal !== 'function') {
+      enviarComo('pdf');
+      return;
+    }
+    elegirFormato().then(function (formato) {
+      if (formato) enviarComo(formato);
+    });
+  }
+
+  // Guarda la cotización, la pasa a Proceso y baja el archivo en el formato elegido.
+  function enviarComo(formato) {
     var boton = rootEl.querySelector('#carrito-enviar');
     if (boton) {
       boton.disabled = true;
@@ -262,25 +306,26 @@
       if (res.folioSiguiente) Cart.setMeta({ folio: String(res.folioSiguiente) });
 
       window.App.navigate('proceso');
-      // El PDF se imprime DESPUÉS de navegar: la hoja vive en #print-root, así que
-      // sale igual desde el tablero y el diálogo no tapa la cotización anterior.
-      if (!PDF.imprimir({ meta: tarjeta, items: tarjeta.items })) {
-        window.App.toast('Cotización guardada, pero no se pudo abrir el PDF', 'error');
-        return;
-      }
-      if (res.folioReasignado) {
-        // El folio que traía el formulario ya estaba usado y la base puso otro.
-        window.App.toast('Ese folio ya estaba usado: quedó como ' + PDF.folioTexto(tarjeta.folio), 'error');
-        return;
-      }
-      window.App.toast('Cotización ' + PDF.folioTexto(tarjeta.folio) + ' guardada en Proceso', 'success');
+      // El archivo se baja solo, con los datos congelados de la tarjeta. Si falla,
+      // la cotización ya quedó guardada: se avisa y se puede sacar desde la tarjeta.
+      PDF.descargar({ meta: tarjeta, items: tarjeta.items }, formato).then(function () {
+        if (res.folioReasignado) {
+          // El folio que traía el formulario ya estaba usado y la base puso otro.
+          window.App.toast('Ese folio ya estaba usado: quedó como ' + PDF.folioTexto(tarjeta.folio), 'error');
+          return;
+        }
+        window.App.toast('Cotización ' + PDF.folioTexto(tarjeta.folio) + ' guardada en Proceso y descargada', 'success');
+      }, function () {
+        window.App.toast('Cotización guardada, pero no se pudo generar el ' + formato.toUpperCase() +
+          '. Sácalo desde la tarjeta (botón 🖨).', 'error');
+      });
     }).catch(function (error) {
       // No se guardó nada: el carrito queda intacto para volver a intentar.
       window.App.toast(error.message || 'No se pudo enviar la cotización', 'error');
     }).then(function () {
       if (boton) {
         boton.disabled = false;
-        boton.textContent = 'Enviar cotización';
+        boton.textContent = etiquetaEnviar();
       }
     });
   }

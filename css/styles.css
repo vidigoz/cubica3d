@@ -1706,3 +1706,19 @@ body.con-pin { overflow: hidden; }
   color: var(--text);
   font-size: .9rem;
 }
+
+/* Diálogo de «Enviar cotización»: elegir PDF o PNG antes de guardarla y bajarla. */
+.formato {
+  width: min(380px, 92vw);
+  padding: 22px;
+  border: 0;
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 30px 70px -24px rgba(15, 23, 42, .6);
+}
+.formato[open] { display: flex; flex-direction: column; gap: 12px; }
+.formato::backdrop { background: rgba(15, 23, 42, .55); }
+.formato__title { margin: 0; font-size: 1.1rem; }
+.formato__texto { margin: 0; color: var(--muted); font-size: .9rem; }
+.formato__opciones { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
