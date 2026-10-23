@@ -142,6 +142,10 @@ button { font-family: inherit; cursor: pointer; }
 
 /* ---------- Layout ---------- */
 .app-main { max-width: 1040px; margin: 0 auto; padding: clamp(16px, 4vw, 40px); }
+/* El tablero y las estadísticas aprovechan la pantalla grande: los formularios se
+   leen mejor angostos, pero cuatro columnas de tarjetas necesitan el ancho. */
+.app-main[data-ruta="proceso"],
+.app-main[data-ruta="estadisticas"] { max-width: 1800px; }
 
 .page { display: flex; flex-direction: column; gap: 20px; }
 .page__head { display: flex; flex-direction: column; gap: 4px; }
@@ -474,7 +478,7 @@ button { font-family: inherit; cursor: pointer; }
 .kanban {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 14px;
+  gap: clamp(12px, 1.2vw, 20px);
   align-items: start;
 }
 
@@ -1275,9 +1279,52 @@ label.t-lotes__sec { cursor: pointer; }
 }
 
 /* ---------- Responsive ---------- */
-@media (max-width: 900px) {
-  /* El tablero se apila; cada tarjeta se mueve con sus botones ← / →. */
+@media (max-width: 1100px) {
+  /* Pantalla mediana (tablet, ventana angosta): cuatro columnas quedarían de
+     ~220px y los botones se apilan, así que el tablero pasa a dos por fila. */
+  .kanban { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+/* Pestañas de las columnas: sólo en el celular (ver el bloque de abajo). */
+.kanban__tabs { display: none; }
+
+@media (max-width: 700px) {
+  /* En el celular el tablero muestra UNA columna a la vez, elegida con las pestañas
+     de arriba: apiladas, las cuatro obligaban a recorrer toda «Cotización» para
+     llegar a «Trabajo». Cada tarjeta se mueve con sus botones ← / →. */
   .kanban { grid-template-columns: 1fr; }
+  .kanban__col { display: none; }
+  .kanban__col--activa { display: flex; }
+
+  .kanban__tabs {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 4px;
+    padding: 6px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    box-shadow: var(--shadow);
+  }
+  .kanban__tab {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    min-width: 0;
+    padding: 8px 2px;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--muted);
+    font: inherit;
+    font-size: .74rem;
+    font-weight: 700;
+    touch-action: manipulation;
+  }
+  .kanban__tab-nombre { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .kanban__tab-cuenta { font-size: 1rem; color: var(--text); }
+  .kanban__tab--activa { background: var(--primary-soft); color: var(--primary); }
+  .kanban__tab--activa .kanban__tab-cuenta { color: var(--primary); }
 }
 
 /* Pantallas táctiles: el dedo es más ancho que el puntero, así que los botones

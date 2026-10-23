@@ -30,6 +30,10 @@
   var rootEl = null;
   var boundEl = null;   // el contenedor de la app es siempre el mismo: se engancha una vez
   var abiertas = {};    // tarjetas con el detalle desplegado (sobrevive al repintado)
+  // La columna que se ve en pantallas angostas (celular): ahí el tablero muestra una
+  // columna a la vez, con pestañas arriba, en vez de apilar las cuatro. En pantallas
+  // grandes se ven todas y esto no hace nada (ver .kanban__tabs en el CSS).
+  var columnaActiva = 'cotizacion';
 
   // Desde qué columna se ofrece «Ensamble»: la receta de armado se consulta
   // cuando la venta ya salió al taller, así que está desde «Trabajo» en adelante
@@ -438,7 +442,8 @@
     lista.forEach(function (t) { unidades += t.unidades; dinero += t.total; });
 
     return '' +
-      '<section class="kanban__col" data-col="' + col.id + '">' +
+      '<section class="kanban__col' + (col.id === columnaActiva ? ' kanban__col--activa' : '') +
+        '" data-col="' + col.id + '">' +
         '<header class="kanban__head">' +
           '<h3 class="kanban__title">' + Utils.escapeHtml(col.nombre) + '</h3>' +
           '<span class="kanban__count" title="' + lista.length + ' cotizaciones \u00b7 ' +
@@ -450,6 +455,22 @@
             : '<p class="kanban__empty">' + vacioTemplate(col) + '</p>') +
         '</div>' +
       '</section>';
+  }
+
+  // Las pestañas del celular: una por columna, con cuántas tarjetas tiene cada una.
+  // En la PC no se ven (el CSS las esconde): ahí están las cuatro columnas a la vez.
+  function pestanasTemplate() {
+    return '' +
+      '<div class="kanban__tabs" role="tablist" aria-label="Columnas del tablero">' +
+        Proceso.COLUMNAS.map(function (col) {
+          var activa = col.id === columnaActiva;
+          return '<button class="kanban__tab' + (activa ? ' kanban__tab--activa' : '') + '" type="button" ' +
+            'role="tab" aria-selected="' + activa + '" data-tab="' + col.id + '">' +
+            '<span class="kanban__tab-nombre">' + Utils.escapeHtml(col.nombre) + '</span>' +
+            '<b class="kanban__tab-cuenta">' + Proceso.getTarjetas(col.id).length + '</b>' +
+          '</button>';
+        }).join('') +
+      '</div>';
   }
 
   /* ------------------------------ Ensamble ------------------------------
@@ -596,6 +617,7 @@
     rootEl.innerHTML =
       '<div class="page">' +
         headTemplate() +
+        pestanasTemplate() +
         '<div class="kanban" id="kanban">' +
           Proceso.COLUMNAS.map(columnaTemplate).join('') +
         '</div>' +
@@ -947,6 +969,21 @@
     boundEl = rootEl;
 
     rootEl.addEventListener('click', function (e) {
+      // Pestañas del celular: se cambia de columna sin repintar todo el tablero.
+      var pestana = e.target.closest('[data-tab]');
+      if (pestana) {
+        columnaActiva = pestana.getAttribute('data-tab');
+        rootEl.querySelectorAll('[data-tab]').forEach(function (b) {
+          var activa = b.getAttribute('data-tab') === columnaActiva;
+          b.classList.toggle('kanban__tab--activa', activa);
+          b.setAttribute('aria-selected', activa);
+        });
+        rootEl.querySelectorAll('.kanban__col').forEach(function (c) {
+          c.classList.toggle('kanban__col--activa', c.getAttribute('data-col') === columnaActiva);
+        });
+        return;
+      }
+
       // El clic que el navegador dispara atrás de un arrastre (soltar el botón también
       // cuenta como clic) no es un clic: se descarta el que llega pegadito al arrastre.
       if (Date.now() - finArrastre < 400) return;

@@ -109,6 +109,9 @@
     }
 
     viewEl.innerHTML = '';
+    // La ruta queda en el contenedor: el CSS le da más ancho al tablero y a las
+    // estadísticas en pantallas grandes (ver .app-main[data-ruta]).
+    viewEl.setAttribute('data-ruta', hash.route);
     viewFor(hash.route).render(viewEl, hash.sub);
     refreshCartChip();
   }
