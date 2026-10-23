@@ -399,8 +399,6 @@
               'title="Ver la cotizaci\u00f3n completa, sin descargar nada" ' +
               'aria-label="Ver la cotizaci\u00f3n completa">' +
               '<span aria-hidden="true">\ud83d\udc41</span>Ver</button>' +
-            '<button class="icon-btn icon-btn--mini" type="button" data-pdf ' +
-              'title="Descargar o imprimir el PDF" aria-label="Descargar o imprimir el PDF">\ud83d\udda8</button>' +
             '<button class="icon-btn icon-btn--mini icon-btn--mini-danger" type="button" data-quitar ' +
               'title="Quitar del tablero" aria-label="Quitar del tablero">\u2715</button>' +
           '</span>' +
@@ -997,14 +995,6 @@
       if (e.target.closest('[data-ensamble]')) {
         var ens = Proceso.getTarjeta(id);
         if (ens) abrirEnsamble(ens);
-        return;
-      }
-
-      // Reimprime con los datos congelados de la tarjeta: no toca el carrito.
-      if (e.target.closest('[data-pdf]')) {
-        var t = Proceso.getTarjeta(id);
-        if (!t) return;
-        PDF.imprimir({ meta: t, items: t.items });
         return;
       }
 

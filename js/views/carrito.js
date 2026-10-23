@@ -317,7 +317,7 @@
         window.App.toast('Cotización ' + PDF.folioTexto(tarjeta.folio) + ' guardada en Proceso y descargada', 'success');
       }, function () {
         window.App.toast('Cotización guardada, pero no se pudo generar el ' + formato.toUpperCase() +
-          '. Sácalo desde la tarjeta (botón 🖨).', 'error');
+          '. Sácalo desde la tarjeta (botón Ver).', 'error');
       });
     }).catch(function (error) {
       // No se guardó nada: el carrito queda intacto para volver a intentar.

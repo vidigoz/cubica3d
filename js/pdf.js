@@ -590,7 +590,9 @@
   // Abre el visor con una hoja ya dibujada: el mismo diálogo sirve para la
   // cotización y para la orden de producción.
   //   opciones = { meta, html, titulo, etiqueta, imprimir }
-  // `imprimir` es lo que hace el botón «Descargar PDF» del visor.
+  // `imprimir` es lo que hace el botón «Descargar PDF» del visor. Si se pasa
+  // `descargar(formato)`, el visor ofrece dos botones, «Descargar PDF» y
+  // «Descargar PNG», y cada uno baja su archivo solo.
   // Devuelve false si el navegador no tiene <dialog> (ahí se imprime directo).
   function abrirVisor(opciones) {
     var o = opciones || {};
@@ -627,13 +629,25 @@
       '<footer class="visor__pie">' +
         '<p class="visor__pista">Gira el teléfono o pellizca para leerlo más grande.</p>' +
         '<button class="btn btn--ghost" type="button" data-cerrar>Cerrar</button>' +
-        '<button class="btn btn--primary" type="button" data-imprimir>' +
-          '\ud83d\udda8\ufe0f Descargar PDF</button>' +
+        (o.descargar
+          ? '<button class="btn btn--primary" type="button" data-descargar="pdf">\ud83d\udcc4 Descargar PDF</button>' +
+            '<button class="btn btn--primary" type="button" data-descargar="png">\ud83d\uddbc\ufe0f Descargar PNG</button>'
+          : '<button class="btn btn--primary" type="button" data-imprimir>' +
+            '\ud83d\udda8\ufe0f Descargar PDF</button>') +
       '</footer>';
 
     dlg.addEventListener('click', function (e) {
       if (e.target.closest('[data-cerrar]')) { cerrarVisor(); return; }
       if (e.target.closest('[data-imprimir]')) { if (o.imprimir) o.imprimir(); return; }
+      var baja = e.target.closest('[data-descargar]');
+      if (baja && o.descargar) {
+        var formato = baja.getAttribute('data-descargar');
+        baja.disabled = true;
+        o.descargar(formato).catch(function () {
+          if (window.App) window.App.toast('No se pudo generar el ' + formato.toUpperCase(), 'error');
+        }).then(function () { baja.disabled = false; });
+        return;
+      }
       if (e.target === dlg) cerrarVisor();   // clic en el fondo oscuro
     });
     // Esc y el cierre del navegador pasan por aquí: se limpia el visor del DOM.
@@ -659,7 +673,8 @@
       etiqueta: 'Cotización ' + folioTexto(meta.folio),
       titulo: 'Cotización ' + folioTexto(meta.folio),
       html: documento({ meta: meta, items: items }, 'cotizacion-hoja-ver'),
-      imprimir: function () { return imprimir({ meta: meta, items: items }); }
+      imprimir: function () { return imprimir({ meta: meta, items: items }); },
+      descargar: function (formato) { return descargar({ meta: meta, items: items }, formato); }
     });
   }
 
