@@ -105,6 +105,9 @@
       cliente: m.cliente == null ? '' : String(m.cliente),
       notas: m.notas == null ? '' : String(m.notas)
     };
+    // Un carrito vacío no tiene fecha propia: la que quedó guardada es del día
+    // en que se envió la cotización anterior, no la de hoy.
+    if (!items.length) meta.fecha = hoyISO();
   }
 
   cargar();
@@ -162,6 +165,7 @@
       precio: window.Utils.parseNumber(item.precio, 0),
       cantidad: cantidadValida(item.cantidad)
     };
+    if (!items.length) meta.fecha = hoyISO();   // la cotización arranca con la fecha de hoy
     items.push(linea);
     persist();
     notify();
