@@ -38,7 +38,8 @@
     { id: 'entregado', nombre: 'Entregado' }
   ];
 
-  // Tarjetas: { id, folio, fecha, cliente, notas, items: [...], unidades, total,
+  // Tarjetas: { id, folio, fecha, cliente, notas, items: [...], unidades, descuento,
+  //             descuentoNota, total,
   //             columna, pagado, basesListas, teclasListas, creada, movida }
   var tarjetas = [];
   var listeners = [];
@@ -154,7 +155,14 @@
       notas: String(fila.notas || ''),
       items: items,
       unidades: items.length ? unidadesDe(items) : window.Utils.parseNumber(fila.unidades, 0),
-      total: items.length ? totalDe(items) : window.Utils.parseNumber(fila.total, 0),
+      // El descuento (en pesos) y su motivo; el total ya lo trae restado.
+      descuento: items.length
+        ? window.Utils.descuentoValido(fila.descuento, totalDe(items))
+        : window.Utils.parseNumber(fila.descuento, 0),
+      descuentoNota: String(fila.descuentoNota || ''),
+      total: items.length
+        ? totalDe(items) - window.Utils.descuentoValido(fila.descuento, totalDe(items))
+        : window.Utils.parseNumber(fila.total, 0),
       columna: fila.columna || primeraColumna(),
       posicion: numeroPosicion(fila.posicion),
       pagado: !!fila.pagado,

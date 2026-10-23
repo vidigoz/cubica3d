@@ -1722,3 +1722,17 @@ body.con-pin { overflow: hidden; }
 .formato__title { margin: 0; font-size: 1.1rem; }
 .formato__texto { margin: 0; color: var(--muted); font-size: .9rem; }
 .formato__opciones { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+/* Descuento de la cotización: campos junto al total y su línea en el desglose. */
+.descuento {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) minmax(0, 3fr);
+  gap: 12px;
+  margin-top: 14px;
+}
+.descuento[hidden] { display: none; }
+.cart-total--sub { margin-top: 0; padding-top: 4px; border-top: 0; font-size: .9rem; color: var(--muted); }
+.tarjeta__descuento { font-size: .78rem; color: var(--primary); font-weight: 600; }
+@media (max-width: 640px) {
+  .descuento { grid-template-columns: 1fr; }
+}

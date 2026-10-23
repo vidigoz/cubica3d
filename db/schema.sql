@@ -92,7 +92,9 @@ create table if not exists cotizaciones (
   bases_listas  boolean not null default false,  -- el taller ya hizo las bases del clicker
   teclas_listas boolean not null default false,  -- y las teclas con su letra (ver la tarjeta)
   unidades    integer not null default 0,
-  total       numeric(12,2) not null default 0,
+  descuento   numeric(12,2) not null default 0,  -- pesos que se restan al subtotal de las líneas
+  descuento_nota text not null default '',       -- de qué es: promo, ajuste, lo que sea
+  total       numeric(12,2) not null default 0,  -- ya con el descuento: lo que se cobra
   creada      timestamptz not null default now(),
   movida      timestamptz not null default now(),
   creada_por  text,
@@ -116,6 +118,10 @@ alter table cotizaciones add column if not exists pagado boolean not null defaul
 -- quedan sin tildar, que es lo honesto: nadie dijo que estuvieran hechas.
 alter table cotizaciones add column if not exists bases_listas boolean not null default false;
 alter table cotizaciones add column if not exists teclas_listas boolean not null default false;
+-- El descuento de la cotización (en pesos) y su motivo. `total` ya lo trae restado.
+-- Las tarjetas que ya estaban quedan sin descuento.
+alter table cotizaciones add column if not exists descuento numeric(12,2) not null default 0;
+alter table cotizaciones add column if not exists descuento_nota text not null default '';
 alter table cotizaciones drop constraint if exists cotizaciones_columna_check;
 alter table cotizaciones add constraint cotizaciones_columna_check
   check (columna in ('cotizacion', 'trabajo', 'realizado', 'entregado'));

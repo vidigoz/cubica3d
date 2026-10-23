@@ -140,15 +140,27 @@
       '</table>';
   }
 
-  function totalesTemplate(unidades, total) {
+  // Piezas y total. Con descuento salen también el subtotal y el descuento (con su
+  // motivo, si lo hay): subtotal − descuento = total.
+  function totalesTemplate(unidades, subtotal, descuento, nota) {
+    var conDescuento = descuento > 0;
     return '' +
       '<section class="hoja__totales">' +
         '<div class="hoja__total-caja">' +
           '<div class="hoja__total-row hoja__total-row--sub">' +
             '<span>Piezas</span><span>' + unidades + '</span>' +
           '</div>' +
+          (conDescuento
+            ? '<div class="hoja__total-row hoja__total-row--sub">' +
+                '<span>Subtotal</span><span>' + Utils.formatMoney(subtotal) + '</span>' +
+              '</div>' +
+              '<div class="hoja__total-row hoja__total-row--sub">' +
+                '<span>Descuento' + (Utils.normalize(nota) ? ' (' + Utils.escapeHtml(Utils.normalize(nota)) + ')' : '') +
+                '</span><span>\u2212' + Utils.formatMoney(descuento) + '</span>' +
+              '</div>'
+            : '') +
           '<div class="hoja__total-row">' +
-            '<span>Total</span><span>' + Utils.formatMoney(total) + '</span>' +
+            '<span>Total</span><span>' + Utils.formatMoney(subtotal - descuento) + '</span>' +
           '</div>' +
         '</div>' +
       '</section>';
@@ -194,7 +206,8 @@
         '</section>' +
 
         tablaTemplate(items) +
-        totalesTemplate(unidadesDe(items), totalDe(items)) +
+        totalesTemplate(unidadesDe(items), totalDe(items),
+          Utils.descuentoValido(meta.descuento, totalDe(items)), meta.descuentoNota) +
 
         (meta.notas
           ? '<section class="hoja__notas">' +

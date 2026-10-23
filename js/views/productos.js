@@ -1003,6 +1003,9 @@
     }).join('');
 
     body.innerHTML = lineas +
+      (Cart.getDescuento() > 0
+        ? '<div class="cart-total cart-total--sub"><span>Descuento</span><span>\u2212' + Utils.formatMoney(Cart.getDescuento()) + '</span></div>'
+        : '') +
       '<div class="cart-total"><span>Total</span><strong>' + Utils.formatMoney(Cart.getTotal()) + '</strong></div>';
 
     body.querySelectorAll('[data-remove]').forEach(function (btn) {

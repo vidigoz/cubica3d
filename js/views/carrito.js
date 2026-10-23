@@ -54,7 +54,6 @@
           '<button class="btn btn--ghost" type="button" data-action="back">← Volver a productos</button>' +
           (ed ? '' : '<button class="btn btn--ghost" type="button" id="carrito-limpiar">Limpiar</button>') +
           '<button class="btn btn--primary" type="button" id="carrito-enviar">' + etiquetaEnviar() + '</button>' +
-          '<button class="btn btn--ghost" type="button" id="carrito-pdf">Exportar PDF</button>' +
         '</div>' +
       '</div>';
   }
@@ -85,6 +84,35 @@
       '</section>';
   }
 
+  // El descuento va debajo de las líneas, junto al total. Sus campos se pintan una
+  // sola vez (como los datos de la cotización) para no perder el cursor al teclear;
+  // lo que cambia con ellos es el bloque de Subtotal / Descuento / Total.
+  function descuentoTemplate(meta) {
+    return '' +
+      '<div class="descuento" id="carrito-descuento" hidden>' +
+        '<label class="field">' +
+          '<span class="field__label">Descuento ($) <em class="field__opt">(opcional)</em></span>' +
+          '<input class="field__input" type="number" id="q-descuento" min="0" step="0.01" inputmode="decimal" placeholder="0.00" value="' + Utils.escapeHtml(meta.descuento) + '" />' +
+        '</label>' +
+        '<label class="field field--grow">' +
+          '<span class="field__label">Motivo del descuento <em class="field__opt">(promo, ajuste, lo que sea)</em></span>' +
+          '<input class="field__input" type="text" id="q-descuentoNota" maxlength="200" placeholder="Ej. Promo de octubre" value="' + Utils.escapeHtml(meta.descuentoNota) + '" autocomplete="off" />' +
+        '</label>' +
+      '</div>';
+  }
+
+  // Subtotal, descuento y total: con descuento salen las tres filas; sin él, sólo el total.
+  function totalesTemplate() {
+    var descuento = Cart.getDescuento();
+    var nota = Utils.normalize(Cart.getMeta().descuentoNota);
+    return (descuento > 0
+      ? '<div class="cart-total cart-total--sub"><span>Subtotal</span><span>' + Utils.formatMoney(Cart.getSubtotal()) + '</span></div>' +
+        '<div class="cart-total cart-total--sub"><span>Descuento' + (nota ? ' · ' + Utils.escapeHtml(nota) : '') +
+          '</span><span>\u2212' + Utils.formatMoney(descuento) + '</span></div>'
+      : '') +
+      '<div class="cart-total"><span>Total</span><strong>' + Utils.formatMoney(Cart.getTotal()) + '</strong></div>';
+  }
+
   function productosTemplate() {
     return '' +
       '<section class="panel">' +
@@ -93,6 +121,7 @@
           '<span class="cart__count" id="carrito-resumen"></span>' +
         '</div>' +
         '<div id="carrito-items"></div>' +
+        descuentoTemplate(Cart.getMeta()) +
       '</section>';
   }
 
@@ -166,7 +195,7 @@
         '</thead>' +
         '<tbody>' + filas + '</tbody>' +
       '</table>' +
-      '<div class="cart-total"><span>Total</span><strong>' + Utils.formatMoney(Cart.getTotal()) + '</strong></div>';
+      totalesTemplate();
   }
 
   /* ---------------------------- Pintado ---------------------------- */
@@ -188,14 +217,14 @@
         : '';
     }
 
+    var descuento = rootEl.querySelector('#carrito-descuento');
+    if (descuento) descuento.hidden = !items.length;
+
     var limpiar = rootEl.querySelector('#carrito-limpiar');
     if (limpiar) limpiar.disabled = !items.length;
 
     var enviar = rootEl.querySelector('#carrito-enviar');
     if (enviar) enviar.disabled = !items.length;
-
-    var pdf = rootEl.querySelector('#carrito-pdf');
-    if (pdf) pdf.disabled = !items.length;
 
     var panelDoc = rootEl.querySelector('#carrito-doc-panel');
     if (panelDoc) panelDoc.hidden = !items.length;
@@ -221,7 +250,7 @@
   function syncDatos() {
     if (!rootEl) return;
     var meta = Cart.getMeta();
-    ['folio', 'fecha', 'cliente', 'notas'].forEach(function (clave) {
+    ['folio', 'fecha', 'cliente', 'notas', 'descuento', 'descuentoNota'].forEach(function (clave) {
       var el = rootEl.querySelector('#q-' + clave);
       if (el && document.activeElement !== el) el.value = meta[clave];
     });
@@ -405,10 +434,6 @@
         enviarCotizacion();
         return;
       }
-
-      if (e.target.closest('#carrito-pdf')) {
-        if (!PDF.imprimir()) window.App.toast('Agrega productos antes de exportar', 'error');
-      }
     });
 
     // Los datos de la cotización se guardan solos mientras se escriben.
@@ -418,7 +443,8 @@
       var patch = {};
       patch[el.id.slice(2)] = el.value;
       Cart.setMeta(patch);
-      repaintDoc();
+      // El descuento cambia el total que se ve en el desglose; lo demás, sólo la hoja.
+      if (/^descuento/.test(el.id.slice(2))) repaint(); else repaintDoc();
     });
   }
 

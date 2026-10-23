@@ -36,6 +36,14 @@
     return typeof fallback === 'number' ? fallback : 0;
   }
 
+  // El descuento en pesos que de verdad se aplica: nunca negativo y nunca mayor
+  // que el subtotal (la cotización no puede quedar en negativo). Es la misma
+  // regla del servidor (descuentoValido, en api/functions/api.js).
+  function descuentoValido(valor, subtotal) {
+    var n = Math.round(parseNumber(valor, 0) * 100) / 100;
+    return Math.min(Math.max(0, n), Math.max(0, subtotal));
+  }
+
   // El punto de color de un detalle («Base ● Azul»). Un detalle sin color (el
   // desglose de una cotización manual: «Diseño · Logo de la empresa») no lleva
   // punto: lo separa del texto con un «·».
@@ -47,6 +55,7 @@
 
   window.Utils = {
     marcaDetalle: marcaDetalle,
+    descuentoValido: descuentoValido,
     uid: uid,
     formatMoney: formatMoney,
     escapeHtml: escapeHtml,

@@ -84,7 +84,7 @@ const DIAS_SESION = 30;
 const INTENTOS_MAX = 10;                                   // por correo...
 const INTENTOS_VENTANA_MS = 15 * 60 * 1000;                // ...cada 15 minutos
 const SCRYPT = { N: 16384, r: 8, p: 1, largo: 64, sal: 16 };
-const LIMITE = { cliente: 120, notas: 600, titulo: 120, tipo: 40 };
+const LIMITE = { cliente: 120, notas: 600, titulo: 120, tipo: 40, descuentoNota: 200 };
 // Cada tarjeta guarda su lugar dentro de la columna con un número (`posicion`, ver
 // db/schema.sql). Se separan de a mil y el hueco se parte al medio entre las vecinas: así
 // reordenar NUNCA renumera la columna entera, sólo mueve una tarjeta de número.
@@ -173,6 +173,13 @@ async function leerJson(request) {
 
 // Las mismas reglas que usa el frontend (js/proceso.js), para que un cliente
 // viejo o modificado no pueda guardar basura ni inflar totales.
+// El descuento que manda el cliente, en pesos: nunca negativo y nunca mayor que el
+// subtotal (la cotización no puede quedar en negativo). Sin número, 0.
+function descuentoValido(valor, subtotal) {
+  const n = redondear(numero(valor, 0));
+  return Math.min(Math.max(0, n), Math.max(0, subtotal));
+}
+
 function itemsValidos(lista) {
   if (!Array.isArray(lista)) return [];
   return lista
@@ -341,6 +348,8 @@ export function crearApp(opciones) {
       notas: fila.notas,
       items: items || [],
       unidades: Number(fila.unidades),
+      descuento: Number(fila.descuento || 0),
+      descuentoNota: fila.descuento_nota || "",
       total: Number(fila.total),
       columna: fila.columna,
       posicion: Number(fila.posicion),
@@ -363,7 +372,7 @@ export function crearApp(opciones) {
   async function leerTablero() {
     const { rows } = await query(
       "select id, folio, to_char(fecha, 'YYYY-MM-DD') as fecha, cliente, notas, columna," +
-      " posicion, unidades, total, pagado, bases_listas, teclas_listas," +
+      " posicion, unidades, descuento, descuento_nota, total, pagado, bases_listas, teclas_listas," +
       " creada, movida, creada_por, movida_por" +
       " from cotizaciones where borrada_en is null" +
       " order by columna, posicion, folio"
@@ -400,7 +409,7 @@ export function crearApp(opciones) {
   async function leerTarjeta(id) {
     const { rows } = await query(
       "select id, folio, to_char(fecha, 'YYYY-MM-DD') as fecha, cliente, notas, columna," +
-      " posicion, unidades, total, pagado, bases_listas, teclas_listas," +
+      " posicion, unidades, descuento, descuento_nota, total, pagado, bases_listas, teclas_listas," +
       " creada, movida, creada_por, movida_por" +
       " from cotizaciones where id = $1", [id]
     );
@@ -611,9 +620,9 @@ export function crearApp(opciones) {
         from cotizaciones where columna = 'cotizacion' and borrada_en is null
     ), nueva as (
       insert into cotizaciones (client_id, folio, fecha, cliente, notas, columna, posicion,
-                                unidades, total, creada_por, movida_por)
+                                unidades, total, creada_por, movida_por, descuento, descuento_nota)
       select $1::text, siguiente_folio(), coalesce($2::date, current_date), $3, $4,
-             'cotizacion', p.p, $5::int, $6::numeric, $7, $7
+             'cotizacion', p.p, $5::int, $6::numeric, $7, $7, $9::numeric, $10
         from posicion p
       returning *
     ), lineas as (
@@ -650,16 +659,19 @@ export function crearApp(opciones) {
     }
 
     const unidades = items.reduce((suma, it) => suma + it.cantidad, 0);
-    const total = redondear(items.reduce((suma, it) => suma + it.precio * it.cantidad, 0));
+    const subtotal = redondear(items.reduce((suma, it) => suma + it.precio * it.cantidad, 0));
+    const descuento = descuentoValido(meta.descuento, subtotal);
     const parametros = [
       clientId,
       texto(meta.fecha) || null,
       recortar(meta.cliente, LIMITE.cliente),
       recortar(meta.notas, LIMITE.notas),
       unidades,
-      total,
+      redondear(subtotal - descuento),
       contexto.usuario.nombre,
-      JSON.stringify(items)
+      JSON.stringify(items),
+      descuento,
+      descuento ? recortar(meta.descuentoNota, LIMITE.descuentoNota) : ""
     ];
 
     let idNuevo;
@@ -701,7 +713,8 @@ export function crearApp(opciones) {
          set fecha = coalesce($2::date, fecha), cliente = $3, notas = $4,
              unidades = $5::int, total = $6::numeric,
              bases_listas = $7, teclas_listas = $8,
-             movida = now(), movida_por = $9
+             movida = now(), movida_por = $9,
+             descuento = $11::numeric, descuento_nota = $12
        where id = $1 and borrada_en is null
       returning id
     ), viejas as (
@@ -740,7 +753,9 @@ export function crearApp(opciones) {
 
     const cambioLoFabricado = huellaDeFabricacion(items) !== huellaDeFabricacion(actual.items);
     const unidades = items.reduce((suma, it) => suma + it.cantidad, 0);
-    const total = redondear(items.reduce((suma, it) => suma + it.precio * it.cantidad, 0));
+    const subtotal = redondear(items.reduce((suma, it) => suma + it.precio * it.cantidad, 0));
+    const descuento = descuentoValido(meta.descuento, subtotal);
+    const total = redondear(subtotal - descuento);
 
     const { rows } = await query(SQL_EDITAR, [
       contexto.params.id,
@@ -752,7 +767,9 @@ export function crearApp(opciones) {
       cambioLoFabricado ? false : !!actual.basesListas,
       cambioLoFabricado ? false : !!actual.teclasListas,
       contexto.usuario.nombre,
-      JSON.stringify(items)
+      JSON.stringify(items),
+      descuento,
+      descuento ? recortar(meta.descuentoNota, LIMITE.descuentoNota) : ""
     ]);
     if (!rows[0]) return fallo("Esa cotización ya no está en el tablero.", 404, contexto.cabeceras);
     return ok({ cotizacion: await leerTarjeta(contexto.params.id) }, contexto.cabeceras);

@@ -38,7 +38,7 @@
   }
 
   function metaNueva(folio) {
-    return { folio: String(folio || '1'), fecha: hoyISO(), cliente: '', notas: '' };
+    return { folio: String(folio || '1'), fecha: hoyISO(), cliente: '', notas: '', descuento: '', descuentoNota: '' };
   }
 
   function folioSiguiente(actual) {
@@ -87,7 +87,10 @@
         folio: (m.folio === '' || m.folio == null) ? '1' : String(m.folio),
         fecha: String(m.fecha || hoyISO()),
         cliente: m.cliente == null ? '' : String(m.cliente),
-        notas: m.notas == null ? '' : String(m.notas)
+        notas: m.notas == null ? '' : String(m.notas),
+        // El descuento va como texto (es lo que se teclea); '' = sin descuento.
+        descuento: m.descuento == null || Number(m.descuento) === 0 ? '' : String(m.descuento),
+        descuentoNota: m.descuentoNota == null ? '' : String(m.descuentoNota)
       }
     };
   }
@@ -162,8 +165,17 @@
   function getUnidades() {                                 // piezas totales
     return items.reduce(function (sum, item) { return sum + item.cantidad; }, 0);
   }
-  function getTotal() {
+  // La suma de las líneas, sin descuento.
+  function getSubtotal() {
     return items.reduce(function (sum, item) { return sum + getLineTotal(item); }, 0);
+  }
+  // El descuento que se aplica: lo tecleado, sin pasarse del subtotal.
+  function getDescuento() {
+    return window.Utils.descuentoValido(meta.descuento, getSubtotal());
+  }
+  // Lo que se cobra: el subtotal menos el descuento.
+  function getTotal() {
+    return getSubtotal() - getDescuento();
   }
 
   function getMeta() { return clone(meta); }
@@ -243,7 +255,10 @@
       items: (tarjeta.items || []).map(function (it) {
         return { tipo: it.tipo, titulo: it.titulo, detalles: it.detalles, precio: it.precio, cantidad: it.cantidad };
       }),
-      meta: { folio: tarjeta.folio, fecha: tarjeta.fecha, cliente: tarjeta.cliente, notas: tarjeta.notas }
+      meta: {
+        folio: tarjeta.folio, fecha: tarjeta.fecha, cliente: tarjeta.cliente, notas: tarjeta.notas,
+        descuento: tarjeta.descuento, descuentoNota: tarjeta.descuentoNota
+      }
     });
     items = lectura.items;
     meta = lectura.meta;
@@ -275,7 +290,7 @@
   // la vista justo mientras el usuario está escribiendo.
   function setMeta(patch) {
     patch = patch || {};
-    ['folio', 'fecha', 'cliente', 'notas'].forEach(function (clave) {
+    ['folio', 'fecha', 'cliente', 'notas', 'descuento', 'descuentoNota'].forEach(function (clave) {
       if (patch[clave] === undefined) return;
       if (clave === 'folio' && edicion) return;   // el folio de una tarjeta ya enviada no cambia
       meta[clave] = patch[clave] == null ? '' : String(patch[clave]);
@@ -298,6 +313,8 @@
     getLineTotal: getLineTotal,
     getCount: getCount,
     getUnidades: getUnidades,
+    getSubtotal: getSubtotal,
+    getDescuento: getDescuento,
     getTotal: getTotal,
     getMeta: getMeta,
     getClientId: getClientId,

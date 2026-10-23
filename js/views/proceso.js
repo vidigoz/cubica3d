@@ -373,6 +373,10 @@
           t.items.length + (t.items.length === 1 ? ' l\u00ednea' : ' l\u00edneas') +
         '</p>' +
         '<p class="tarjeta__resumen">' + Utils.escapeHtml(resumenProductos(t.items)) + '</p>' +
+        (t.descuento > 0
+          ? '<p class="tarjeta__descuento">Descuento \u2212' + Utils.formatMoney(t.descuento) +
+              (t.descuentoNota ? ' \u00b7 ' + Utils.escapeHtml(t.descuentoNota) : '') + '</p>'
+          : '') +
         (po
           ? '<p class="tarjeta__po"><b>PO:</b> ' +
               Utils.escapeHtml(poResumenTexto(po.totales)) + '</p>'

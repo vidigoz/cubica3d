@@ -148,9 +148,8 @@ eligen de los colores en stock y se pueden poner **iguales para todo el nombre**
 - **Datos de la cotización:** folio, fecha, cliente y notas. Se guardan solos mientras escribes
   y se ven al instante en la vista previa.
 - **Vista previa A4** de la hoja tal como saldrá impresa.
-- **Exportar PDF** abre el diálogo de impresión del navegador: elige **Guardar como PDF**.
-  El nombre del archivo se arma solo a partir del folio y el cliente
-  (ej. `Cotizacion-0012-Maria-Lopez.pdf`).
+- Al **enviar** la cotización eliges **PDF** o **PNG** y se descarga solo. El nombre del archivo se
+  arma a partir del folio y el cliente (ej. `Cotizacion-0012-Maria-Lopez.pdf`).
 - **Enviar al tablero** guarda la cotización en **Proceso** (primera columna), vacía el carrito y
   adelanta el folio al siguiente libre, así que la cotización enviada ya no se puede editar por
   accidente. El botón se desactiva si el carrito está vacío.
