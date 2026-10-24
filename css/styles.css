@@ -1784,3 +1784,8 @@ body.con-pin { overflow: hidden; }
 @media (max-width: 640px) {
   .descuento { grid-template-columns: 1fr; }
 }
+
+/* Charm para Silla: cada pieza lleva dos menús (base y tapa) y no cuatro. Va al final
+   del archivo para ganarle a las reglas de .tecla del celular. */
+.tecla--bicolor { grid-template-columns: minmax(26px, 40px) repeat(2, minmax(0, 1fr)); }
+.manual-fila--charm { grid-template-columns: minmax(0, 1fr) auto; }

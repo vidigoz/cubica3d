@@ -26,6 +26,9 @@
  * saltar de mes sola. Una tarjeta sin fecha usable cae en el cajón «Sin fecha»,
  * que va al final de la lista.
  *
+ * El charm para silla cuenta una BASE y una TAPA por cada letra, número o símbolo
+ * de su texto, cada una con su color (los charms sueltos no llevan color).
+ *
  * La cotización manual no tiene piezas propias, pero puede anotar «colores usados»:
  * se tabulan en su propia cuenta («manual-colores») y no suman a las otras cinco.
  *
@@ -102,6 +105,16 @@
       id: 'llavero-nombre', tipo: 'Llavero de Nombre', pieza: 'Nombre',
       etiqueta: 'Nombres del llavero',
       nota: 'La pieza impresa: uno por unidad.'
+    },
+    {
+      id: 'charm-base', tipo: 'Charm para Silla', pieza: 'Base',
+      etiqueta: 'Bases del charm',
+      nota: 'Una por letra, número o símbolo del texto, con el color de la base.'
+    },
+    {
+      id: 'charm-tapa', tipo: 'Charm para Silla', pieza: 'Tapa',
+      etiqueta: 'Tapas del charm',
+      nota: 'Una por letra, número o símbolo del texto, con el color de la tapa.'
     },
     {
       id: 'manual-colores', tipo: 'Cotización manual', pieza: 'Color usado',
@@ -306,6 +319,17 @@
           });
           return;
         }
+        if (tipo === PO.TIPO_CHARM) {
+          // Una base y una tapa por cada pieza del texto («A · Base», «A · Tapa»). Los
+          // charms sueltos no llevan color y no entran en la cuenta.
+          detalles.forEach(function (d) {
+            var rotulo = Utils.normalize(d && d.label);
+            if (/ \u00b7 Base$/.test(rotulo)) sumar('charm-base', piezaDe(d), cantidad, mes);
+            else if (/ \u00b7 Tapa$/.test(rotulo)) sumar('charm-tapa', piezaDe(d), cantidad, mes);
+          });
+          return;
+        }
+
         if (tipo === PO.TIPO_MANUAL) {
           // Los colores usados que se anotaron a mano, por las unidades de la línea.
           // Van a su propia cuenta: no tocan los rankings de los demás productos.

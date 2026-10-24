@@ -24,7 +24,9 @@
       nombreApellido: 100,
       // Clicker de Nombre: precio POR LETRA (cada letra lleva base, tecla y letra).
       // Hasta `letrasCorte` letras manda el corto; de ahí en adelante, el largo.
-      clicer: { porLetraCorto: 15, porLetraLargo: 30, letrasCorte: 5 }
+      clicer: { porLetraCorto: 15, porLetraLargo: 30, letrasCorte: 5 },
+      // Charm para Silla: precio FIJO, sin importar las piezas ni los charms.
+      charm: { precio: 350 }
     }
   };
 
@@ -62,6 +64,10 @@
         clicer.porLetraCorto, DEFAULT_CONFIG.precios.clicer.porLetraCorto);
       out.precios.clicer.porLetraLargo = window.Utils.parseNumber(
         clicer.porLetraLargo, DEFAULT_CONFIG.precios.clicer.porLetraLargo);
+      // Charm para Silla: el precio fijo.
+      var charm = parsed.precios.charm || {};
+      out.precios.charm.precio = Math.max(0, window.Utils.parseNumber(
+        charm.precio, DEFAULT_CONFIG.precios.charm.precio));
       var corte = window.Utils.parseNumber(clicer.letrasCorte, DEFAULT_CONFIG.precios.clicer.letrasCorte);
       out.precios.clicer.letrasCorte = corte >= 1
         ? Math.floor(corte)
@@ -177,6 +183,11 @@
       var corte = Math.floor(window.Utils.parseNumber(clicer.letrasCorte, config.precios.clicer.letrasCorte));
       config.precios.clicer.letrasCorte = corte >= 1 ? corte : config.precios.clicer.letrasCorte;
     }
+
+    // El charm, igual: un bloque aparte y lo que no venga se conserva.
+    var charm = precios.charm || {};
+    config.precios.charm.precio = Math.max(0, window.Utils.parseNumber(
+      charm.precio, config.precios.charm.precio));
 
     notify();
     guardar();

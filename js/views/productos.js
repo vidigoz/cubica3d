@@ -11,7 +11,7 @@
   var Clicer = window.Clicer;
 
   var rootEl = null;
-  var currentSub = null;   // null = menú · 'llaveros' · 'clicers' · 'manual' = formulario
+  var currentSub = null;   // null = menú · 'llaveros' · 'clicers' · 'charms' · 'manual' = formulario
 
   // Lo elegido letra por letra en el clicker, una lista por pieza (base, acabado,
   // tecla y letra), alineada con las letras del nombre (y el símbolo, si lo hay,
@@ -26,6 +26,13 @@
   // Filas del desglose de la cotización manual: { concepto, detalle }. Se
   // mantienen mientras se escribe y se pierden al salir del formulario.
   var manualFilas = [];
+
+  // Charm para Silla: lo elegido pieza por pieza (base y tapa de cada letra, número o
+  // símbolo del texto, alineado con ellas) y los charms sueltos. Se mantiene mientras
+  // se escribe y se pierde al salir del formulario.
+  var charmBase = [];      // color de la base, uno por pieza
+  var charmTapas = [];     // color de la tapa, uno por pieza
+  var charmLista = [];     // nombres de los charms sueltos («pelota de volly»)
   // Colores usados de la cotización manual: { color (id), piezas }. Opcionales:
   // alimentan las estadísticas de colores (su propia cuenta), no el precio.
   var manualColores = [];
@@ -136,6 +143,25 @@
     return datos;
   }
 
+  function parsearCharm(item) {
+    var res = window.Charm.piezasDe(item.titulo);
+    if (!res.ok) return null;
+    var det = item.detalles || [];
+    var piezas = det.filter(function (d) { return d.label !== 'Charm'; });
+    if (piezas.length !== res.piezas.length * 2) return null;
+    var faltan = [];
+    var datos = { sub: 'charms', texto: res.texto, base: [], tapa: [], faltan: faltan,
+      charms: det.filter(function (d) { return d.label === 'Charm'; }).map(function (d) { return d.nombre; }) };
+    for (var i = 0; i < res.piezas.length; i++) {
+      var b = piezas[i * 2];
+      var t = piezas[i * 2 + 1];
+      if (b.label !== res.piezas[i] + ' \u00b7 Base' || t.label !== res.piezas[i] + ' \u00b7 Tapa') return null;
+      datos.base.push(idDeDetalle(b, faltan));
+      datos.tapa.push(idDeDetalle(t, faltan));
+    }
+    return datos;
+  }
+
   function parsearManual(item) {
     var faltan = [];
     var datos = { sub: 'manual', titulo: item.titulo, precio: item.precio, cantidad: item.cantidad,
@@ -157,6 +183,7 @@
     item = item || {};
     if (item.tipo === TIPO_LLAVERO) return parsearLlavero(item);
     if (item.tipo === TIPO_CLICER) return parsearClicer(item);
+    if (item.tipo === window.PO.TIPO_CHARM) return parsearCharm(item);
     if (item.tipo === window.PO.TIPO_MANUAL) return parsearManual(item);
     return null;
   }
@@ -245,6 +272,8 @@
             'Elige el color de la base y del nombre. Precio con o sin apellido.', false) +
           productCard('clicers', 'productos/clicers', '🖱️', 'Clicker de Nombre',
             'Cada letra con su base (color y acabado), su tecla y su letra; todo igual o letra por letra.', false) +
+          productCard('charms', 'productos/charms', '🪑', 'Charm para Silla',
+            'Letras, números y símbolos con base y tapa de color, más los charms que quieras.', false) +
           productCard('manual', 'productos/manual', '✍️', 'Cotización manual',
             'Para lo que no está en el menú: pones el desglose de lo que vendes y el precio a mano.', false) +
         '</div>' +
@@ -437,6 +466,66 @@
       '</section>';
   }
 
+  // Formulario del Charm para Silla: el texto, los menús «todas» (base y tapa), una
+  // fila por letra, número o símbolo, y la lista de charms sueltos.
+  function charmTemplate() {
+    var config = Store.getConfig();
+    var sinColores = config.colores.length === 0;
+    var options = colorOptions(config.colores);
+    var dis = sinColores ? ' disabled' : '';
+
+    return '' +
+      '<section class="panel">' +
+        '<button class="btn btn--ghost btn--back" type="button" data-action="back">← Volver al menú</button>' +
+        avisoLinea() +
+        '<h3 class="panel__title">Charm para Silla</h3>' +
+        (sinColores
+          ? '<p class="alert alert--warn">No hay colores en stock. Agrégalos en <b>⚙️ Configuración</b> (arriba a la derecha) para poder cotizar.</p>'
+          : '') +
+        '<form class="form" id="form-charm" novalidate>' +
+          '<label class="field">' +
+            '<span class="field__label">Nombre o texto <em class="field__opt">(letras, números y símbolos; los espacios no cuentan)</em></span>' +
+            '<input class="field__input" type="text" id="f-charm-texto" maxlength="60" placeholder="Ej. Alejandro Perez #11" autocomplete="off"' + dis + ' />' +
+          '</label>' +
+          '<div class="form__row">' +
+            '<div class="field">' +
+              '<span class="field__label">Base · Color de todas</span>' +
+              '<div class="field__row">' +
+                '<select class="field__input" id="f-charm-base"' + dis + '>' + options + '</select>' +
+                '<span class="swatch" id="swatch-charm-base"></span>' +
+              '</div>' +
+            '</div>' +
+            '<div class="field">' +
+              '<span class="field__label">Tapa · Color de todas</span>' +
+              '<div class="field__row">' +
+                '<select class="field__input" id="f-charm-tapa"' + dis + '>' + options + '</select>' +
+                '<span class="swatch" id="swatch-charm-tapa"></span>' +
+              '</div>' +
+            '</div>' +
+          '</div>' +
+          '<div class="field">' +
+            '<span class="field__label">Pieza por pieza <em class="field__opt">(base y tapa de cada una)</em></span>' +
+            '<div class="teclas" id="charm-piezas"></div>' +
+            '<span class="field__opt" id="charm-cuenta"></span>' +
+          '</div>' +
+          '<div class="field">' +
+            '<span class="field__label">Charms <em class="field__opt">(opcional, todos los que quieras)</em></span>' +
+            '<div class="manual-filas" id="charm-lista"></div>' +
+            '<button class="btn btn--ghost" type="button" id="charm-agregar">+ Agregar charm</button>' +
+          '</div>' +
+          '<p class="form__error" id="charm-error" hidden></p>' +
+          '<div class="form__footer">' +
+            '<div class="price-preview">' +
+              '<span class="price-preview__label">Precio</span>' +
+              '<span class="price-preview__value" id="charm-precio">$0.00</span>' +
+              '<span class="price-preview__nota" id="charm-nota"></span>' +
+            '</div>' +
+            '<button class="btn btn--primary" type="submit"' + dis + '>' + etiquetaGuardar() + '</button>' +
+          '</div>' +
+        '</form>' +
+      '</section>';
+  }
+
   function cartTemplate() {
     return '' +
       '<section class="panel">' +
@@ -458,7 +547,7 @@
   function render(container, sub) {
     if (container) rootEl = container;
     if (sub !== undefined) {
-      currentSub = (sub === 'llaveros' || sub === 'clicers' || sub === 'manual') ? sub : null;
+      currentSub = (sub === 'llaveros' || sub === 'clicers' || sub === 'charms' || sub === 'manual') ? sub : null;
     }
 
     // La línea en edición sólo vale en SU formulario: si se sale (al menú, a otro
@@ -468,6 +557,7 @@
 
     var formulario = currentSub === 'llaveros' ? formTemplate()
       : currentSub === 'clicers' ? clicerTemplate()
+      : currentSub === 'charms' ? charmTemplate()
       : currentSub === 'manual' ? manualTemplate()
       : listTemplate();
 
@@ -493,6 +583,24 @@
       }
       updateSwatches();
       updatePricePreview();
+    }
+
+    if (currentSub === 'charms') {
+      limpiarPiezasCharm();        // formulario recién montado: todo con lo de «todas»
+      charmLista = [];
+      if (previo) {
+        rootEl.querySelector('#f-charm-texto').value = previo.texto;
+        if (previo.base[0]) rootEl.querySelector('#f-charm-base').value = previo.base[0];
+        if (previo.tapa[0]) rootEl.querySelector('#f-charm-tapa').value = previo.tapa[0];
+        charmBase = previo.base.slice();
+        charmTapas = previo.tapa.slice();
+        charmLista = previo.charms.slice();
+        avisarColoresFaltantes(previo);
+      }
+      updateSwatchesCharm();
+      pintarPiezasCharm();
+      pintarCharms();
+      updateCharmPrecio();
     }
 
     if (currentSub === 'manual') {
@@ -582,6 +690,53 @@
       var nomSel = container.querySelector('#f-color-nombre');
       if (baseSel) baseSel.addEventListener('change', updateSwatches);
       if (nomSel) nomSel.addEventListener('change', updateSwatches);
+    }
+
+    // Formulario del charm: el texto, los menús «todas», una fila por pieza y los
+    // charms sueltos.
+    var charmForm = container.querySelector('#form-charm');
+    if (charmForm) {
+      charmForm.addEventListener('submit', function (e) {
+        e.preventDefault();
+        addCharmToCart();
+      });
+      container.querySelector('#f-charm-texto').addEventListener('input', function () {
+        pintarPiezasCharm();
+        updateCharmPrecio();
+      });
+      // Los dos menús «todas» valen para el texto entero: al cambiar uno se olvida lo
+      // elegido pieza por pieza y todas vuelven a seguirlo.
+      ['#f-charm-base', '#f-charm-tapa'].forEach(function (selector) {
+        container.querySelector(selector).addEventListener('change', function () {
+          limpiarPiezasCharm();
+          pintarPiezasCharm();
+          updateSwatchesCharm();
+        });
+      });
+      container.querySelector('#charm-piezas').addEventListener('change', function (e) {
+        var sel = e.target.closest('select[data-pieza]');
+        if (!sel) return;
+        listaDeCharm(sel.getAttribute('data-pieza'))[Number(sel.getAttribute('data-letra'))] = sel.value;
+        updateSwatchesCharm();
+      });
+      container.querySelector('#charm-agregar').addEventListener('click', function () {
+        leerCharms();
+        charmLista.push('');
+        pintarCharms();
+        var campos = rootEl.querySelectorAll('[data-charm-nombre]');
+        if (campos.length) campos[campos.length - 1].focus();
+        updateCharmPrecio();
+      });
+      var listaEl = container.querySelector('#charm-lista');
+      listaEl.addEventListener('input', function () { leerCharms(); updateCharmPrecio(); });
+      listaEl.addEventListener('click', function (e) {
+        var quitar = e.target.closest('[data-charm-quitar]');
+        if (!quitar) return;
+        leerCharms();
+        charmLista.splice(Number(quitar.getAttribute('data-charm-quitar')), 1);
+        pintarCharms();
+        updateCharmPrecio();
+      });
     }
 
     // Formulario de la cotización manual: filas del desglose, cantidad y precio.
@@ -797,6 +952,175 @@
     rootEl.querySelector('#f-nombre').focus();
 
     updatePricePreview();
+    window.App.toast('Agregado al carrito', 'success');
+  }
+
+  /* ------------------------- Charm para Silla ------------------------- */
+
+  function listaDeCharm(pieza) { return pieza === 'base' ? charmBase : charmTapas; }
+
+  function limpiarPiezasCharm() {
+    charmBase = [];
+    charmTapas = [];
+  }
+
+  // Lo que dicen los dos menús «todas»: el punto de partida de cada pieza.
+  function todasCharm(config) {
+    var primero = (config.colores[0] || {}).id || '';
+    return { base: valorDe('#f-charm-base') || primero, tapa: valorDe('#f-charm-tapa') || primero };
+  }
+
+  // Reparte el texto en filas: una por letra, número o símbolo, con la base y la tapa
+  // que le tocaron. Se vuelve a llamar con cada tecla, y cada pieza conserva lo que
+  // ya tenía elegido.
+  function pintarPiezasCharm() {
+    if (!rootEl) return;
+    var cont = rootEl.querySelector('#charm-piezas');
+    if (!cont) return;
+
+    var config = Store.getConfig();
+    var res = window.Charm.piezasDe(valorDe('#f-charm-texto'));
+    var cuenta = rootEl.querySelector('#charm-cuenta');
+
+    if (!res.ok) {
+      limpiarPiezasCharm();
+      cont.innerHTML = '<p class="empty">' + Utils.escapeHtml(res.error) + '</p>';
+      if (cuenta) cuenta.textContent = '';
+      return;
+    }
+
+    var todas = todasCharm(config);
+    charmBase = window.Charm.alinear(res.piezas.length, charmBase, todas.base);
+    charmTapas = window.Charm.alinear(res.piezas.length, charmTapas, todas.tapa);
+
+    var options = colorOptions(config.colores);
+    var dis = config.colores.length ? '' : ' disabled';
+    cont.innerHTML = res.piezas.map(function (pieza, i) {
+      return '' +
+        '<div class="tecla tecla--bicolor">' +
+          '<span class="tecla__letra">' + Utils.escapeHtml(pieza) + '</span>' +
+          piezaTemplate('base', 'Base', i, pieza, options, dis, true) +
+          piezaTemplate('tapa', 'Tapa', i, pieza, options, dis, true) +
+        '</div>';
+    }).join('');
+
+    res.piezas.forEach(function (_, i) {
+      ['base', 'tapa'].forEach(function (pieza) {
+        var sel = cont.querySelector('[data-pieza="' + pieza + '"][data-letra="' + i + '"]');
+        if (sel) sel.value = listaDeCharm(pieza)[i];
+      });
+    });
+
+    if (cuenta) {
+      cuenta.textContent = res.piezas.length + (res.piezas.length === 1 ? ' pieza' : ' piezas') +
+        ' (base y tapa de cada una)';
+    }
+    updateSwatchesCharm();
+  }
+
+  // Muestras de color: las de los menús «todas» y las dos de cada pieza.
+  function updateSwatchesCharm() {
+    if (!rootEl) return;
+    var colores = Store.getConfig().colores;
+    pintarSwatch(rootEl.querySelector('#swatch-charm-base'), hexDe(colores, valorDe('#f-charm-base')));
+    pintarSwatch(rootEl.querySelector('#swatch-charm-tapa'), hexDe(colores, valorDe('#f-charm-tapa')));
+
+    var cont = rootEl.querySelector('#charm-piezas');
+    if (!cont) return;
+    cont.querySelectorAll('[data-muestra]').forEach(function (sw) {
+      var pieza = sw.getAttribute('data-muestra');
+      var i = Number(sw.getAttribute('data-letra'));
+      var sel = cont.querySelector('[data-pieza="' + pieza + '"][data-letra="' + i + '"]');
+      pintarSwatch(sw, hexDe(colores, (sel && sel.value) || listaDeCharm(pieza)[i]));
+    });
+  }
+
+  // Los charms sueltos: una fila con su nombre, que se puede quitar.
+  function leerCharms() {
+    if (!rootEl) return;
+    charmLista = [];
+    rootEl.querySelectorAll('[data-charm-nombre]').forEach(function (campo) {
+      charmLista.push(campo.value);
+    });
+  }
+
+  function pintarCharms() {
+    var cont = rootEl && rootEl.querySelector('#charm-lista');
+    if (!cont) return;
+    if (!charmLista.length) {
+      cont.innerHTML = '<p class="empty">Sin charms sueltos.</p>';
+      return;
+    }
+    cont.innerHTML = charmLista.map(function (nombre, i) {
+      return '' +
+        '<div class="manual-fila manual-fila--charm">' +
+          '<input class="field__input" type="text" data-charm-nombre maxlength="' + window.Charm.CHARM_MAX + '" ' +
+            'placeholder="Ej. pelota de volly" aria-label="Charm ' + (i + 1) + '" ' +
+            'value="' + Utils.escapeHtml(nombre) + '" autocomplete="off" />' +
+          '<button class="icon-btn" type="button" data-charm-quitar="' + i + '" title="Quitar charm">\u2715</button>' +
+        '</div>';
+    }).join('');
+  }
+
+  // Los charms sueltos con nombre (las filas vacías no cuentan).
+  function charmsEscritos() {
+    leerCharms();
+    return charmLista.map(function (n) { return Utils.normalize(n); }).filter(Boolean);
+  }
+
+  // Precio: fijo, lleve las piezas y los charms que lleve.
+  function updateCharmPrecio() {
+    if (!rootEl) return;
+    var valor = rootEl.querySelector('#charm-precio');
+    var nota = rootEl.querySelector('#charm-nota');
+    if (!valor) return;
+    valor.textContent = Utils.formatMoney(window.Charm.precioDe(Store.getConfig()).total);
+    if (nota) nota.textContent = 'precio fijo';
+  }
+
+  // Agrega el charm al carrito compartido, con el desglose de CADA pieza (su base y su
+  // tapa) y los charms sueltos.
+  function addCharmToCart() {
+    if (!rootEl) return;
+    var config = Store.getConfig();
+    var res = window.Charm.piezasDe(valorDe('#f-charm-texto'));
+    if (!res.ok) {
+      showFormError(res.error, '#charm-error');
+      return;
+    }
+
+    var piezas = [];
+    for (var i = 0; i < res.piezas.length; i++) {
+      var selBase = rootEl.querySelector('[data-pieza="base"][data-letra="' + i + '"]');
+      var selTapa = rootEl.querySelector('[data-pieza="tapa"][data-letra="' + i + '"]');
+      var base = findColor(config.colores, (selBase && selBase.value) || charmBase[i]);
+      var tapa = findColor(config.colores, (selTapa && selTapa.value) || charmTapas[i]);
+      if (!base || !tapa) {
+        showFormError('Elige el color de la base y de la tapa de cada pieza.', '#charm-error');
+        return;
+      }
+      piezas.push({ caracter: res.piezas[i], base: base, tapa: tapa });
+    }
+
+    var charms = charmsEscritos();
+    var item = {
+      tipo: window.PO.TIPO_CHARM,
+      titulo: res.texto,
+      detalles: window.Charm.detallesDe(piezas, charms),
+      precio: window.Charm.precioDe(config).total
+    };
+    if (guardarLinea(item)) return;
+    Cart.add(item);
+
+    hideFormError('#charm-error');
+    var campo = rootEl.querySelector('#f-charm-texto');
+    campo.value = '';
+    limpiarPiezasCharm();
+    charmLista = [];
+    pintarPiezasCharm();
+    pintarCharms();
+    updateCharmPrecio();
+    campo.focus();
     window.App.toast('Agregado al carrito', 'success');
   }
 

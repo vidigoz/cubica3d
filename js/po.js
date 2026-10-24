@@ -34,6 +34,7 @@
   var TIPO_CLICER = 'Clicker de Nombre';
   var TIPO_LLAVERO = 'Llavero de Nombre';
   var TIPO_MANUAL = 'Cotización manual';
+  var TIPO_CHARM = 'Charm para Silla';
 
   // Las piezas del clicker, tal como las nombra window.Clicer en los labels
   // («A · Base»): el label dice el carácter y la pieza, separados por ·.
@@ -289,6 +290,12 @@
       go.cantidad += cantidad;
       sumarTitulo(go, item, cantidad);
       suyas.forEach(function (p) {
+        // Charm para Silla: el material es «Base» y «Tapa» por color (no una fila por
+        // letra), y los charms sueltos no llevan color: no son material.
+        if (tipo === TIPO_CHARM) {
+          if (!p.hex) return;
+          p = { label: p.label.replace(/^.* \u00b7 /, ''), nombre: p.nombre, hex: p.hex };
+        }
         sumarMaterial(indice.materiales, grupos.materiales, go.tipo, p.label || 'Pieza', [p],
           cantidad);
       });
@@ -465,6 +472,7 @@
   window.PO = {
     TIPO_CLICER: TIPO_CLICER,
     TIPO_MANUAL: TIPO_MANUAL,
+    TIPO_CHARM: TIPO_CHARM,
     rotuloColorUsado: rotuloColorUsado,
     coloresUsados: coloresUsados,
     TIPO_LLAVERO: TIPO_LLAVERO,

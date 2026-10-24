@@ -216,10 +216,12 @@ function coloresValidos(lista) {
 // (los mismos que js/clicer.js): así el producto nunca cotiza en cero por
 // faltar el dato.
 const CLICER_POR_DEFECTO = { porLetraCorto: 15, porLetraLargo: 30, letrasCorte: 5 };
+const CHARM_PRECIO_POR_DEFECTO = 350;   // el Charm para Silla cuesta lo mismo lleve lo que lleve
 
 function preciosValidos(precios) {
   const p = precios || {};
   const c = p.clicer || {};
+  const ch = p.charm || {};
   return {
     nombre: numero(p.nombre, 0),
     nombreApellido: numero(p.nombreApellido, 0),
@@ -227,6 +229,9 @@ function preciosValidos(precios) {
       porLetraCorto: Math.max(0, redondear(numeroODefecto(c.porLetraCorto, CLICER_POR_DEFECTO.porLetraCorto))),
       porLetraLargo: Math.max(0, redondear(numeroODefecto(c.porLetraLargo, CLICER_POR_DEFECTO.porLetraLargo))),
       letrasCorte: Math.max(1, Math.floor(numeroODefecto(c.letrasCorte, CLICER_POR_DEFECTO.letrasCorte)))
+    },
+    charm: {
+      precio: Math.max(0, redondear(numeroODefecto(ch.precio, CHARM_PRECIO_POR_DEFECTO)))
     }
   };
 }

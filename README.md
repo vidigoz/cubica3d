@@ -98,6 +98,17 @@ de Productos, así que esa pestaña sigue activa.
 - **Editar una cotización ya enviada:** el botón **Editar** de su tarjeta en Proceso la carga en el carrito y regresa a Productos para agregar o quitar lo que haga falta; con **Siguiente → Guardar cambios** la tarjeta queda actualizada (mismo folio y misma columna). El carrito que tenías en armado se guarda aparte y vuelve al terminar o cancelar.
 - **Editar un producto de la lista:** en el carrito (también al editar una tarjeta) cada línea trae un ✏️ que abre el formulario de ese producto ya lleno —nombre, colores letra por letra, desglose—; con **Guardar línea** se reemplaza en el mismo lugar y con la misma cantidad. El precio del clicker y del llavero se recalcula con los precios actuales de Configuración. Un clicker de los primeros tiempos, sin receta por letra, no se puede reconstruir: se quita y se agrega de nuevo.
 
+### Producto "Charm para Silla"
+
+- Escribes el nombre o texto (letras, números y símbolos: «Alejandro Perez #11»). Cada letra, número o
+  símbolo es una **pieza bicolor** —una **base** de un color y una **tapa** de otro—; los espacios no
+  cuentan.
+- Los menús **Base · Color de todas** y **Tapa · Color de todas** ponen el texto entero igual; abajo hay una
+  fila por pieza para cambiar una sola.
+- **+ Agregar charm** suma charms sueltos («pelota de volly»), todos los que quieras.
+- Precio **fijo** de $350, sin importar las piezas ni los charms; se cambia en **Configuración → Precios**.
+- En **Estadísticas** cuenta una tarjeta de **Bases del charm** y otra de **Tapas del charm**, con sus colores.
+
 ### Producto "Clicker de Nombre"
 
 Cada **letra** del nombre —y el **símbolo**, si lo hay, que es una más— lleva **tres piezas**: la

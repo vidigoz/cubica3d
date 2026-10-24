@@ -86,6 +86,12 @@
           '<p class="field__opt">Así, un nombre de ' + corte + ' letras cuesta $' +
             (config.precios.clicer.porLetraCorto * corte).toFixed(2) + ' y uno de ' + (corte + 1) +
             ' letras, $' + (config.precios.clicer.porLetraLargo * (corte + 1)).toFixed(2) + '.</p>' +
+          '<div class="form__row">' +
+            '<label class="field field--grow">' +
+              '<span class="field__label">Charm para Silla · Precio fijo</span>' +
+              '<input class="field__input" type="number" min="0" step="1" id="p-charm-precio" value="' + config.precios.charm.precio + '" />' +
+            '</label>' +
+          '</div>' +
           '<p class="form__error" id="precio-error" hidden></p>' +
           '<div class="form__footer">' +
             '<button class="btn btn--primary" type="submit">Guardar precios</button>' +
@@ -175,6 +181,7 @@
       var clicerCorto = Utils.parseNumber(container.querySelector('#p-clicer-corto').value, NaN);
       var clicerLargo = Utils.parseNumber(container.querySelector('#p-clicer-largo').value, NaN);
       var clicerCorte = Utils.parseNumber(container.querySelector('#p-clicer-corte').value, NaN);
+      var charmPrecio = Utils.parseNumber(container.querySelector('#p-charm-precio').value, NaN);
 
       if (!isFinite(n) || n < 0) {
         showError(container, '#precio-error', 'El precio de "Llavero · Solo nombre" debe ser un número mayor o igual a 0.');
@@ -197,6 +204,11 @@
         return;
       }
 
+      if (!isFinite(charmPrecio) || charmPrecio < 0) {
+        showError(container, '#precio-error', 'El precio del Charm para Silla debe ser un número mayor o igual a 0.');
+        return;
+      }
+
       Store.setPrecios({
         nombre: n,
         nombreApellido: na,
@@ -204,7 +216,8 @@
           porLetraCorto: clicerCorto,
           porLetraLargo: clicerLargo,
           letrasCorte: Math.floor(clicerCorte)
-        }
+        },
+        charm: { precio: charmPrecio }
       });
       hideError(container, '#precio-error');
       window.App.toast('Precios guardados', 'success');
