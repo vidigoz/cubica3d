@@ -34,11 +34,21 @@
   //   piezas: ["A","L","E",…,"#","1","1"] }
   // Los espacios no son pieza; el · se quita porque es el que separa la pieza de su
   // rótulo («A · Base») y confundiría al leer el desglose de vuelta.
+  // Un emoji es UNA pieza (aunque sea varios caracteres: una bandera, una familia…); los
+  // restos sueltos de un emoji (variante, unión) no son pieza.
+  var PIEZA = new RegExp('(' + Utils.EMOJI + ')|[\\uFE0F\\u200D\\u20E3]|(\\s)|([^])', 'gu');
+
   function piezasDe(valor) {
-    var texto = String(valor == null ? '' : valor).replace(/[··]/g, ' ').replace(/\s+/g, ' ').trim();
+    var texto = String(valor == null ? '' : valor).normalize('NFC')
+      .replace(/[·]/g, ' ').replace(/\s+/g, ' ').trim();
     if (!texto) return { ok: false, error: 'Escribe el nombre o el texto del charm.', texto: '', piezas: [] };
-    var piezas = Array.from(texto).filter(function (c) { return !/\s/.test(c); })
-      .map(function (c) { return c.toUpperCase(); });
+    var piezas = [];
+    texto.replace(PIEZA, function (todo, emoji, espacio, otro) {
+      if (emoji) piezas.push(emoji);
+      else if (otro) piezas.push(otro.toUpperCase());
+      return todo;
+    });
+    if (!piezas.length) return { ok: false, error: 'Escribe el nombre o el texto del charm.', texto: '', piezas: [] };
     if (piezas.length > TEXTO_MAX) {
       return { ok: false, error: 'El texto no puede pasar de ' + TEXTO_MAX + ' letras, números o símbolos.', texto: '', piezas: [] };
     }

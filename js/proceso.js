@@ -17,7 +17,8 @@
  * El ORDEN de cada columna vive en `posicion` (la misma columna de la base: ver
  * api/functions/api.js). Una cotización NUEVA entra arriba de «Cotización» —es la
  * que se acaba de mandar— y todo lo que llega por un CAMBIO de columna entra ABAJO,
- * así los trabajos viejos quedan arriba y los nuevos abajo. Reordenar a mano
+ * así los trabajos viejos quedan arriba y los nuevos abajo; la excepción es
+ * «Entregado»: lo último que se entregó entra ARRIBA y empuja lo demás. Reordenar a mano
  * (arrastrar y soltar en la vista) se manda como el número del hueco donde la
  * soltaron: Proceso.reordenar.
  *
@@ -296,6 +297,16 @@
     return (maxima === null ? 0 : maxima) + PASO_POSICION;
   }
 
+  // La POSICIÓN para entrar ARRIBA de una columna: un paso antes de la primera. Es la misma
+  // cuenta del servidor (posicionArribaDe en api/functions/api.js): columna vacía en 0.
+  function posicionArribaDe(columna) {
+    var minima = null;
+    tarjetas.forEach(function (t) {
+      if (t.columna === columna && (minima === null || t.posicion < minima)) minima = t.posicion;
+    });
+    return (minima === null ? PASO_POSICION : minima) - PASO_POSICION;
+  }
+
   // La posición del hueco entre dos vecinas: el punto medio. Al principio o al final de
   // la columna, un paso afuera. Con las dos vecinas en el mismo número —no pasa con las
   // que pone el servidor, pero por si acaso— la tarjeta se corre apenas a la derecha.
@@ -377,7 +388,8 @@
   }
 
   // Mueve una tarjeta a otra columna: entra ABAJO de la destino (los trabajos viejos
-  // quedan arriba y los nuevos abajo). Devuelve la tarjeta ya movida, o null si no
+  // quedan arriba y los nuevos abajo), salvo en «Entregado», donde entra ARRIBA.
+  // Devuelve la tarjeta ya movida, o null si no
   // existe, la columna no es válida o ya estaba en esa columna.
   // Al entrar a «Entregado» el pago se tilda solo (el servidor hace lo mismo).
   // Se pinta primero y se manda después: si el servidor rechaza el cambio, el
@@ -391,11 +403,15 @@
 
     var respaldo = clone(tarjetas);
     var t = tarjetas.splice(antes, 1)[0];
+    // Entra ABAJO de su columna, salvo en «Entregado»: ahí la que acaba de entregarse va
+    // PRIMERA y empuja a las demás hacia abajo. El número es el que le va a poner el servidor.
+    var arriba = esEntregado(destino.id);
     t.columna = destino.id;
-    t.posicion = posicionAbajoDe(destino.id);   // el número que le va a poner el servidor
+    t.posicion = arriba ? posicionArribaDe(destino.id) : posicionAbajoDe(destino.id);
     t.movida = ahoraISO();
-    if (esEntregado(destino.id)) t.pagado = true;
-    tarjetas.splice(indiceAbajoDe(destino.id), 0, t);   // entra abajo de su columna
+    if (arriba) t.pagado = true;
+    var primero = indicePrimeroDe(destino.id);
+    tarjetas.splice(arriba ? (primero < 0 ? tarjetas.length : primero) : indiceAbajoDe(destino.id), 0, t);
     notify();
 
     enVuelo++;

@@ -122,9 +122,11 @@
     var titulo = Utils.normalize(item.titulo);
     var corte = titulo.indexOf(' + ');
     var res = Clicer.letrasDe(corte < 0 ? titulo : titulo.slice(0, corte), corte < 0 ? '' : titulo.slice(corte + 3));
-    if (!res.ok || !window.PO.detallesDeClicer(det) || det.length !== res.letras.length * 3) return null;
+    // Un clicker de los que llevaban «símbolo» escrito a mano (ya no hay ese campo: el
+    // emoji va en el nombre) no se puede reconstruir: se quita y se agrega de nuevo.
+    if (!res.ok || res.simbolo || !window.PO.detallesDeClicer(det) || det.length !== res.letras.length * 3) return null;
     var faltan = [];
-    var datos = { sub: 'clicers', nombre: res.nombre, simbolo: res.simbolo,
+    var datos = { sub: 'clicers', nombre: res.nombre,
       base: [], acabado: [], tecla: [], letra: [], faltan: faltan };
     for (var i = 0; i < res.letras.length; i++) {
       var b = det[i * 3];
@@ -361,17 +363,16 @@
           ? '<p class="alert alert--warn">No hay colores en stock. Agrégalos en <b>⚙️ Configuración</b> (arriba a la derecha) para poder cotizar.</p>'
           : '') +
         '<p class="panel__hint">Cada letra del nombre lleva una <b>base</b> (con su color y su acabado, corrugado o liso), una <b>tecla</b> y una <b>letra</b>. Con los menús de «todas» queda el nombre entero igual; si querés, abajo cambiás una letra suelta.</p>' +
-        '<p class="panel__hint">Si el nombre lleva un <b>símbolo</b> (una estrella, un corazón, un logo), escribilo tal cual en <b>Símbolo</b>: no se mapea a nada y cuenta como <b>una letra más</b> —«Ana» + símbolo se cotiza como 4 letras— con sus mismas tres piezas.</p>' +
         '<form class="form" id="form-clicer" novalidate>' +
-          '<div class="form__row form__row--tres">' +
-            '<label class="field field--grow">' +
-              '<span class="field__label">Nombre</span>' +
-              '<input class="field__input" type="text" id="f-clicer-nombre" placeholder="Ej. Ali" autocomplete="off"' + dis + ' />' +
-            '</label>' +
-            '<label class="field field--grow">' +
-              '<span class="field__label">Símbolo <em class="field__opt">(opcional, cuenta como una letra)</em></span>' +
-              '<input class="field__input" type="text" id="f-clicer-simbolo" placeholder="Ej. estrella" autocomplete="off"' + dis + ' />' +
-            '</label>' +
+          '<div class="form__row">' +
+            '<div class="field field--grow">' +
+              '<label class="field__label" for="f-clicer-nombre">Nombre <em class="field__opt">(letras y emojis; cada emoji cuenta como una letra)</em></label>' +
+              '<div class="field__row">' +
+                '<input class="field__input" type="text" id="f-clicer-nombre" placeholder="Ej. Ali" autocomplete="off"' + dis + ' />' +
+                // Sólo en la PC: en el celular el teclado ya trae sus emojis (ver .emoji-btn en el CSS).
+                '<button class="btn btn--ghost emoji-btn" type="button" id="clicer-emoji" title="Insertar un emoji" aria-label="Insertar un emoji"' + dis + '>😀</button>' +
+              '</div>' +
+            '</div>' +
             '<div class="field field--grow">' +
               '<span class="field__label">Base · Acabado de todas</span>' +
               '<select class="field__input" id="f-clicer-acabado"' + dis + '>' + opcionesAcabado + '</select>' +
@@ -483,10 +484,14 @@
           ? '<p class="alert alert--warn">No hay colores en stock. Agrégalos en <b>⚙️ Configuración</b> (arriba a la derecha) para poder cotizar.</p>'
           : '') +
         '<form class="form" id="form-charm" novalidate>' +
-          '<label class="field">' +
-            '<span class="field__label">Nombre o texto <em class="field__opt">(letras, números y símbolos; los espacios no cuentan)</em></span>' +
-            '<input class="field__input" type="text" id="f-charm-texto" maxlength="60" placeholder="Ej. Alejandro Perez #11" autocomplete="off"' + dis + ' />' +
-          '</label>' +
+          '<div class="field">' +
+            '<label class="field__label" for="f-charm-texto">Nombre o texto <em class="field__opt">(letras, números, símbolos y emojis; los espacios no cuentan)</em></label>' +
+            '<div class="field__row">' +
+              '<input class="field__input" type="text" id="f-charm-texto" maxlength="80" placeholder="Ej. Alejandro Perez #11" autocomplete="off"' + dis + ' />' +
+              // Sólo en la PC: en el celular el teclado ya trae sus emojis (ver .emoji-btn en el CSS).
+              '<button class="btn btn--ghost emoji-btn" type="button" id="charm-emoji" title="Insertar un emoji" aria-label="Insertar un emoji"' + dis + '>😀</button>' +
+            '</div>' +
+          '</div>' +
           '<div class="form__row">' +
             '<div class="field">' +
               '<span class="field__label">Base · Color de todas</span>' +
@@ -546,6 +551,8 @@
   // producto. Se llama desde App en cada navegación (hash) y también internamente.
   function render(container, sub) {
     if (container) rootEl = container;
+    // Un selector de emojis que haya quedado abierto no sigue a otra pantalla.
+    if (window.EmojiPicker) window.EmojiPicker.cerrar();
     if (sub !== undefined) {
       currentSub = (sub === 'llaveros' || sub === 'clicers' || sub === 'charms' || sub === 'manual') ? sub : null;
     }
@@ -620,10 +627,9 @@
     if (currentSub === 'clicers') {
       limpiarPiezasClicer();       // formulario recién montado: todo con lo de «todas»
       if (previo) {
-        // El nombre, el símbolo y los menús «todas» (los de la primera letra); lo de
-        // cada letra va en las listas, y pintarTeclas() lo respeta por posición.
+        // El nombre y los menús «todas» (los de la primera letra); lo de cada letra va
+        // en las listas, y pintarTeclas() lo respeta por posición.
         rootEl.querySelector('#f-clicer-nombre').value = previo.nombre;
-        rootEl.querySelector('#f-clicer-simbolo').value = previo.simbolo;
         [['#f-clicer-base', previo.base], ['#f-clicer-acabado', previo.acabado],
           ['#f-clicer-tecla-todas', previo.tecla], ['#f-clicer-letra-todas', previo.letra]]
           .forEach(function (par) { if (par[1][0]) rootEl.querySelector(par[0]).value = par[1][0]; });
@@ -703,6 +709,9 @@
       container.querySelector('#f-charm-texto').addEventListener('input', function () {
         pintarPiezasCharm();
         updateCharmPrecio();
+      });
+      container.querySelector('#charm-emoji').addEventListener('click', function () {
+        window.EmojiPicker.alternar(container.querySelector('#f-charm-texto'), container.querySelector('#charm-emoji'));
       });
       // Los dos menús «todas» valen para el texto entero: al cambiar uno se olvida lo
       // elegido pieza por pieza y todas vuelven a seguirlo.
@@ -790,18 +799,14 @@
       });
 
       var nombreClicer = container.querySelector('#f-clicer-nombre');
-      if (nombreClicer) {
-        nombreClicer.addEventListener('input', function () {
-          pintarTeclas();
-          updateClicerPrecio();
+      var botonEmoji = container.querySelector('#clicer-emoji');
+      if (nombreClicer && botonEmoji) {
+        botonEmoji.addEventListener('click', function () {
+          window.EmojiPicker.alternar(nombreClicer, botonEmoji);
         });
       }
-
-      // El símbolo es una letra más: al escribirlo (o borrarlo) sale o se va su
-      // fila y el precio se vuelve a contar.
-      var simboloClicer = container.querySelector('#f-clicer-simbolo');
-      if (simboloClicer) {
-        simboloClicer.addEventListener('input', function () {
+      if (nombreClicer) {
+        nombreClicer.addEventListener('input', function () {
           pintarTeclas();
           updateClicerPrecio();
         });
@@ -1288,8 +1293,8 @@
 
   // Un menú de una pieza de una letra, con su rótulo y (si es un color) su
   // muestra. Los data-pieza / data-letra dicen a quién pertenece, así el cambio
-  // se puede leer desde el contenedor. `aria` sirve para la fila del símbolo:
-  // ahí el menú no es «de la A» sino «del símbolo estrella».
+  // se puede leer desde el contenedor. `aria` (opcional) reemplaza al rótulo
+  // que anuncia el lector de pantalla.
   function piezaTemplate(pieza, rotulo, i, letra, opciones, dis, conMuestra, aria) {
     return '' +
       '<label class="tecla__campo">' +
@@ -1306,8 +1311,8 @@
       '</label>';
   }
 
-  // Reparte el nombre en filas: una por letra —y una última para el símbolo, si
-  // lo hay—, con la base (color y acabado), la tecla y la letra que le tocaron.
+  // Reparte el nombre en filas: una por letra (o emoji), con la base (color y
+  // acabado), la tecla y la letra que le tocaron.
   // Se vuelve a llamar con cada letra que se escribe, así que cada letra conserva
   // lo que ya tenía elegido.
   function pintarTeclas() {
@@ -1317,7 +1322,7 @@
 
     var config = Store.getConfig();
     var campo = rootEl.querySelector('#f-clicer-nombre');
-    var res = Clicer.letrasDe(campo ? campo.value : '', valorDe('#f-clicer-simbolo'));
+    var res = Clicer.letrasDe(campo ? campo.value : '');
     var cuenta = rootEl.querySelector('#clicer-cuenta');
 
     if (!res.ok) {
@@ -1342,20 +1347,13 @@
     var dis = config.colores.length ? '' : ' disabled';
 
     cont.innerHTML = res.letras.map(function (letra, i) {
-      // La última fila puede ser el símbolo: se marca aparte, muestra el texto
-      // tal como se escribió y sus menús se anuncian «del símbolo estrella».
-      var esSimbolo = i === res.indiceSimbolo;
-      var aria = function (rotulo) {
-        return esSimbolo ? rotulo + ' del símbolo «' + letra + '»' : undefined;
-      };
       return '' +
-        '<div class="tecla' + (esSimbolo ? ' tecla--simbolo' : '') + '">' +
-          '<span class="tecla__letra' + (esSimbolo ? ' tecla__letra--simbolo' : '') + '">' +
-            Utils.escapeHtml(esSimbolo ? '◆ ' + letra : letra) + '</span>' +
-          piezaTemplate('base', 'Base', i, letra, options, dis, true, aria('Base')) +
-          piezaTemplate('acabado', 'Acabado', i, letra, opcionesAcabado, dis, false, aria('Acabado')) +
-          piezaTemplate('tecla', 'Tecla', i, letra, options, dis, true, aria('Tecla')) +
-          piezaTemplate('letra', 'Letra', i, letra, options, dis, true, aria('Letra')) +
+        '<div class="tecla">' +
+          '<span class="tecla__letra">' + Utils.escapeHtml(letra) + '</span>' +
+          piezaTemplate('base', 'Base', i, letra, options, dis, true) +
+          piezaTemplate('acabado', 'Acabado', i, letra, opcionesAcabado, dis, false) +
+          piezaTemplate('tecla', 'Tecla', i, letra, options, dis, true) +
+          piezaTemplate('letra', 'Letra', i, letra, options, dis, true) +
         '</div>';
     }).join('');
 
@@ -1369,9 +1367,7 @@
 
     if (cuenta) {
       var teclas = res.letras.length;
-      var delNombre = teclas - (res.simbolo ? 1 : 0);
       cuenta.textContent = teclas + (teclas === 1 ? ' tecla' : ' teclas') +
-        (res.simbolo ? ' (' + delNombre + ' del nombre + 1 símbolo)' : '') +
         ' · ' + (teclas * 3) + ' piezas (base, tecla y letra por letra)';
     }
 
@@ -1415,7 +1411,7 @@
     if (!valor) return;
 
     var campo = rootEl.querySelector('#f-clicer-nombre');
-    var res = Clicer.letrasDe(campo ? campo.value : '', valorDe('#f-clicer-simbolo'));
+    var res = Clicer.letrasDe(campo ? campo.value : '');
     if (!res.ok) {
       valor.textContent = Utils.formatMoney(0);
       if (nota) nota.textContent = '';
@@ -1425,8 +1421,7 @@
     var p = Clicer.precioDe(Store.getConfig(), res.letras.length);
     valor.textContent = Utils.formatMoney(p.total);
     if (nota) {
-      nota.textContent = p.letras + (p.letras === 1 ? ' letra' : ' letras') +
-        (res.simbolo ? ' (' + (p.letras - 1) + ' + 1 símbolo)' : '') + ' × ' +
+      nota.textContent = p.letras + (p.letras === 1 ? ' letra' : ' letras') + ' × ' +
         Utils.formatMoney(p.porLetra) + (p.largo
           ? ' (precio de ' + (p.letrasCorte + 1) + ' letras o más)'
           : ' (precio hasta ' + p.letrasCorte + ' letras)');
@@ -1434,14 +1429,13 @@
   }
 
   // Agrega el clicker al carrito compartido (window.Cart), con el desglose
-  // completo de CADA letra —y del símbolo, si lo hay, que es una letra más—: su
-  // base (color y acabado), su tecla y su letra, que es lo que se necesita para
-  // fabricarlo.
+  // completo de CADA letra (o emoji): su base (color y acabado), su tecla y su
+  // letra, que es lo que se necesita para fabricarlo.
   function addClicerToCart() {
     if (!rootEl) return;
     var config = Store.getConfig();
     var campo = rootEl.querySelector('#f-clicer-nombre');
-    var res = Clicer.letrasDe(campo ? campo.value : '', valorDe('#f-clicer-simbolo'));
+    var res = Clicer.letrasDe(campo ? campo.value : '');
     if (!res.ok) {
       showFormError(res.error, '#clicer-error');
       return;
@@ -1473,13 +1467,10 @@
     }
 
     var precio = Clicer.precioDe(config, res.letras.length);
-    var simbolo = rootEl.querySelector('#f-clicer-simbolo');
 
     var clicker = {
       tipo: 'Clicker de Nombre',
-      // El título lleva el símbolo para que la línea se reconozca de un vistazo
-      // en el carrito, en la tarjeta del tablero y en el PDF.
-      titulo: res.nombre + (res.simbolo ? ' + ' + res.simbolo : ''),
+      titulo: res.nombre,
       detalles: Clicer.detallesDe(Clicer.piezasDe(res.letras, {
         base: base, acabado: acabado, tecla: tecla, letra: letra
       })),
@@ -1490,7 +1481,6 @@
 
     hideFormError('#clicer-error');
     campo.value = '';
-    if (simbolo) simbolo.value = '';
     limpiarPiezasClicer();
     pintarTeclas();
     updateClicerPrecio();

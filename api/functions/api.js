@@ -792,6 +792,18 @@ export function crearApp(opciones) {
     return Number(rows[0].p);
   }
 
+  // Posición para entrar ARRIBA de una columna: delante de la primera tarjeta, un paso
+  // más chica que la menor (puede ser negativa, no importa: sólo ordena). Es la que usa
+  // «Entregado»: lo último que se entregó queda hasta arriba y empuja lo demás hacia abajo.
+  async function posicionArribaDe(columna, id) {
+    const { rows } = await query(
+      "select coalesce(min(posicion), " + PASO_POSICION + ") - " + PASO_POSICION + " as p from cotizaciones" +
+      " where columna = $1 and borrada_en is null and id <> $2",
+      [columna, id]
+    );
+    return Number(rows[0].p);
+  }
+
   // Mueve la tarjeta de columna, la reordena dentro de su columna, cambia «Pagado»,
   // corrige el nombre del cliente y/o tilda lo que el taller ya hizo. El cuerpo lleva
   // `columna`, `posicion`, `pagado`, `cliente`, `basesListas`, `teclasListas` o la
@@ -813,7 +825,8 @@ export function crearApp(opciones) {
   //    hueco donde soltó la tarjeta (el navegador calcula el punto medio entre las
   //    vecinas, así no hay que renumerar nada);
   //  · sin `posicion`, la tarjeta que llega a otra columna entra ABAJO, para que los
-  //    trabajos viejos queden arriba y los nuevos abajo.
+  //    trabajos viejos queden arriba y los nuevos abajo; la que llega a «Entregado» entra
+  //    ARRIBA (la última entrega es la primera de la lista).
   // Reordenar sin cambiar de columna no gasta bitácora (no hubo movimiento de
   // columna), igual que los tildes y el nombre: queda el sello de quién y cuándo.
   // Todo lo que se cambie acá mueve `movida`, que es el sello con el que los demás
@@ -881,7 +894,12 @@ export function crearApp(opciones) {
       // La tarjeta que llega a una columna entra ABAJO —los trabajos viejos quedan
       // arriba y los nuevos abajo— salvo que venga con `posicion`: ahí manda el hueco
       // donde la soltaron al arrastrarla.
-      const destino = posicion !== null ? posicion : await posicionAbajoDe(columna, contexto.params.id);
+      // Todas entran ABAJO, salvo «Entregado»: ahí la que acaba de entregarse va PRIMERA.
+      const destino = posicion !== null
+        ? posicion
+        : (columna === COLUMNA_ENTREGADO
+          ? await posicionArribaDe(columna, contexto.params.id)
+          : await posicionAbajoDe(columna, contexto.params.id));
       await query(
         "update cotizaciones set columna = $2, posicion = $3, pagado = $4, cliente = $5," +
         " bases_listas = $6, teclas_listas = $7, movida = now(), movida_por = $8 where id = $1",

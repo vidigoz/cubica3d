@@ -9,7 +9,8 @@
  * («estrella», «corazón»…): es una tecla más —lleva sus tres piezas y cuenta
  * como una letra en el precio— pero NO se mapea a ningún carácter, se fabrica
  * tal como se lee (ver simboloDe).
- * Todo se puede poner igual para el nombre entero (los menús «todas») o letra
+ * El nombre también puede llevar emojis: cada uno es una letra más (misma tecla, mismo
+ * precio por letra). Todo se puede poner igual para el nombre entero (los menús «todas») o letra
  * por letra. El precio sale de la configuración del negocio (Configuración →
  * Precios), por letra, con dos tramos: el corto hasta `letrasCorte` letras y el
  * largo de ahí en adelante.
@@ -22,9 +23,13 @@
 
   var Utils = window.Utils;
 
-  // Una sola palabra y sólo letras (acentos y Ñ incluidos): es lo que se puede
-  // imprimir como tecla. Espacios, números y signos no son teclas.
-  var SOLO_LETRAS = /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+$/;
+  // El nombre se parte en «letras», una por tecla. Una letra es una letra de verdad
+  // (acentos y Ñ incluidos) o un EMOJI, y el emoji cuenta como una letra más: lleva sus
+  // tres piezas y paga el mismo precio por letra. Un emoji puede ser varios caracteres
+  // (con su variante, un tono de piel, una bandera o varios unidos: 👨‍👩‍👧), por eso se
+  // reconoce la secuencia entera y no carácter por carácter. Espacios, números y
+  // signos no son teclas.
+  var PIEZA = new RegExp('(' + Utils.EMOJI + ')|([A-Za-zÁÉÍÓÚÜÑáéíóúüñ])|([^])', 'gu');
 
   // El símbolo es la tecla que se escribe a mano («estrella», «corazón», «logo»):
   // no se mapea a ningún carácter, así que no tiene que ser una letra. Sólo se
@@ -96,17 +101,26 @@
     var sim = simboloDe(simbolo);
     if (!sim.ok) return { ok: false, error: sim.error, nombre: '', letras: [], simbolo: '', indiceSimbolo: -1 };
     if (!limpio) return { ok: false, error: 'Escribe el nombre.', nombre: '', letras: [], simbolo: '', indiceSimbolo: -1 };
-    if (!SOLO_LETRAS.test(limpio)) {
+    // Se parte en letras y emojis; cualquier otra cosa (espacio, número, signo) no sirve.
+    limpio = limpio.normalize('NFC');
+    var letras = [];
+    var invalido = false;
+    limpio.replace(PIEZA, function (todo, emoji, letra) {
+      if (emoji) letras.push(emoji);
+      else if (letra) letras.push(letra.toUpperCase());
+      else invalido = true;
+      return todo;
+    });
+    if (invalido) {
       return {
         ok: false,
-        error: 'El nombre tiene que ser una sola palabra, sólo con letras (sin espacios, números ni signos).',
+        error: 'El nombre tiene que ser una sola palabra, sólo con letras y emojis (sin espacios, números ni signos).',
         nombre: '',
         letras: [],
         simbolo: '',
         indiceSimbolo: -1
       };
     }
-    var letras = limpio.toUpperCase().split('');
     var indiceSimbolo = -1;
     if (sim.texto) {
       indiceSimbolo = letras.length;

@@ -53,7 +53,15 @@
     return d.label && d.nombre ? '\u00b7 ' : '';
   }
 
+  // Un EMOJI como patrón de expresión regular (úsese con la bandera `u`). Un emoji puede
+  // ser varios caracteres —con su variante, un tono de piel, una bandera o varios unidos
+  // (👨‍👩‍👧)—, así que se reconoce la secuencia entera y no carácter por carácter. Lo usan el
+  // clicker y el charm para contar cada emoji como UNA letra.
+  var EMOJI = '(?:\\p{Regional_Indicator}{2}|\\p{Extended_Pictographic}(?:\\uFE0F|\\p{Emoji_Modifier})?' +
+    '(?:\\u200D\\p{Extended_Pictographic}(?:\\uFE0F|\\p{Emoji_Modifier})?)*)';
+
   window.Utils = {
+    EMOJI: EMOJI,
     marcaDetalle: marcaDetalle,
     descuentoValido: descuentoValido,
     uid: uid,
