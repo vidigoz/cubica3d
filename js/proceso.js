@@ -1,5 +1,5 @@
 /* Tablero de proceso (Kanban) de las cotizaciones enviadas.
- * Cotización -> Trabajo -> Realizado -> Entregado.
+ * Cotización -> Confirmado -> Trabajo -> Realizado -> Entregado.
  *
  * Las tarjetas viven en Postgres y viajan por el API: lo que se envía desde
  * cualquier navegador aparece acá (y al revés). El servidor guarda cada
@@ -34,6 +34,7 @@
   // Las columnas del tablero, en orden. El orden ES el flujo de trabajo.
   var COLUMNAS = [
     { id: 'cotizacion', nombre: 'Cotización' },
+    { id: 'confirmado', nombre: 'Confirmado' },
     { id: 'trabajo', nombre: 'Trabajo' },
     { id: 'realizado', nombre: 'Realizado' },
     { id: 'entregado', nombre: 'Entregado' }

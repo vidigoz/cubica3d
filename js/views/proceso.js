@@ -31,7 +31,7 @@
   var boundEl = null;   // el contenedor de la app es siempre el mismo: se engancha una vez
   var abiertas = {};    // tarjetas con el detalle desplegado (sobrevive al repintado)
   // La columna que se ve en pantallas angostas (celular): ahí el tablero muestra una
-  // columna a la vez, con pestañas arriba, en vez de apilar las cuatro. En pantallas
+  // columna a la vez, con pestañas arriba, en vez de apilar las cinco. En pantallas
   // grandes se ven todas y esto no hace nada (ver .kanban__tabs en el CSS).
   var columnaActiva = 'cotizacion';
 
@@ -452,7 +452,7 @@
   }
 
   // Las pestañas del celular: una por columna, con cuántas tarjetas tiene cada una.
-  // En la PC no se ven (el CSS las esconde): ahí están las cuatro columnas a la vez.
+  // En la PC no se ven (el CSS las esconde): ahí están las cinco columnas a la vez.
   function pestanasTemplate() {
     return '' +
       '<div class="kanban__tabs" role="tablist" aria-label="Columnas del tablero">' +

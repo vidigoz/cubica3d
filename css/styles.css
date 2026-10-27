@@ -17,6 +17,7 @@
      área está. Azul Cotización, amarilla Trabajo, morada Realizado y verde
      Entregado. */
   --columna-cotizacion: #2563eb;   /* Azul */
+  --columna-confirmado: #0891b2;   /* Turquesa */
   --columna-trabajo: #eab308;      /* Amarilla */
   --columna-realizado: #7c3aed;    /* Morada */
   --columna-entregado: #15803d;    /* Verde */
@@ -143,7 +144,7 @@ button { font-family: inherit; cursor: pointer; }
 /* ---------- Layout ---------- */
 .app-main { max-width: 1040px; margin: 0 auto; padding: clamp(16px, 4vw, 40px); }
 /* El tablero y las estadísticas aprovechan la pantalla grande: los formularios se
-   leen mejor angostos, pero cuatro columnas de tarjetas necesitan el ancho. */
+   leen mejor angostos, pero cinco columnas de tarjetas necesitan el ancho. */
 .app-main[data-ruta="proceso"],
 .app-main[data-ruta="estadisticas"] { max-width: 1800px; }
 
@@ -469,7 +470,7 @@ button { font-family: inherit; cursor: pointer; }
 /* ---------- Proceso: tablero kanban (#/proceso) ---------- */
 .kanban {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: clamp(12px, 1.2vw, 20px);
   align-items: start;
 }
@@ -517,6 +518,7 @@ button { font-family: inherit; cursor: pointer; }
    azul en Cotización, amarilla en Trabajo, morada en Realizado y verde en
    Entregado. La pone la tarjeta con .tarjeta--<columna> (ver views/proceso.js). */
 .tarjeta--cotizacion { border-left-color: var(--columna-cotizacion); }
+.tarjeta--confirmado { border-left-color: var(--columna-confirmado); }
 .tarjeta--trabajo { border-left-color: var(--columna-trabajo); }
 .tarjeta--realizado { border-left-color: var(--columna-realizado); }
 .tarjeta--entregado { border-left-color: var(--columna-entregado); }
@@ -667,7 +669,7 @@ body.arrastrando {
 /* min-width:0 deja que un nombre largo de columna se recorte con puntos suspensivos */
 .btn-mover__texto { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* El grupo de iconos (Ensamble, PO, Ver, 🖨, ✕), pegado al borde derecho de la
-   tarjeta. Puede envolver: en el tablero de cuatro columnas la tarjeta mide 192px
+   tarjeta. Puede envolver: en el tablero de varias columnas la tarjeta mide ~200px
    y los cinco botones juntos necesitan ~254px, así que sin `wrap` los últimos
    (🖨 y ✕) se salían del recuadro y quedaban pintados encima de la columna
    vecina. Ahora el que no entra baja a un segundo renglón, alineado a la derecha. */
@@ -1271,9 +1273,13 @@ label.t-lotes__sec { cursor: pointer; }
 }
 
 /* ---------- Responsive ---------- */
-@media (max-width: 1100px) {
-  /* Pantalla mediana (tablet, ventana angosta): cuatro columnas quedarían de
-     ~220px y los botones se apilan, así que el tablero pasa a dos por fila. */
+@media (max-width: 1240px) {
+  /* Laptop o ventana angosta: cinco columnas quedarían de menos de 220px y los
+     botones se apilan, así que el tablero pasa a tres por fila. */
+  .kanban { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 900px) {
+  /* Tablet: dos por fila. */
   .kanban { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 /* Pestañas de las columnas: sólo en el celular (ver el bloque de abajo). */
@@ -1281,7 +1287,7 @@ label.t-lotes__sec { cursor: pointer; }
 
 @media (max-width: 700px) {
   /* En el celular el tablero muestra UNA columna a la vez, elegida con las pestañas
-     de arriba: apiladas, las cuatro obligaban a recorrer toda «Cotización» para
+     de arriba: apiladas, las cinco obligaban a recorrer toda «Cotización» para
      llegar a «Trabajo». Cada tarjeta se mueve con sus botones ← / →. */
   .kanban { grid-template-columns: 1fr; }
   .kanban__col { display: none; }
@@ -1289,7 +1295,7 @@ label.t-lotes__sec { cursor: pointer; }
 
   .kanban__tabs {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 4px;
     padding: 6px;
     border: 1px solid var(--border);
@@ -1309,7 +1315,7 @@ label.t-lotes__sec { cursor: pointer; }
     background: transparent;
     color: var(--muted);
     font: inherit;
-    font-size: .74rem;
+    font-size: .68rem;
     font-weight: 700;
     touch-action: manipulation;
   }

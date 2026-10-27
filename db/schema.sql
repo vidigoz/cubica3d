@@ -83,8 +83,8 @@ create table if not exists cotizaciones (
   fecha       date not null default current_date,
   cliente     text not null default '',
   notas       text not null default '',
-  columna     text not null default 'cotizacion' -- las cuatro columnas del Kanban
-                check (columna in ('cotizacion', 'trabajo', 'realizado', 'entregado')),
+  columna     text not null default 'cotizacion' -- las cinco columnas del Kanban
+                check (columna in ('cotizacion', 'confirmado', 'trabajo', 'realizado', 'entregado')),
   posicion    numeric not null default 1000,     -- lugar DENTRO de la columna: la nueva entra
                                                  -- arriba de «Cotización» y la que cambia de
                                                  -- columna entra abajo (ver api/functions/api.js)
@@ -124,7 +124,7 @@ alter table cotizaciones add column if not exists descuento numeric(12,2) not nu
 alter table cotizaciones add column if not exists descuento_nota text not null default '';
 alter table cotizaciones drop constraint if exists cotizaciones_columna_check;
 alter table cotizaciones add constraint cotizaciones_columna_check
-  check (columna in ('cotizacion', 'trabajo', 'realizado', 'entregado'));
+  check (columna in ('cotizacion', 'confirmado', 'trabajo', 'realizado', 'entregado'));
 
 -- Líneas de cada cotización. En tabla (y no en un solo JSON) para poder reportar:
 -- "cuántos llaveros se vendieron en marzo", "qué producto deja más margen", etc.
