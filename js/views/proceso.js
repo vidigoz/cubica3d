@@ -35,6 +35,55 @@
   // grandes se ven todas y esto no hace nada (ver .kanban__tabs en el CSS).
   var columnaActiva = 'cotizacion';
 
+  // Cómo se VE cada columna: 'manual' (el orden de siempre, el del arrastre), 'fecha' (la
+  // cotización más vieja arriba) o 'precio' (el total más alto arriba). Es sólo una forma
+  // de mirar: no toca las posiciones guardadas, así que al volver a «Manual» regresa el
+  // orden acomodado a mano. Cada persona deja el suyo en su navegador, por columna.
+  var ORDENES = [
+    { id: 'manual', nombre: 'Orden: manual' },
+    { id: 'fecha', nombre: 'Orden: fecha, más vieja primero' },
+    { id: 'precio', nombre: 'Orden: precio, mayor a menor' }
+  ];
+  var CLAVE_ORDEN = 'cotizador.orden.v1';
+  var ordenes = cargarOrdenes();   // { columna: 'fecha' | 'precio' } (lo que no está es manual)
+
+  function cargarOrdenes() {
+    try {
+      var guardado = JSON.parse(window.localStorage.getItem(CLAVE_ORDEN) || '{}');
+      var limpio = {};
+      Object.keys(guardado || {}).forEach(function (col) {
+        if (guardado[col] === 'fecha' || guardado[col] === 'precio') limpio[col] = guardado[col];
+      });
+      return limpio;
+    } catch (e) {
+      return {};   // sin almacenamiento o dato roto: todo en manual
+    }
+  }
+
+  function guardarOrdenes() {
+    try { window.localStorage.setItem(CLAVE_ORDEN, JSON.stringify(ordenes)); } catch (e) { /* se queda en memoria */ }
+  }
+
+  function ordenDe(columna) { return ordenes[columna] || 'manual'; }
+
+  // Las tarjetas de una columna en el orden con el que se ven. A igualdad, por folio, para
+  // que el orden no baile entre dos repintados. Una fecha vacía va al final.
+  function ordenarTarjetas(lista, orden) {
+    if (orden === 'manual') return lista;
+    return lista.slice().sort(function (a, b) {
+      if (orden === 'fecha') {
+        if (a.fecha !== b.fecha) {
+          if (!a.fecha) return 1;
+          if (!b.fecha) return -1;
+          return a.fecha < b.fecha ? -1 : 1;
+        }
+      } else if (a.total !== b.total) {
+        return b.total - a.total;
+      }
+      return Number(a.folio) - Number(b.folio);
+    });
+  }
+
   // Desde qué columna se ofrece «Ensamble»: la receta de armado se consulta
   // cuando la venta ya salió al taller, así que está desde «Trabajo» en adelante
   // (en «Cotización» todavía se está cotizando). Se guarda por NOMBRE y se compara
@@ -430,19 +479,29 @@
   }
 
   function columnaTemplate(col) {
-    var lista = Proceso.getTarjetas(col.id);
+    var orden = ordenDe(col.id);
+    var lista = ordenarTarjetas(Proceso.getTarjetas(col.id), orden);
     var unidades = 0;
     var dinero = 0;
     lista.forEach(function (t) { unidades += t.unidades; dinero += t.total; });
 
     return '' +
       '<section class="kanban__col' + (col.id === columnaActiva ? ' kanban__col--activa' : '') +
+        (orden !== 'manual' ? ' kanban__col--ordenada' : '') +
         '" data-col="' + col.id + '">' +
         '<header class="kanban__head">' +
           '<h3 class="kanban__title">' + Utils.escapeHtml(col.nombre) + '</h3>' +
           '<span class="kanban__count" title="' + lista.length + ' cotizaciones \u00b7 ' +
             unidades + ' piezas">' + lista.length + ' \u00b7 ' + Utils.formatMoney(dinero) + '</span>' +
         '</header>' +
+        '<select class="kanban__orden" data-orden="' + col.id + '" aria-label="Orden de la columna ' +
+          Utils.escapeHtml(col.nombre) + '"' +
+          (orden !== 'manual' ? ' title="Ordenada: para acomodar a mano, vuelve a «manual»"' : '') + '>' +
+          ORDENES.map(function (o) {
+            return '<option value="' + o.id + '"' + (o.id === orden ? ' selected' : '') + '>' +
+              Utils.escapeHtml(o.nombre) + '</option>';
+          }).join('') +
+        '</select>' +
         '<div class="kanban__body">' +
           (lista.length
             ? lista.map(tarjetaTemplate).join('')
@@ -912,7 +971,11 @@
 
     if (!columna) { render(); return; }   // la soltó fuera del tablero: no cambia nada
 
-    var tarjeta = Proceso.reordenar(id, columna, antes, despues);
+    // Soltada en una columna ordenada, no hay un hueco que respetar: sólo cambia de
+    // columna (entra como siempre) y el orden elegido la acomoda.
+    var tarjeta = ordenDe(columna) !== 'manual'
+      ? (original && original.columna !== columna ? Proceso.mover(id, columna) : null)
+      : Proceso.reordenar(id, columna, antes, despues);
     if (!tarjeta) { render(); return; }   // quedó en el mismo lugar
 
     var destino = Proceso.getColumna(tarjeta.columna).nombre;
@@ -1055,6 +1118,10 @@
       var tarjetaEl = e.target.closest('.tarjeta');
       if (!tarjetaEl) return;
       if (e.target.closest('button, input, label, summary, a, select, textarea, details')) return;
+      // En una columna ordenada por fecha o precio las tarjetas no se arrastran: su lugar
+      // lo manda el orden (para acomodarlas a mano se vuelve a «manual»).
+      var colEl = tarjetaEl.closest('.kanban__col');
+      if (colEl && ordenDe(colEl.getAttribute('data-col')) !== 'manual') return;
 
       empezarGesto(e, tarjetaEl);
     });
@@ -1063,6 +1130,17 @@
     // desglose ya están hechas). Se pintan al instante y se mandan al servidor por
     // atrás (Proceso.cambiarPagado / cambiarListas; si falla, el tablero vuelve
     // atrás y avisa).
+    // El selector de orden de cada columna: se guarda en este navegador y se repinta.
+    rootEl.addEventListener('change', function (e) {
+      var selector = e.target.closest ? e.target.closest('[data-orden]') : null;
+      if (!selector) return;
+      var col = selector.getAttribute('data-orden');
+      if (selector.value === 'fecha' || selector.value === 'precio') ordenes[col] = selector.value;
+      else delete ordenes[col];
+      guardarOrdenes();
+      render();
+    });
+
     rootEl.addEventListener('change', function (e) {
       if (!e.target || typeof e.target.closest !== 'function') return;
       var tarjetaEl = e.target.closest('.tarjeta');

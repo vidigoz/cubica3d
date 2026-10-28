@@ -1809,3 +1809,22 @@ body.con-pin { overflow: hidden; }
   .tecla--bicolor { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 .manual-fila--charm { grid-template-columns: minmax(0, 1fr) auto; }
+
+/* Orden de cada columna del tablero: manual, por fecha o por precio. */
+.kanban__orden {
+  align-self: flex-start;
+  max-width: 100%;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--muted);
+  font: inherit;
+  font-size: .76rem;
+  font-weight: 600;
+}
+.kanban__col--ordenada .kanban__orden { border-color: var(--primary); color: var(--primary); }
+/* Una columna ordenada no se acomoda arrastrando: la mano ya no «agarra». */
+@media (hover: hover) {
+  .kanban__col--ordenada .tarjeta { cursor: default; }
+}

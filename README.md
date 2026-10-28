@@ -202,6 +202,11 @@ la venta que el cliente ya aceptó, antes de pasarla al taller (el botón **PO**
   es una copia congelada: **no** mueve la tarjeta de columna. Dejar el campo vacío guarda la tarjeta
   **sin cliente**, como las que se envían sin nombre. El cambio mueve el sello de la tarjeta (igual
   que el tilde de **Pagado**), así que las otras pantallas abiertas lo ven en unos segundos.
+- Cada columna tiene un selector de **orden**: **manual** (el de siempre, el del arrastre), **fecha**
+  (la cotización más vieja arriba) o **precio** (el total más alto arriba, ya con el descuento). Es sólo
+  una forma de verla: no cambia el orden guardado, así que al volver a **manual** regresa el que
+  acomodaste a mano. Cada persona deja el suyo en su navegador, por columna. En una columna ordenada
+  no se arrastra (sí se puede mover con los botones y soltar una tarjeta en ella desde otra columna).
 - Cada tarjeta se **arrastra** a su lugar: con el **mouse** se agarra al mover un poco y se suelta
   donde va; con el **dedo** hay que **mantenerla pulsada** un momento y recién ahí arrastrar (si el
   dedo se mueve antes, el gesto es el scroll de la página de siempre: por eso el tablero estuvo un
