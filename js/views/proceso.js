@@ -346,6 +346,13 @@
     return PO.ensamble(t.items);
   }
 
+  // Impresión 3D: desde «Confirmado» y sólo si la orden trae bases o teclas de
+  // clicker (los llaveros y los charms todavía no tienen archivo).
+  function imprimible(t, po) {
+    if (!po || !(po.bases.length || po.teclas.length)) return false;
+    return Proceso.indiceColumna(t.columna) >= Proceso.indiceColumna('confirmado');
+  }
+
   // «7 bases · 7 teclas + 7 letras · 3 llaveros · 4 grupos»: lo que hay que
   // fabricar, en corto, para verlo en la tarjeta sin abrir la hoja.
   function poResumenTexto(totales) {
@@ -436,6 +443,11 @@
               ? '<button class="btn-ensamble" type="button" data-ensamble ' +
                   'title="Ensamble: qu\u00e9 base, qu\u00e9 tecla y qu\u00e9 color de letra lleva cada ' +
                   'letra del nombre" aria-label="Ver el ensamble, letra por letra">Ensamble</button>'
+              : '') +
+            (imprimible(t, po)
+              ? '<button class="btn-po" type="button" data-imprimir ' +
+                  'title="Impresi\u00f3n 3D: archivos para la Bambu Lab, m\u00e1ximo 3 colores por plataforma" ' +
+                  'aria-label="Crear los archivos de impresi\u00f3n 3D">Imprimir 3D</button>'
               : '') +
             (po
               ? '<button class="btn-po" type="button" data-po ' +
@@ -655,6 +667,44 @@
     dlg.showModal();
     ensambleEl = dlg;
     return true;
+  }
+
+  /* ----------------------- Impresión 3D (Bambu Lab) ----------------------- */
+
+  function descargarArchivo(nombre, base64) {
+    var bin = window.atob(base64);
+    var bytes = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    var url = URL.createObjectURL(new Blob([bytes], { type: 'model/3mf' }));
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = nombre;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
+  }
+
+  // Pide los archivos al servidor y baja un .3mf por plataforma (máximo 3 colores
+  // cada una), sin zip ni resumen.
+  function imprimir3D(t) {
+    var po = poDe(t);
+    if (!po) return;
+    window.App.toast('Preparando la impresi\u00f3n\u2026');
+    window.Api.generarImpresion({
+      titulo: PDF.folioTexto(t.folio) + ' ' + (t.cliente || ''),
+      bases: po.bases,
+      teclas: po.teclas
+    }).then(function (r) {
+      r.archivos.forEach(function (a, i) {
+        setTimeout(function () { descargarArchivo(a.nombre, a.datos); }, i * 400);
+      });
+      var n = r.archivos.length;
+      window.App.toast('Impresi\u00f3n 3D: ' + n + (n === 1 ? ' plataforma descargada' : ' plataformas descargadas') +
+        (r.resumen.avisos.length ? ' \u00b7 ' + r.resumen.avisos.join(' ') : ''));
+    }).catch(function (error) {
+      window.App.toast(error.message || 'No se pudo crear la impresi\u00f3n.', 'error');
+    });
   }
 
   /* ---------------------------- Pintado ---------------------------- */
@@ -1086,6 +1136,12 @@
           items: p.items,
           etapa: Proceso.getColumna(p.columna).nombre
         });
+        return;
+      }
+
+      if (e.target.closest('[data-imprimir]')) {
+        var imp = Proceso.getTarjeta(id);
+        if (imp) imprimir3D(imp);
         return;
       }
 

@@ -34,4 +34,3 @@ api/.runtime
 # que deja `npm run base-local -- --respaldo`.
 api/datos/
 api/respaldos/
-

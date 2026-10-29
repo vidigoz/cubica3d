@@ -31,6 +31,8 @@
   # Cada archivo de acá se publica como una función. El path público (/api/*)
   # lo declara la función misma, así que no hay redirects que mantener.
   directory = "netlify/functions"
+  # Los STL de las piezas viajan con la función: los usa la impresión 3D (Bambu Lab).
+  included_files = ["stl/**"]
 
 [build.environment]
   # El API usa node:crypto (scrypt) y fetch de Node: hace falta 20 o más.

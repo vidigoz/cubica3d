@@ -179,6 +179,9 @@
   /* ------------------------------ Lectura ------------------------------ */
 
   function bootstrap() { return pedir('GET', '/bootstrap'); }
+  // Archivos de impresión 3D (sólo servidor local): { nombre, zip (base64), resumen }
+  function generarImpresion(orden) { return pedir('POST', '/impresion', orden); }
+
   function tablero() { return pedir('GET', '/tablero'); }
   function folio() { return pedir('GET', '/folio'); }
 
@@ -270,6 +273,7 @@
     cambiarPagado: cambiarPagado,
     cambiarCliente: cambiarCliente,
     cambiarListas: cambiarListas,
+    generarImpresion: generarImpresion,
     borrarCotizacion: borrarCotizacion
   };
 })();

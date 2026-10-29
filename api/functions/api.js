@@ -74,6 +74,10 @@
  * Si tocás el formato del hash de contraseñas, mirá también
  * tools/crear-usuario.js (lo verifica el test).
  */
+import { existsSync } from "node:fs";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { generar } from "../tools/impresion.js";
 import { Pool } from "pg";
 import { randomBytes, scrypt, timingSafeEqual, createHash } from "node:crypto";
 
@@ -949,6 +953,25 @@ export function crearApp(opciones) {
     return ok({ id: contexto.params.id }, contexto.cabeceras);
   }
 
+  // Archivos de impresión (Bambu Lab): necesita la carpeta stl/ (opciones.impresion).
+  async function impresion(request, contexto) {
+    if (typeof opciones.impresion !== "function") {
+      return fallo("La impresión 3D no está disponible en este servidor.", 404, contexto.cabeceras);
+    }
+    const cuerpo = await leerJson(request);
+    if (!cuerpo || typeof cuerpo !== "object") return fallo("Faltan los datos de la orden.", 400, contexto.cabeceras);
+    try {
+      const r = await opciones.impresion(cuerpo);
+      return ok({
+        archivos: r.archivos.map((a) => ({ nombre: a.nombre, datos: a.datos.toString("base64") })),
+        resumen: r.resumen
+      }, contexto.cabeceras);
+    } catch (error) {
+      if (error && error.estado === 400) return fallo(error.message, 400, contexto.cabeceras);
+      throw error;
+    }
+  }
+
   function salud(request, contexto) {
     return ok({ ok: true, api: "cotizador-cubica3d", hora: ahora().toISOString() }, contexto.cabeceras);
   }
@@ -965,6 +988,7 @@ export function crearApp(opciones) {
     { metodo: "GET",    patron: /^\/api\/bootstrap$/,                                        fn: bootstrap },
     { metodo: "GET",    patron: /^\/api\/tablero$/,                                          fn: tablero },
     { metodo: "GET",    patron: /^\/api\/folio$/,                                            fn: folio },
+    { metodo: "POST",   patron: /^\/api\/impresion$/,                                       fn: impresion },
     { metodo: "PUT",    patron: /^\/api\/config$/,                                           fn: guardarConfig },
     { metodo: "POST",   patron: /^\/api\/cotizaciones$/,                                     fn: crearCotizacion },
     { metodo: "PUT",    patron: /^\/api\/cotizaciones\/([0-9a-fA-F-]{36})$/,                 fn: editarCotizacion },
@@ -1038,9 +1062,21 @@ pool.on("error", function (error) {
 // Las opciones que salen del entorno (el .env), en un solo lugar: así el servidor
 // local las reusa cuando la base no es Neon (api/tools/base-local.js) y no hay dos
 // listas de variables que se puedan desincronizar.
+// La carpeta stl/ con las piezas: junto al proyecto en local; en Netlify llega con la
+// función (included_files de netlify.toml), así que se prueban los sitios habituales.
+function carpetaSTL() {
+  const candidatas = [
+    fileURLToPath(new URL("../../stl", import.meta.url)),
+    join(process.cwd(), "stl"),
+    join(process.env.LAMBDA_TASK_ROOT || "/var/task", "stl")
+  ];
+  return candidatas.find((c) => existsSync(c)) || candidatas[0];
+}
+
 export function opcionesDeEntorno(query) {
   return {
     query: query,
+    impresion: (pedido) => generar(pedido, carpetaSTL()),
     origenPermitido: process.env.APP_ORIGEN || "",
     // El PIN del taller: con 4 dígitos acá, la app queda cerrada con llave (ver
     // el encabezado). Vacío = entra sola, como siempre.
