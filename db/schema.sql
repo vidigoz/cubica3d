@@ -89,6 +89,7 @@ create table if not exists cotizaciones (
                                                  -- arriba de «Cotización» y la que cambia de
                                                  -- columna entra abajo (ver api/functions/api.js)
   pagado      boolean not null default false,    -- se tilda solo al pasar a «Entregado»
+  fecha_pago  date,                              -- el día en que se cobró (editable); null si no está pagada
   bases_listas  boolean not null default false,  -- el taller ya hizo las bases del clicker
   teclas_listas boolean not null default false,  -- y las teclas con su letra (ver la tarjeta)
   unidades    integer not null default 0,
@@ -113,6 +114,10 @@ create index if not exists cotizaciones_borrada_idx on cotizaciones (borrada_en)
 -- reaplicable) alcanza para migrar Neon y la base local, sin un segundo SQL.
 -- Postgres nombra solo un check de columna: <tabla>_<columna>_check.
 alter table cotizaciones add column if not exists pagado boolean not null default false;
+-- El día del pago: lo que cuentan las estadísticas de ventas. Las ya pagadas toman la
+-- fecha de su cotización (no se sabe otra) y se pueden corregir desde la tarjeta.
+alter table cotizaciones add column if not exists fecha_pago date;
+update cotizaciones set fecha_pago = fecha where pagado and fecha_pago is null;
 -- Los tildes del taller: qué tandas del desglose de la tarjeta ya están hechas
 -- (las bases del clicker y las teclas con su letra). Las tarjetas que ya estaban
 -- quedan sin tildar, que es lo honesto: nadie dijo que estuvieran hechas.

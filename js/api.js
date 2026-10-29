@@ -14,7 +14,7 @@
  *   GET    /folio
  *   PUT    /config       { colores, precios }
  *   POST   /cotizaciones { clientId, meta, items }
- *   PATCH  /cotizaciones/:id  { columna }, { posicion }, { pagado }, { cliente },
+ *   PATCH  /cotizaciones/:id  { columna }, { posicion }, { pagado, fechaPago }, { fechaPago }, { cliente },
  *                             { basesListas }, { teclasListas }
  *   DELETE /cotizaciones/:id
  *
@@ -226,8 +226,16 @@
   }
 
   // Tilda o destilda «Pagado» sin mover la tarjeta de columna.
-  function cambiarPagado(id, pagado) {
-    return pedir('PATCH', '/cotizaciones/' + encodeURIComponent(id), { pagado: !!pagado });
+  // `fechaPago` (AAAA-MM-DD) es el día que el navegador cree que es hoy.
+  function cambiarPagado(id, pagado, fechaPago) {
+    var cuerpo = { pagado: !!pagado };
+    if (pagado && fechaPago) cuerpo.fechaPago = fechaPago;
+    return pedir('PATCH', '/cotizaciones/' + encodeURIComponent(id), cuerpo);
+  }
+
+  // Cambia el día del pago de una cotización ya pagada.
+  function cambiarFechaPago(id, fechaPago) {
+    return pedir('PATCH', '/cotizaciones/' + encodeURIComponent(id), { fechaPago: fechaPago });
   }
 
   // Corrige el nombre del cliente de una tarjeta ya enviada, sin moverla de
@@ -271,6 +279,7 @@
     moverCotizacion: moverCotizacion,
     reordenarCotizacion: reordenarCotizacion,
     cambiarPagado: cambiarPagado,
+    cambiarFechaPago: cambiarFechaPago,
     cambiarCliente: cambiarCliente,
     cambiarListas: cambiarListas,
     generarImpresion: generarImpresion,

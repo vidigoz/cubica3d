@@ -165,6 +165,14 @@ const posicionValida = (valor) =>
 const esVerdadero = (valor) => valor === true ||
   ["1", "true", "si", "sí", "on", "yes", "verdadero"].includes(texto(valor).trim().toLowerCase());
 
+// «AAAA-MM-DD» que existe en el calendario.
+function fechaValida(valor) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(texto(valor));
+  if (!m) return false;
+  const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+  return d.getUTCFullYear() === +m[1] && d.getUTCMonth() === +m[2] - 1 && d.getUTCDate() === +m[3];
+}
+
 async function leerJson(request) {
   try {
     return JSON.parse(await request.text());
@@ -363,6 +371,7 @@ export function crearApp(opciones) {
       columna: fila.columna,
       posicion: Number(fila.posicion),
       pagado: !!fila.pagado,
+      fechaPago: fila.pagado ? (fila.fecha_pago || null) : null,
       // Los tildes del taller: qué tandas del desglose ya están hechas (las bases
       // del clicker y las teclas con su letra). No salen en la hoja ni en el PDF:
       // son del tablero, para saber qué falta imprimir.
@@ -381,7 +390,7 @@ export function crearApp(opciones) {
   async function leerTablero() {
     const { rows } = await query(
       "select id, folio, to_char(fecha, 'YYYY-MM-DD') as fecha, cliente, notas, columna," +
-      " posicion, unidades, descuento, descuento_nota, total, pagado, bases_listas, teclas_listas," +
+      " posicion, unidades, descuento, descuento_nota, total, pagado, to_char(fecha_pago, 'YYYY-MM-DD') as fecha_pago, bases_listas, teclas_listas," +
       " creada, movida, creada_por, movida_por" +
       " from cotizaciones where borrada_en is null" +
       " order by columna, posicion, folio"
@@ -418,7 +427,7 @@ export function crearApp(opciones) {
   async function leerTarjeta(id) {
     const { rows } = await query(
       "select id, folio, to_char(fecha, 'YYYY-MM-DD') as fecha, cliente, notas, columna," +
-      " posicion, unidades, descuento, descuento_nota, total, pagado, bases_listas, teclas_listas," +
+      " posicion, unidades, descuento, descuento_nota, total, pagado, to_char(fecha_pago, 'YYYY-MM-DD') as fecha_pago, bases_listas, teclas_listas," +
       " creada, movida, creada_por, movida_por" +
       " from cotizaciones where id = $1", [id]
     );
@@ -841,6 +850,7 @@ export function crearApp(opciones) {
     const pideColumna = !!columna;
     const pidePosicion = Object.prototype.hasOwnProperty.call(cuerpo, "posicion");
     const pidePagado = Object.prototype.hasOwnProperty.call(cuerpo, "pagado");
+    const pideFecha = Object.prototype.hasOwnProperty.call(cuerpo, "fechaPago");
     const pideCliente = Object.prototype.hasOwnProperty.call(cuerpo, "cliente");
     const pideBases = Object.prototype.hasOwnProperty.call(cuerpo, "basesListas");
     const pideTeclas = Object.prototype.hasOwnProperty.call(cuerpo, "teclasListas");
@@ -851,7 +861,10 @@ export function crearApp(opciones) {
     if (pidePosicion && posicion === null) {
       return fallo("«posicion» tiene que ser un número.", 400, contexto.cabeceras);
     }
-    if (!pideColumna && !pidePosicion && !pidePagado && !pideCliente && !pideBases && !pideTeclas) {
+    if (pideFecha && !fechaValida(cuerpo.fechaPago)) {
+      return fallo("«fechaPago» tiene que ser una fecha AAAA-MM-DD.", 400, contexto.cabeceras);
+    }
+    if (!pideColumna && !pidePosicion && !pidePagado && !pideFecha && !pideCliente && !pideBases && !pideTeclas) {
       return fallo("No hay nada que cambiar.", 400, contexto.cabeceras);
     }
     if (pidePagado && typeof cuerpo.pagado !== "boolean") {
@@ -868,7 +881,8 @@ export function crearApp(opciones) {
     }
 
     const { rows } = await query(
-      "select columna, posicion, pagado, cliente, bases_listas, teclas_listas" +
+      "select columna, posicion, pagado, cliente, bases_listas, teclas_listas," +
+      " to_char(fecha_pago, 'YYYY-MM-DD') as fecha_pago" +
       " from cotizaciones where id = $1 and borrada_en is null",
       [contexto.params.id]
     );
@@ -890,7 +904,13 @@ export function crearApp(opciones) {
     const basesListas = pideBases ? cuerpo.basesListas : !!actual.bases_listas;
     const teclasListas = pideTeclas ? cuerpo.teclasListas : !!actual.teclas_listas;
     const tildaLotes = basesListas !== !!actual.bases_listas || teclasListas !== !!actual.teclas_listas;
-    if (!mueve && !reordena && !tilda && !renombra && !tildaLotes) {
+    if (pideFecha && !pagado) {
+      return fallo("Sólo una cotización pagada tiene fecha de pago.", 400, contexto.cabeceras);
+    }
+    // El día del pago: al tildar toma el que mande el navegador (o hoy, hora de México);
+    // al destildar se borra; una cotización que llega a pagada sin fecha también la toma.
+    const cambiaFecha = pagado && (pideFecha ? cuerpo.fechaPago !== actual.fecha_pago : !actual.fecha_pago);
+    if (!mueve && !reordena && !tilda && !renombra && !tildaLotes && !cambiaFecha) {
       return ok({ cotizacion: await leerTarjeta(contexto.params.id), sinCambios: true }, contexto.cabeceras);
     }
 
@@ -931,6 +951,14 @@ export function crearApp(opciones) {
         "update cotizaciones set pagado = $2, cliente = $3, bases_listas = $4, teclas_listas = $5," +
         " movida = now(), movida_por = $6 where id = $1",
         [contexto.params.id, pagado, cliente, basesListas, teclasListas, contexto.usuario.nombre]
+      );
+    }
+    if (tilda || cambiaFecha) {
+      await query(
+        "update cotizaciones set fecha_pago = case when $2::boolean then" +
+        " coalesce($3::date, fecha_pago, (now() at time zone 'America/Mexico_City')::date)" +
+        " else null end where id = $1",
+        [contexto.params.id, pagado, pideFecha ? cuerpo.fechaPago : null]
       );
     }
     return ok({ cotizacion: await leerTarjeta(contexto.params.id) }, contexto.cabeceras);

@@ -67,6 +67,12 @@
 
   function ahoraISO() { return new Date().toISOString(); }
 
+  // Hoy, con el calendario de esta computadora (no el UTC): AAAA-MM-DD.
+  function hoyLocal() {
+    var d = new Date();
+    return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+  }
+
   /* ------------------------- Catálogo de columnas ------------------------- */
 
   function getColumna(id) {
@@ -168,6 +174,8 @@
       columna: fila.columna || primeraColumna(),
       posicion: numeroPosicion(fila.posicion),
       pagado: !!fila.pagado,
+      // El día del pago (AAAA-MM-DD); sólo lo tiene una cotización pagada.
+      fechaPago: fila.pagado ? String(fila.fechaPago || '').slice(0, 10) : '',
       // Los tildes del taller: qué tandas del desglose ya están hechas (bases del
       // clicker y teclas con su letra). Son del tablero, no de la hoja: una base
       // vieja que no los traiga queda sin tildar.
@@ -410,7 +418,7 @@
     t.columna = destino.id;
     t.posicion = arriba ? posicionArribaDe(destino.id) : posicionAbajoDe(destino.id);
     t.movida = ahoraISO();
-    if (arriba) t.pagado = true;
+    if (arriba) { t.pagado = true; t.fechaPago = t.fechaPago || hoyLocal(); }
     var primero = indicePrimeroDe(destino.id);
     tarjetas.splice(arriba ? (primero < 0 ? tarjetas.length : primero) : indiceAbajoDe(destino.id), 0, t);
     notify();
@@ -457,7 +465,7 @@
     t.columna = destino.id;
     t.posicion = nueva;
     t.movida = ahoraISO();
-    if (esEntregado(destino.id)) t.pagado = true;
+    if (esEntregado(destino.id)) { t.pagado = true; t.fechaPago = t.fechaPago || hoyLocal(); }
     // Se mete justo detrás de su vecina de arriba; sin vecina de arriba, al principio de la
     // columna (o al final de todo, si la columna quedó vacía).
     var j = vecinaAntes ? indiceDe(vecinaAntes.id) + 1 : indicePrimeroDe(destino.id);
@@ -492,11 +500,12 @@
 
     var respaldo = clone(tarjetas);
     tarjetas[i].pagado = pagado;
+    tarjetas[i].fechaPago = pagado ? hoyLocal() : '';
     tarjetas[i].movida = ahoraISO();
     notify();
 
     enVuelo++;
-    window.Api.cambiarPagado(id, pagado).then(function (datos) {
+    window.Api.cambiarPagado(id, pagado, pagado ? tarjetas[i].fechaPago : '').then(function (datos) {
       if (datos && datos.cotizacion) {
         var j = indiceDe(id);
         if (j >= 0) tarjetas[j] = sanearTarjeta(datos.cotizacion);
@@ -507,6 +516,37 @@
       notify();
       terminar();
       window.App.toast('No se pudo guardar el pago: ' + error.message, 'error');
+      recargar();
+    });
+
+    return true;
+  }
+
+  // Cambia el día en que se pagó (AAAA-MM-DD) de una tarjeta ya pagada: es la fecha que
+  // cuentan las estadísticas. Devuelve true si cambió.
+  function cambiarFechaPago(id, fecha) {
+    var i = indiceDe(id);
+    fecha = String(fecha || '');
+    if (i < 0 || !tarjetas[i].pagado || !/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return false;
+    if (tarjetas[i].fechaPago === fecha) return false;
+
+    var respaldo = clone(tarjetas);
+    tarjetas[i].fechaPago = fecha;
+    tarjetas[i].movida = ahoraISO();
+    notify();
+
+    enVuelo++;
+    window.Api.cambiarFechaPago(id, fecha).then(function (datos) {
+      if (datos && datos.cotizacion) {
+        var j = indiceDe(id);
+        if (j >= 0) tarjetas[j] = sanearTarjeta(datos.cotizacion);
+      }
+      terminar();
+    }, function (error) {
+      tarjetas = respaldo;
+      notify();
+      terminar();
+      window.App.toast('No se pudo guardar la fecha de pago: ' + error.message, 'error');
       recargar();
     });
 
@@ -640,6 +680,7 @@
     reordenar: reordenar,
     arrastrando: marcarArrastre,
     cambiarPagado: cambiarPagado,
+    cambiarFechaPago: cambiarFechaPago,
     cambiarCliente: cambiarCliente,
     cambiarListas: cambiarListas,
     remove: remove,

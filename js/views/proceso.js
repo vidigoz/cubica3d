@@ -375,12 +375,18 @@
   // (a veces se cobra por adelantado y a veces se entrega y se cobra después); al
   // pasar la tarjeta a «Entregado» llega tildado solo. Lo guarda Proceso.
   function pagadoTemplate(t) {
-    return '' +
+    return '<div class="tarjeta__pago">' +
       '<label class="tarjeta__pagado">' +
         '<input type="checkbox" data-pagado' + (t.pagado ? ' checked' : '') +
           ' title="Marcar la cotización como pagada">' +
         '<span>Pagado</span>' +
-      '</label>';
+      '</label>' +
+      (t.pagado
+        ? '<input class="tarjeta__fecha-pago" type="date" data-fecha-pago value="' +
+            Utils.escapeHtml(t.fechaPago || '') + '" title="D\u00eda en que se pag\u00f3 (cuenta en las estad\u00edsticas)" ' +
+            'aria-label="Fecha de pago">'
+        : '') +
+      '</div>';
   }
 
   // El nombre del cliente, que se puede corregir ahí mismo: es un botón sin caja
@@ -1202,6 +1208,9 @@
       var tarjetaEl = e.target.closest('.tarjeta');
       if (!tarjetaEl) return;
       var id = tarjetaEl.getAttribute('data-id');
+
+      var fechaPago = e.target.closest('[data-fecha-pago]');
+      if (fechaPago) { Proceso.cambiarFechaPago(id, fechaPago.value); return; }
 
       var casilla = e.target.closest('[data-pagado]');
       if (casilla) { Proceso.cambiarPagado(id, casilla.checked); return; }

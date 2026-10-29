@@ -264,17 +264,19 @@
       /* --- Ventas: cualquier tarjeta con «Pagado» tildado, en la columna que
          esté. El tilde es el que dice que se cobró. --- */
       if (tarjeta.pagado) {
+        // El mes de la venta es el del PAGO (fechaPago); si no hay, el de la cotización.
+        var mesPago = mesDe(tarjeta.fechaPago || tarjeta.fecha);
         var plata = redondear(Number(Utils.parseNumber(tarjeta.total, 0)) || 0);
         var vendidas = unidadesDe(tarjeta, items);
         ventas.total = redondear(ventas.total + plata);
         ventas.unidades += vendidas;
         ventas.tarjetas += 1;
-        var caja = ventas.cajones[mes] ||
-          (ventas.cajones[mes] = { total: 0, unidades: 0, tarjetas: 0 });
+        var caja = ventas.cajones[mesPago] ||
+          (ventas.cajones[mesPago] = { total: 0, unidades: 0, tarjetas: 0 });
         caja.total = redondear(caja.total + plata);
         caja.unidades += vendidas;
         caja.tarjetas += 1;
-        anotarMes(mes);
+        anotarMes(mesPago);
       }
 
       /* --- Producción: sólo lo que ya se fabricó (de «Realizado» en
