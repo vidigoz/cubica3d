@@ -118,7 +118,7 @@ Cada **letra** del nombre —y cada **emoji**, que es una más— lleva **tres p
 **base** (color + acabado **Corrugado** o **Liso**), la **tecla** y la **letra** impresa. Las tres se
 eligen de los colores en stock y se pueden poner **iguales para todo el nombre** o **letra por letra**.
 
-- Campo **Nombre** (obligatorio): una sola palabra, sólo letras (acentos y Ñ incluidos) y **emojis**.
+- Campo **Nombre** (obligatorio): una sola palabra, sólo letras (acentos y Ñ incluidos), **números** y **emojis**.
   Con cada letra que escribes aparece **una fila nueva** debajo (base + acabado + tecla + letra de esa
   letra), así se ve enseguida en cuántas se va. Un **emoji cuenta como una letra más**: lleva sus tres
   piezas y paga el mismo precio por letra. En el celular se escribe con el teclado de emojis; en la

@@ -254,6 +254,12 @@
     }
 
     var cuenta = { tarjetas: 0, unidades: 0, sinReceta: 0 };
+    // Productos COMPLETOS hechos (no piezas): cuántos clickers, llaveros y charms.
+    var productos = [
+      { tipo: PO.TIPO_CLICER, etiqueta: 'Clickers', total: 0, cajones: {} },
+      { tipo: PO.TIPO_LLAVERO, etiqueta: 'Llaveros', total: 0, cajones: {} },
+      { tipo: PO.TIPO_CHARM, etiqueta: 'Charms de silla', total: 0, cajones: {} }
+    ];
     var ventas = { total: 0, unidades: 0, tarjetas: 0, cajones: {} };
 
     lista.forEach(function (tarjeta) {
@@ -291,6 +297,12 @@
         var cantidad = PO.cantidadDe(item.cantidad);
         var tipo = Utils.normalize(item.tipo);
         var detalles = Array.isArray(item.detalles) ? item.detalles : [];
+
+        productos.forEach(function (p) {
+          if (p.tipo !== tipo) return;
+          p.total += cantidad;
+          p.cajones[mes] = (p.cajones[mes] || 0) + cantidad;
+        });
 
         if (tipo === PO.TIPO_CLICER) {
           var letras = PO.piezasDeClicer(detalles);
@@ -345,7 +357,7 @@
     });
 
     return cerrar({ columnas: columnas, cuenta: cuenta, meses: meses,
-      elementos: elementos, ventas: ventas });
+      elementos: elementos, ventas: ventas, productos: productos });
   }
 
   // Arma la salida final: rankings de colores, meses en orden y mejor mes de
@@ -371,6 +383,11 @@
         };
       });
       delete el.cajones;
+    });
+
+    datos.productos.forEach(function (p) {
+      p.meses = claves.map(function (mes) { return { mes: mes, cantidad: p.cajones[mes] || 0 }; });
+      delete p.cajones;
     });
 
     datos.meses = claves.map(function (mes) {

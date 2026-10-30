@@ -179,6 +179,14 @@
           plural(cuenta.unidades, 'unidad', 'unidades') +
           (etiquetaPeriodo ? ' · mes de <b>' + escapar(etiquetaPeriodo) + '</b>' : '') +
         '</p>' +
+        '<div class="estat-cifras">' + datos.productos.map(function (p) {
+          var cantidad = p.total;
+          if (mesElegido !== TODOS) {
+            var m = p.meses.filter(function (x) { return x.mes === mesElegido; })[0];
+            cantidad = m ? m.cantidad : 0;
+          }
+          return cifraTemplate(p.etiqueta, String(cantidad));
+        }).join('') + '</div>' +
         sinReceta +
         (datos.vacia ? avisoVacio(datos, tarjetas) : '') +
         '<div class="estat-grid">' + datos.elementos.map(function (el) {

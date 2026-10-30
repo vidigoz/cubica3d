@@ -24,12 +24,12 @@
   var Utils = window.Utils;
 
   // El nombre se parte en «letras», una por tecla. Una letra es una letra de verdad
-  // (acentos y Ñ incluidos) o un EMOJI, y el emoji cuenta como una letra más: lleva sus
+  // (acentos y Ñ incluidos), un NÚMERO o un EMOJI, y el emoji cuenta como una letra más: lleva sus
   // tres piezas y paga el mismo precio por letra. Un emoji puede ser varios caracteres
   // (con su variante, un tono de piel, una bandera o varios unidos: 👨‍👩‍👧), por eso se
-  // reconoce la secuencia entera y no carácter por carácter. Espacios, números y
+  // reconoce la secuencia entera y no carácter por carácter. Espacios y
   // signos no son teclas.
-  var PIEZA = new RegExp('(' + Utils.EMOJI + ')|([A-Za-zÁÉÍÓÚÜÑáéíóúüñ])|([^])', 'gu');
+  var PIEZA = new RegExp('(' + Utils.EMOJI + ')|([A-Za-z0-9ÁÉÍÓÚÜÑáéíóúüñ])|([^])', 'gu');
 
   // El símbolo es la tecla que se escribe a mano («estrella», «corazón», «logo»):
   // no se mapea a ningún carácter, así que no tiene que ser una letra. Sólo se
@@ -101,7 +101,7 @@
     var sim = simboloDe(simbolo);
     if (!sim.ok) return { ok: false, error: sim.error, nombre: '', letras: [], simbolo: '', indiceSimbolo: -1 };
     if (!limpio) return { ok: false, error: 'Escribe el nombre.', nombre: '', letras: [], simbolo: '', indiceSimbolo: -1 };
-    // Se parte en letras y emojis; cualquier otra cosa (espacio, número, signo) no sirve.
+    // Se parte en letras y emojis; cualquier otra cosa (espacio, signo) no sirve.
     limpio = limpio.normalize('NFC');
     var letras = [];
     var invalido = false;
@@ -114,7 +114,7 @@
     if (invalido) {
       return {
         ok: false,
-        error: 'El nombre tiene que ser una sola palabra, sólo con letras y emojis (sin espacios, números ni signos).',
+        error: 'El nombre tiene que ser una sola palabra, sólo con letras, números y emojis (sin espacios ni signos).',
         nombre: '',
         letras: [],
         simbolo: '',

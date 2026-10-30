@@ -366,7 +366,7 @@
         '<form class="form" id="form-clicer" novalidate>' +
           '<div class="form__row">' +
             '<div class="field field--grow">' +
-              '<label class="field__label" for="f-clicer-nombre">Nombre <em class="field__opt">(letras y emojis; cada emoji cuenta como una letra)</em></label>' +
+              '<label class="field__label" for="f-clicer-nombre">Nombre <em class="field__opt">(letras, números y emojis; cada uno cuenta como una letra)</em></label>' +
               '<div class="field__row">' +
                 '<input class="field__input" type="text" id="f-clicer-nombre" placeholder="Ej. Ali" autocomplete="off"' + dis + ' />' +
                 // Sólo en la PC: en el celular el teclado ya trae sus emojis (ver .emoji-btn en el CSS).
