@@ -1,6 +1,6 @@
 /* Arranque de la app: sesión + enrutador por hash + pestañas + indicador del
  * carrito + toast.
- * Rutas: #/productos, #/productos/llaveros, #/carrito, #/proceso, #/estadisticas,
+ * Rutas: #/productos, #/productos/llaveros, #/carrito, #/proceso, #/estadisticas, #/herramientas,
  * #/configuracion (Configuración se abre desde el engranito del encabezado, no es
  * una pestaña.)
  *
@@ -18,7 +18,7 @@
 (function () {
   'use strict';
 
-  var VALID_ROUTES = ['productos', 'carrito', 'proceso', 'estadisticas', 'configuracion'];
+  var VALID_ROUTES = ['productos', 'carrito', 'proceso', 'estadisticas', 'herramientas', 'configuracion'];
   var DEFAULT_ROUTE = 'productos';
 
   // Rutas viejas: se reescriben a las nuevas para que los enlaces guardados
@@ -61,6 +61,7 @@
       case 'carrito': return window.Views.carrito;
       case 'proceso': return window.Views.proceso;
       case 'estadisticas': return window.Views.estadisticas;
+      case 'herramientas': return window.Views.herramientas;
       case 'configuracion': return window.Views.configuracion;
       default: return window.Views.productos;
     }
