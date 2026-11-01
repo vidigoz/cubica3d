@@ -17,6 +17,8 @@
  *   PATCH  /cotizaciones/:id  { columna }, { posicion }, { pagado, fechaPago }, { fechaPago }, { cliente },
  *                             { basesListas }, { teclasListas }
  *   DELETE /cotizaciones/:id
+ *   POST   /cotizaciones/:id/archivos { nombre, tipo, datos(base64) }
+ *   GET    /archivos/:id (el contenido)  ·  DELETE /archivos/:id
  *
  * La sesión (token + usuario) se guarda en localStorage: dura 30 días y así no
  * hay que entrar cada vez que se abre la app. Todos los métodos devuelven
@@ -179,6 +181,24 @@
   /* ------------------------------ Lectura ------------------------------ */
 
   function bootstrap() { return pedir('GET', '/bootstrap'); }
+  // Archivos de una tarjeta (logos, referencias): datos = base64 sin el prefijo data:.
+  function subirArchivo(id, archivo) {
+    return pedir('POST', '/cotizaciones/' + encodeURIComponent(id) + '/archivos', archivo);
+  }
+  function borrarArchivo(archivoId) {
+    return pedir('DELETE', '/archivos/' + encodeURIComponent(archivoId));
+  }
+  // El contenido de un archivo como Blob (lleva el token, así que no sirve un <img src>).
+  function archivoBlob(archivoId) {
+    var cabeceras = {};
+    if (sesion && sesion.token) cabeceras.Authorization = 'Bearer ' + sesion.token;
+    return window.fetch(BASE + '/archivos/' + encodeURIComponent(archivoId), { headers: cabeceras })
+      .then(function (r) {
+        if (!r.ok) throw falla('No se pudo abrir el archivo.', r.status);
+        return r.blob();
+      }, function () { throw falla(INTERNET, 0); });
+  }
+
   // Archivos de impresión 3D (sólo servidor local): { nombre, zip (base64), resumen }
   function generarImpresion(orden) { return pedir('POST', '/impresion', orden); }
 
@@ -283,6 +303,9 @@
     cambiarCliente: cambiarCliente,
     cambiarListas: cambiarListas,
     generarImpresion: generarImpresion,
+    subirArchivo: subirArchivo,
+    borrarArchivo: borrarArchivo,
+    archivoBlob: archivoBlob,
     borrarCotizacion: borrarCotizacion
   };
 })();

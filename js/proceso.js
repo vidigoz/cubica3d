@@ -183,6 +183,10 @@
       teclasListas: !!fila.teclasListas,
       creada: fila.creada || ahoraISO(),
       movida: fila.movida || fila.creada || ahoraISO(),
+      // Archivos de la tarjeta (sólo sus datos; el contenido se pide aparte).
+      archivos: (Array.isArray(fila.archivos) ? fila.archivos : []).map(function (a) {
+        return { id: String(a.id), nombre: String(a.nombre || ''), tipo: String(a.tipo || ''), tamano: Number(a.tamano) || 0 };
+      }),
       creadaPor: String(fila.creadaPor || ''),
       movidaPor: String(fila.movidaPor || '')
     };

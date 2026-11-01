@@ -356,7 +356,7 @@ export function crearApp(opciones) {
     };
   }
 
-  function aTarjeta(fila, items) {
+  function aTarjeta(fila, items, archivos) {
     return {
       id: fila.id,
       folio: Number(fila.folio),
@@ -379,6 +379,7 @@ export function crearApp(opciones) {
       teclasListas: !!fila.teclas_listas,
       creada: new Date(fila.creada).toISOString(),
       movida: new Date(fila.movida).toISOString(),
+      archivos: (archivos || []).map((a) => ({ id: a.id, nombre: a.nombre, tipo: a.tipo, tamano: Number(a.tamano) })),
       creadaPor: fila.creada_por || "",
       movidaPor: fila.movida_por || ""
     };
@@ -402,6 +403,19 @@ export function crearApp(opciones) {
       " order by orden"
     );
 
+    // Sólo los datos de cada archivo (nombre, tipo, tamaño): el contenido se pide aparte.
+    const { rows: arch } = await query(
+      "select id, cotizacion_id, nombre, tipo, tamano from archivos" +
+      " where cotizacion_id in (select id from cotizaciones where borrada_en is null)" +
+      " order by creado"
+    );
+    const archivosPor = new Map();
+    arch.forEach((a) => {
+      const lista = archivosPor.get(a.cotizacion_id) || [];
+      lista.push(a);
+      archivosPor.set(a.cotizacion_id, lista);
+    });
+
     const porCotizacion = new Map();
     items.forEach((it) => {
       const lista = porCotizacion.get(it.cotizacion_id) || [];
@@ -411,7 +425,7 @@ export function crearApp(opciones) {
 
     let actualizado = "";
     const cotizaciones = rows.map((fila) => {
-      const tarjeta = aTarjeta(fila, porCotizacion.get(fila.id) || []);
+      const tarjeta = aTarjeta(fila, porCotizacion.get(fila.id) || [], archivosPor.get(fila.id) || []);
       if (tarjeta.movida > actualizado) actualizado = tarjeta.movida;
       return tarjeta;
     });
@@ -436,7 +450,10 @@ export function crearApp(opciones) {
       "select cotizacion_id, orden, tipo, titulo, precio, cantidad, detalles" +
       " from cotizacion_items where cotizacion_id = $1 order by orden", [id]
     );
-    return aTarjeta(rows[0], items.map(aItem));
+    const { rows: arch } = await query(
+      "select id, cotizacion_id, nombre, tipo, tamano from archivos where cotizacion_id = $1 order by creado", [id]
+    );
+    return aTarjeta(rows[0], items.map(aItem), arch);
   }
 
   /* ------------------------------ Manejadores ------------------------------ */
@@ -981,6 +998,83 @@ export function crearApp(opciones) {
     return ok({ id: contexto.params.id }, contexto.cabeceras);
   }
 
+  /* ----------------------- Archivos de una tarjeta ----------------------- */
+  // Logos y referencias, de uso interno. Viajan en JSON como base64 (el tope de una
+  // petición en Netlify es de unos 6 MB), se guardan como bytea y se piden aparte.
+  const ARCHIVO_TIPOS = ["image/png", "image/jpeg", "image/webp", "image/gif", "application/pdf"];
+  const ARCHIVO_MAX = 3 * 1024 * 1024;   // bytes, ya decodificado
+  const ARCHIVOS_POR_TARJETA = 5;
+
+  // Tocar los archivos cambia el sello de la tarjeta: así los demás navegadores la
+  // vuelven a leer en su próximo sondeo (el contador de archivos se actualiza).
+  const sellarMovida = (id, usuario) => query(
+    "update cotizaciones set movida = now(), movida_por = $2 where id = $1", [id, usuario]
+  );
+
+  async function subirArchivo(request, contexto) {
+    const cuerpo = (await leerJson(request)) || {};
+    const tipo = texto(cuerpo.tipo).trim().toLowerCase();
+    const nombre = recortar(texto(cuerpo.nombre).replace(/[\\/]/g, "-"), 120) || "archivo";
+    if (!ARCHIVO_TIPOS.includes(tipo)) {
+      return fallo("Sólo se aceptan imágenes (PNG, JPG, WEBP, GIF) y PDF.", 400, contexto.cabeceras);
+    }
+    const base64 = texto(cuerpo.datos);
+    if (!base64 || !/^[A-Za-z0-9+/]+={0,2}$/.test(base64)) {
+      return fallo("El archivo llegó vacío o dañado.", 400, contexto.cabeceras);
+    }
+    const datos = Buffer.from(base64, "base64");
+    if (!datos.length) return fallo("El archivo llegó vacío.", 400, contexto.cabeceras);
+    if (datos.length > ARCHIVO_MAX) {
+      return fallo("El archivo pesa más de " + ARCHIVO_MAX / 1048576 + " MB.", 413, contexto.cabeceras);
+    }
+    const { rows: tarjeta } = await query(
+      "select id from cotizaciones where id = $1 and borrada_en is null", [contexto.params.id]
+    );
+    if (!tarjeta[0]) return fallo("Esa cotización ya no está en el tablero.", 404, contexto.cabeceras);
+    const { rows: cuenta } = await query(
+      "select count(*) as n from archivos where cotizacion_id = $1", [contexto.params.id]
+    );
+    if (Number((cuenta[0] || {}).n) >= ARCHIVOS_POR_TARJETA) {
+      return fallo("Cada tarjeta admite hasta " + ARCHIVOS_POR_TARJETA + " archivos.", 400, contexto.cabeceras);
+    }
+    await query(
+      "insert into archivos (cotizacion_id, nombre, tipo, tamano, datos, creado_por)" +
+      " values ($1, $2, $3, $4, $5, $6)",
+      [contexto.params.id, nombre, tipo, datos.length, datos, contexto.usuario.nombre]
+    );
+    await sellarMovida(contexto.params.id, contexto.usuario.nombre);
+    return ok({ cotizacion: await leerTarjeta(contexto.params.id) }, contexto.cabeceras);
+  }
+
+  // El contenido del archivo, tal cual. `nosniff` y `attachment` para el PDF: nunca se
+  // interpreta como página; las imágenes se muestran y nada más.
+  async function verArchivo(request, contexto) {
+    const { rows } = await query(
+      "select a.nombre, a.tipo, a.datos from archivos a join cotizaciones c on c.id = a.cotizacion_id" +
+      " where a.id = $1 and c.borrada_en is null", [contexto.params.id]
+    );
+    if (!rows[0]) return fallo("Ese archivo ya no está.", 404, contexto.cabeceras);
+    return new Response(rows[0].datos, {
+      status: 200,
+      headers: {
+        ...contexto.cabeceras,
+        "Content-Type": rows[0].tipo,
+        "Content-Disposition": "inline; filename*=UTF-8''" + encodeURIComponent(rows[0].nombre),
+        "X-Content-Type-Options": "nosniff",
+        "Cache-Control": "private, max-age=3600"
+      }
+    });
+  }
+
+  async function borrarArchivo(request, contexto) {
+    const { rows } = await query(
+      "delete from archivos where id = $1 returning cotizacion_id", [contexto.params.id]
+    );
+    if (!rows[0]) return fallo("Ese archivo ya no está.", 404, contexto.cabeceras);
+    await sellarMovida(rows[0].cotizacion_id, contexto.usuario.nombre);
+    return ok({ cotizacion: await leerTarjeta(rows[0].cotizacion_id) }, contexto.cabeceras);
+  }
+
   // Archivos de impresión (Bambu Lab): necesita la carpeta stl/ (opciones.impresion).
   async function impresion(request, contexto) {
     if (typeof opciones.impresion !== "function") {
@@ -1016,6 +1110,9 @@ export function crearApp(opciones) {
     { metodo: "GET",    patron: /^\/api\/bootstrap$/,                                        fn: bootstrap },
     { metodo: "GET",    patron: /^\/api\/tablero$/,                                          fn: tablero },
     { metodo: "GET",    patron: /^\/api\/folio$/,                                            fn: folio },
+    { metodo: "POST",   patron: /^\/api\/cotizaciones\/([0-9a-fA-F-]{36})\/archivos$/,       fn: subirArchivo },
+    { metodo: "GET",    patron: /^\/api\/archivos\/([0-9a-fA-F-]{36})$/,                    fn: verArchivo },
+    { metodo: "DELETE", patron: /^\/api\/archivos\/([0-9a-fA-F-]{36})$/,                    fn: borrarArchivo },
     { metodo: "POST",   patron: /^\/api\/impresion$/,                                       fn: impresion },
     { metodo: "PUT",    patron: /^\/api\/config$/,                                           fn: guardarConfig },
     { metodo: "POST",   patron: /^\/api\/cotizaciones$/,                                     fn: crearCotizacion },

@@ -167,3 +167,17 @@ commit;
 --   select table_name from information_schema.tables
 --   where table_schema = 'public' order by table_name;
 
+-- Archivos de una tarjeta (logos, referencias): imágenes y PDF, de uso interno. Se guardan
+-- en la propia base (bytea) para no depender de otro servicio; el API pone los límites
+-- (5 por tarjeta, 3 MB cada uno). Se borran junto con la cotización.
+create table if not exists archivos (
+  id            uuid primary key default gen_random_uuid(),
+  cotizacion_id uuid not null references cotizaciones(id) on delete cascade,
+  nombre        text not null,
+  tipo          text not null,                     -- tipo MIME: image/png, image/jpeg, application/pdf…
+  tamano        integer not null,                  -- bytes
+  datos         bytea not null,
+  creado        timestamptz not null default now(),
+  creado_por    text
+);
+create index if not exists archivos_cotizacion_idx on archivos (cotizacion_id);

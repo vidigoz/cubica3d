@@ -450,6 +450,10 @@
                   'title="Ensamble: qu\u00e9 base, qu\u00e9 tecla y qu\u00e9 color de letra lleva cada ' +
                   'letra del nombre" aria-label="Ver el ensamble, letra por letra">Ensamble</button>'
               : '') +
+            '<button class="btn-po" type="button" data-archivos ' +
+              'title="Archivos de la tarjeta: logos y referencias (m\u00e1x. 5)" ' +
+              'aria-label="Archivos de la tarjeta">\ud83d\udcce' +
+              ((t.archivos || []).length ? ' ' + t.archivos.length : '') + '</button>' +
             (imprimible(t, po)
               ? '<button class="btn-po" type="button" data-imprimir ' +
                   'title="Impresi\u00f3n 3D: archivos para la Bambu Lab, m\u00e1ximo 3 colores por plataforma" ' +
@@ -711,6 +715,180 @@
     }).catch(function (error) {
       window.App.toast(error.message || 'No se pudo crear la impresi\u00f3n.', 'error');
     });
+  }
+
+  /* ----------------------- Archivos de la tarjeta ----------------------- */
+
+  var ARCHIVOS_MAX = 5;
+  var ARCHIVO_BYTES = 3 * 1024 * 1024;
+  var TIPOS_ARCHIVO = ['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'application/pdf'];
+  var urlsArchivos = [];   // blobs de la ventana abierta: se sueltan al cerrar
+
+  function pesoTexto(bytes) {
+    return bytes >= 1048576 ? (bytes / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(bytes / 1024)) + ' KB';
+  }
+
+  function soltarUrls() {
+    urlsArchivos.forEach(function (u) { URL.revokeObjectURL(u); });
+    urlsArchivos = [];
+  }
+
+  // Una imagen pesada se reduce (m\u00e1x. 2000 px) antes de subirla; el PNG sigue siendo PNG
+  // (conserva el fondo transparente de los logos) y el resto se manda como JPG.
+  function prepararArchivo(archivo) {
+    return new Promise(function (resolver, rechazar) {
+      var tipo = archivo.type;
+      if (TIPOS_ARCHIVO.indexOf(tipo) < 0) { rechazar(new Error(archivo.name + ': s\u00f3lo im\u00e1genes (PNG, JPG, WEBP, GIF) y PDF.')); return; }
+      var esImagen = tipo.indexOf('image/') === 0 && tipo !== 'image/gif';
+      if (!esImagen || archivo.size <= 1.5 * 1048576) { resolver({ blob: archivo, tipo: tipo }); return; }
+      var img = new Image();
+      var url = URL.createObjectURL(archivo);
+      img.onload = function () {
+        URL.revokeObjectURL(url);
+        var escala = Math.min(1, 2000 / Math.max(img.width, img.height));
+        var c = document.createElement('canvas');
+        c.width = Math.round(img.width * escala);
+        c.height = Math.round(img.height * escala);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        var salida = tipo === 'image/png' ? 'image/png' : 'image/jpeg';
+        c.toBlob(function (b) {
+          if (b && b.size > ARCHIVO_BYTES && salida === 'image/png') {
+            c.toBlob(function (j) { resolver({ blob: j || archivo, tipo: 'image/jpeg' }); }, 'image/jpeg', 0.85);
+          } else resolver({ blob: b || archivo, tipo: salida });
+        }, salida, 0.88);
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); rechazar(new Error(archivo.name + ': no se pudo leer la imagen.')); };
+      img.src = url;
+    });
+  }
+
+  function aBase64(blob) {
+    return new Promise(function (resolver, rechazar) {
+      var lector = new FileReader();
+      lector.onload = function () { resolver(String(lector.result).split(',')[1] || ''); };
+      lector.onerror = function () { rechazar(new Error('No se pudo leer el archivo.')); };
+      lector.readAsDataURL(blob);
+    });
+  }
+
+  function archivosHtml(t) {
+    var lista = t.archivos || [];
+    return (lista.length ? '<div class="archivos">' + lista.map(function (a) {
+      return '<div class="archivos__item" data-archivo="' + Utils.escapeHtml(a.id) + '">' +
+        '<button class="archivos__mini" type="button" data-abrir-archivo title="Abrir">' +
+          (a.tipo === 'application/pdf' ? '<span class="archivos__pdf">PDF</span>' : '<img alt="" data-miniatura>') +
+        '</button>' +
+        '<span class="archivos__nombre" title="' + Utils.escapeHtml(a.nombre) + '">' + Utils.escapeHtml(a.nombre) + '</span>' +
+        '<span class="archivos__peso">' + pesoTexto(a.tamano) + '</span>' +
+        '<button class="icon-btn icon-btn--mini" type="button" data-bajar-archivo title="Descargar el archivo" aria-label="Descargar el archivo">\u2b07</button>' +
+        '<button class="icon-btn icon-btn--mini icon-btn--mini-danger" type="button" data-quitar-archivo title="Quitar el archivo" aria-label="Quitar el archivo">\u2715</button>' +
+      '</div>';
+    }).join('') + '</div>' : '<p class="ensamble__nota">Esta tarjeta todav\u00eda no tiene archivos.</p>');
+  }
+
+  function abrirArchivos(id) {
+    var t = Proceso.getTarjeta(id);
+    if (!t || typeof document.createElement('dialog').showModal !== 'function') return;
+    cerrarEnsamble();
+    soltarUrls();
+
+    var dlg = document.createElement('dialog');
+    dlg.className = 'ensamble';
+    dlg.innerHTML = '' +
+      '<header class="ensamble__head"><div><h2 class="ensamble__title">Archivos</h2>' +
+        '<p class="ensamble__meta">' + Utils.escapeHtml(PDF.folioTexto(t.folio)) + ' \u00b7 ' +
+        Utils.escapeHtml(t.cliente || 'Sin cliente') + ' \u00b7 uso interno</p></div>' +
+        '<button class="icon-btn ensamble__cerrar" type="button" data-cerrar title="Cerrar" aria-label="Cerrar">\u2715</button></header>' +
+      '<div class="ensamble__lienzo"><div data-lista></div>' +
+        '<p class="ensamble__nota" data-estado></p></div>' +
+      '<footer class="ensamble__pie">' +
+        '<label class="btn" data-subir-rotulo>Subir archivos<input type="file" data-subir hidden multiple ' +
+          'accept="image/png,image/jpeg,image/webp,image/gif,application/pdf"></label>' +
+        '<button class="btn" type="button" data-cerrar>Cerrar</button></footer>';
+
+    var estado = dlg.querySelector('[data-estado]');
+    function pintar() {
+      var actual = Proceso.getTarjeta(id) || t;
+      dlg.querySelector('[data-lista]').innerHTML = archivosHtml(actual);
+      (actual.archivos || []).forEach(function (a) {
+        var el = dlg.querySelector('[data-archivo="' + a.id + '"] [data-miniatura]');
+        if (!el) return;
+        window.Api.archivoBlob(a.id).then(function (b) {
+          var u = URL.createObjectURL(b);
+          urlsArchivos.push(u);
+          el.src = u;
+        }, function () { /* sin miniatura */ });
+      });
+    }
+    function avisar(m) { estado.textContent = m || ''; }
+
+    dlg.addEventListener('click', function (e) {
+      if (e.target.closest('[data-cerrar]') || e.target === dlg) { cerrarEnsamble(); return; }
+      var fila = e.target.closest('[data-archivo]');
+      if (!fila) return;
+      var archivoId = fila.getAttribute('data-archivo');
+      if (e.target.closest('[data-abrir-archivo]')) {
+        window.Api.archivoBlob(archivoId).then(function (b) {
+          var u = URL.createObjectURL(b);
+          urlsArchivos.push(u);
+          window.open(u, '_blank');
+        }, function (err) { avisar(err.message); });
+        return;
+      }
+      if (e.target.closest('[data-bajar-archivo]')) {
+        var meta = ((Proceso.getTarjeta(id) || t).archivos || []).filter(function (a) { return a.id === archivoId; })[0];
+        window.Api.archivoBlob(archivoId).then(function (b) {
+          var u = URL.createObjectURL(b);
+          var a = document.createElement('a');
+          a.href = u;
+          a.download = meta ? meta.nombre : 'archivo';
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          setTimeout(function () { URL.revokeObjectURL(u); }, 2000);
+        }, function (err) { avisar(err.message); });
+        return;
+      }
+      if (e.target.closest('[data-quitar-archivo]')) {
+        if (!window.confirm('\u00bfQuitar este archivo de la tarjeta?')) return;
+        window.Api.borrarArchivo(archivoId).then(function () {
+          return Proceso.recargar();
+        }).then(function () { pintar(); avisar(''); }, function (err) { avisar(err.message); });
+      }
+    });
+
+    dlg.querySelector('[data-subir]').addEventListener('change', function (e) {
+      var campo = e.target;
+      var archivos = Array.prototype.slice.call(campo.files || []);
+      campo.value = '';
+      if (!archivos.length) return;
+      var actual = Proceso.getTarjeta(id) || t;
+      var lugar = ARCHIVOS_MAX - (actual.archivos || []).length;
+      if (lugar <= 0) { avisar('Cada tarjeta admite hasta ' + ARCHIVOS_MAX + ' archivos.'); return; }
+      var aSubir = archivos.slice(0, lugar);
+      var cortados = archivos.length - aSubir.length;
+      avisar('Subiendo\u2026');
+      aSubir.reduce(function (cadena, archivo) {
+        return cadena.then(function () {
+          return prepararArchivo(archivo).then(function (p) {
+            if (p.blob.size > ARCHIVO_BYTES) throw new Error(archivo.name + ' pesa m\u00e1s de ' + pesoTexto(ARCHIVO_BYTES) + '.');
+            return aBase64(p.blob).then(function (datos) {
+              return window.Api.subirArchivo(id, { nombre: archivo.name, tipo: p.tipo, datos: datos });
+            });
+          });
+        });
+      }, Promise.resolve()).then(function () {
+        avisar(cortados ? 'Se subieron ' + aSubir.length + '; el resto no cabe (m\u00e1x. ' + ARCHIVOS_MAX + ').' : '');
+      }, function (err) { avisar(err.message); }).then(function () {
+        return Proceso.recargar();
+      }).then(pintar);
+    });
+    dlg.addEventListener('close', function () { cerrarEnsamble(); soltarUrls(); });
+
+    document.body.appendChild(dlg);
+    pintar();
+    dlg.showModal();
+    ensambleEl = dlg;
   }
 
   /* ---------------------------- Pintado ---------------------------- */
@@ -1144,6 +1322,8 @@
         });
         return;
       }
+
+      if (e.target.closest('[data-archivos]')) { abrirArchivos(id); return; }
 
       if (e.target.closest('[data-imprimir]')) {
         var imp = Proceso.getTarjeta(id);

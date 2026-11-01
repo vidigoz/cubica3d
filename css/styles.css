@@ -1844,3 +1844,15 @@ body.con-pin { overflow: hidden; }
 @media (hover: hover) {
   .kanban__col--ordenada .tarjeta { cursor: default; }
 }
+
+/* Archivos de una tarjeta (logos y referencias): lista con miniatura. */
+.archivos { display: flex; flex-direction: column; gap: 8px; }
+.archivos__item { display: grid; grid-template-columns: 56px minmax(0, 1fr) auto auto auto; align-items: center; gap: 10px; }
+.archivos__mini {
+  width: 56px; height: 56px; padding: 0; overflow: hidden; cursor: pointer;
+  border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-2);
+}
+.archivos__mini img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.archivos__pdf { font-weight: 800; font-size: .8rem; color: #b91c1c; }
+.archivos__nombre { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.archivos__peso { font-size: .76rem; color: var(--muted); white-space: nowrap; }
