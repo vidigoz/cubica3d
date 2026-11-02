@@ -631,6 +631,38 @@
     return true;
   }
 
+  // Guarda las notas de la tarjeta (texto libre, con instrucciones o enlaces). Mismo
+  // tope que el servidor (NOTAS_MAX). Devuelve true si cambió algo.
+  var NOTAS_MAX = 2000;
+  function cambiarNotas(id, notas) {
+    var i = indiceDe(id);
+    if (i < 0) return false;
+    notas = String(notas == null ? '' : notas).trim().slice(0, NOTAS_MAX);
+    if (tarjetas[i].notas === notas) return false;
+
+    var respaldo = clone(tarjetas);
+    tarjetas[i].notas = notas;
+    tarjetas[i].movida = ahoraISO();
+    notify();
+
+    enVuelo++;
+    window.Api.cambiarNotas(id, notas).then(function (datos) {
+      if (datos && datos.cotizacion) {
+        var j = indiceDe(id);
+        if (j >= 0) tarjetas[j] = sanearTarjeta(datos.cotizacion);
+      }
+      terminar();
+    }, function (error) {
+      tarjetas = respaldo;
+      notify();
+      terminar();
+      window.App.toast('No se pudieron guardar las notas: ' + error.message, 'error');
+      recargar();
+    });
+
+    return true;
+  }
+
   // Quita una tarjeta del tablero. El servidor la marca como borrada (borrado
   // suave): sale de la vista pero la historia y la bitácora quedan en la base.
   function remove(id) {
@@ -686,6 +718,7 @@
     cambiarPagado: cambiarPagado,
     cambiarFechaPago: cambiarFechaPago,
     cambiarCliente: cambiarCliente,
+    cambiarNotas: cambiarNotas,
     cambiarListas: cambiarListas,
     remove: remove,
     subscribe: subscribe

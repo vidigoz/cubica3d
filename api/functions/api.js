@@ -88,7 +88,7 @@ const DIAS_SESION = 30;
 const INTENTOS_MAX = 10;                                   // por correo...
 const INTENTOS_VENTANA_MS = 15 * 60 * 1000;                // ...cada 15 minutos
 const SCRYPT = { N: 16384, r: 8, p: 1, largo: 64, sal: 16 };
-const LIMITE = { cliente: 120, notas: 600, titulo: 120, tipo: 40, descuentoNota: 200 };
+const LIMITE = { cliente: 120, notas: 2000, titulo: 120, tipo: 40, descuentoNota: 200 };
 // Cada tarjeta guarda su lugar dentro de la columna con un número (`posicion`, ver
 // db/schema.sql). Se separan de a mil y el hueco se parte al medio entre las vecinas: así
 // reordenar NUNCA renumera la columna entera, sólo mueve una tarjeta de número.
@@ -869,6 +869,7 @@ export function crearApp(opciones) {
     const pidePagado = Object.prototype.hasOwnProperty.call(cuerpo, "pagado");
     const pideFecha = Object.prototype.hasOwnProperty.call(cuerpo, "fechaPago");
     const pideCliente = Object.prototype.hasOwnProperty.call(cuerpo, "cliente");
+    const pideNotas = Object.prototype.hasOwnProperty.call(cuerpo, "notas");
     const pideBases = Object.prototype.hasOwnProperty.call(cuerpo, "basesListas");
     const pideTeclas = Object.prototype.hasOwnProperty.call(cuerpo, "teclasListas");
     const posicion = pidePosicion ? posicionValida(cuerpo.posicion) : null;
@@ -881,7 +882,7 @@ export function crearApp(opciones) {
     if (pideFecha && !fechaValida(cuerpo.fechaPago)) {
       return fallo("«fechaPago» tiene que ser una fecha AAAA-MM-DD.", 400, contexto.cabeceras);
     }
-    if (!pideColumna && !pidePosicion && !pidePagado && !pideFecha && !pideCliente && !pideBases && !pideTeclas) {
+    if (!pideColumna && !pidePosicion && !pidePagado && !pideFecha && !pideCliente && !pideNotas && !pideBases && !pideTeclas) {
       return fallo("No hay nada que cambiar.", 400, contexto.cabeceras);
     }
     if (pidePagado && typeof cuerpo.pagado !== "boolean") {
@@ -889,6 +890,9 @@ export function crearApp(opciones) {
     }
     if (pideCliente && typeof cuerpo.cliente !== "string") {
       return fallo("«cliente» tiene que ser texto.", 400, contexto.cabeceras);
+    }
+    if (pideNotas && typeof cuerpo.notas !== "string") {
+      return fallo("«notas» tiene que ser texto.", 400, contexto.cabeceras);
     }
     if (pideBases && typeof cuerpo.basesListas !== "boolean") {
       return fallo("«basesListas» tiene que ser true o false.", 400, contexto.cabeceras);
@@ -898,7 +902,7 @@ export function crearApp(opciones) {
     }
 
     const { rows } = await query(
-      "select columna, posicion, pagado, cliente, bases_listas, teclas_listas," +
+      "select columna, posicion, pagado, cliente, notas, bases_listas, teclas_listas," +
       " to_char(fecha_pago, 'YYYY-MM-DD') as fecha_pago" +
       " from cotizaciones where id = $1 and borrada_en is null",
       [contexto.params.id]
@@ -910,6 +914,9 @@ export function crearApp(opciones) {
     // sobra y con tope de largo). Si no viene en el cuerpo, se deja el que ya estaba.
     const cliente = pideCliente ? recortar(cuerpo.cliente, LIMITE.cliente) : actual.cliente;
     const renombra = pideCliente && cliente !== actual.cliente;
+
+    const notas = pideNotas ? recortar(cuerpo.notas, LIMITE.notas) : actual.notas;
+    const cambiaNotas = pideNotas && notas !== actual.notas;
 
     const mueve = pideColumna && actual.columna !== columna;
     const reordena = pidePosicion && posicion !== Number(actual.posicion);
@@ -927,7 +934,7 @@ export function crearApp(opciones) {
     // El día del pago: al tildar toma el que mande el navegador (o hoy, hora de México);
     // al destildar se borra; una cotización que llega a pagada sin fecha también la toma.
     const cambiaFecha = pagado && (pideFecha ? cuerpo.fechaPago !== actual.fecha_pago : !actual.fecha_pago);
-    if (!mueve && !reordena && !tilda && !renombra && !tildaLotes && !cambiaFecha) {
+    if (!mueve && !reordena && !tilda && !renombra && !tildaLotes && !cambiaFecha && !cambiaNotas) {
       return ok({ cotizacion: await leerTarjeta(contexto.params.id), sinCambios: true }, contexto.cabeceras);
     }
 
@@ -969,6 +976,9 @@ export function crearApp(opciones) {
         " movida = now(), movida_por = $6 where id = $1",
         [contexto.params.id, pagado, cliente, basesListas, teclasListas, contexto.usuario.nombre]
       );
+    }
+    if (cambiaNotas) {
+      await query("update cotizaciones set notas = $2 where id = $1", [contexto.params.id, notas]);
     }
     if (tilda || cambiaFecha) {
       await query(

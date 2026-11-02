@@ -235,6 +235,33 @@
       '</label>';
   }
 
+  // Iconos de los botones de la tarjeta: trazos de línea que toman el color del botón
+  // (currentColor); el relleno suave marca el detalle de cada dibujo.
+  var ICONOS = {
+    ensamble: '<path d="M9 4h3.5a1.5 1.5 0 0 1 3 0H19v4.5a1.5 1.5 0 0 0 0 3V16h-4.5a1.5 1.5 0 0 0-3 0H9v-4.5a1.5 1.5 0 0 1 0-3z"/>',
+    notas: '<rect x="4" y="5" width="13" height="15" rx="2"/><path d="M8 3v4M13 3v4M7.5 11h6M7.5 15h3"/><path d="M19.5 10.5l-6 6-2.5.7.7-2.5 6-6z" fill="currentColor" fill-opacity=".2"/>',
+    archivos: '<path d="M15.5 7.5l-6.8 6.8a2.1 2.1 0 0 0 3 3l7-7a4 4 0 0 0-5.7-5.7L5.9 11.8a6 6 0 0 0 8.5 8.5l5.1-5.1"/>',
+    imprimir: '<path d="M4 7V4.5h16V7M4 7v13M20 7v13M4 20h16"/><rect x="9.5" y="3" width="5" height="3.5" rx="1" fill="currentColor" fill-opacity=".2"/><path d="M12 9v2"/><path d="M12 12.5l3 1.7v3.4l-3 1.7-3-1.7v-3.4z" fill="currentColor" fill-opacity=".2"/><path d="M9 14.2l3 1.7 3-1.7M12 15.9v3.4"/>',
+    po: '<rect x="5" y="5" width="14" height="16" rx="2"/><path d="M9 5V3.5h6V5M9.5 11l1.5 1.5 2.5-3M9.5 17h.01M13.5 12h3M13.5 17h3"/><rect x="8.5" y="15.5" width="2.5" height="2.5" rx=".5" fill="currentColor" fill-opacity=".2"/>',
+    editar: '<path d="M16.5 3.8l3.7 3.7L8 19.7l-4.5 1 1-4.5z"/><path d="M14 6.3l3.7 3.7M3.5 20.7l3.2-3.2" /><path d="M4.5 16.2l3.3 3.3-4.3 1.2z" fill="currentColor" fill-opacity=".25"/>',
+    ver: '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3.2" fill="currentColor" fill-opacity=".2"/><circle cx="12" cy="12" r="1" fill="currentColor"/>',
+    quitar: '<path d="M4 7h16M9.5 7V4.5h5V7M6 7l1 13h10l1-13M10 11v6M14 11v6"/>'
+  };
+  function icono(nombre) {
+    return '<svg class="icono" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" ' +
+      'stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + ICONOS[nombre] + '</svg>';
+  }
+
+  // Texto de las notas con los enlaces (http/https) clicables: se escapa TODO primero y
+  // solo después se envuelven las direcciones, así nada del texto se interpreta como HTML.
+  function notasHtml(texto) {
+    return Utils.escapeHtml(texto).replace(/https?:\/\/[^\s<]+/g, function (u) {
+      var cola = (u.match(/[.,;:!?)\]]+$/) || [''])[0];
+      var url = cola ? u.slice(0, -cola.length) : u;
+      return '<a href="' + url + '" target="_blank" rel="noopener noreferrer">' + url + '</a>' + cola;
+    });
+  }
+
   function loteGrupoTemplate(titulo, filas, nota, listas) {
     if (!filas.length) return '';
     return '' +
@@ -448,32 +475,35 @@
             (recetas.length
               ? '<button class="btn-ensamble" type="button" data-ensamble ' +
                   'title="Ensamble: qu\u00e9 base, qu\u00e9 tecla y qu\u00e9 color de letra lleva cada ' +
-                  'letra del nombre" aria-label="Ver el ensamble, letra por letra">Ensamble</button>'
+                  'letra del nombre" aria-label="Ver el ensamble, letra por letra">' + icono('ensamble') + '</button>'
               : '') +
+            '<button class="btn-po" type="button" data-notas ' +
+              'title="Notas de la tarjeta: instrucciones y enlaces (Drive, etc.)" ' +
+              'aria-label="Notas de la tarjeta">' + icono('notas') + (t.notas ? '<span class="btn-po__marca"></span>' : '') + '</button>' +
             '<button class="btn-po" type="button" data-archivos ' +
               'title="Archivos de la tarjeta: logos y referencias (m\u00e1x. 5)" ' +
-              'aria-label="Archivos de la tarjeta">\ud83d\udcce' +
-              ((t.archivos || []).length ? ' ' + t.archivos.length : '') + '</button>' +
+              'aria-label="Archivos de la tarjeta">' + icono('archivos') +
+              ((t.archivos || []).length ? '<span class="btn-po__cuenta">' + t.archivos.length + '</span>' : '') + '</button>' +
             (imprimible(t, po)
               ? '<button class="btn-po" type="button" data-imprimir ' +
                   'title="Impresi\u00f3n 3D: archivos para la Bambu Lab, m\u00e1ximo 3 colores por plataforma" ' +
-                  'aria-label="Crear los archivos de impresi\u00f3n 3D">Imprimir 3D</button>'
+                  'aria-label="Crear los archivos de impresi\u00f3n 3D">' + icono('imprimir') + '</button>'
               : '') +
             (po
               ? '<button class="btn-po" type="button" data-po ' +
                   'title="Orden de producci\u00f3n: qu\u00e9 fabricar, agrupado por color y por ' +
-                  'orden de colores" aria-label="Ver la orden de producci\u00f3n">PO</button>'
+                  'orden de colores" aria-label="Ver la orden de producci\u00f3n">' + icono('po') + '</button>'
               : '') +
             '<button class="btn-ver" type="button" data-editar ' +
               'title="Editar la cotizaci\u00f3n: agregar o quitar productos, corregir datos" ' +
               'aria-label="Editar la cotizaci\u00f3n">' +
-              '<span aria-hidden="true">\u270f\ufe0f</span>Editar</button>' +
+              icono('editar') + '</button>' +
             '<button class="btn-ver" type="button" data-ver ' +
               'title="Ver la cotizaci\u00f3n completa, sin descargar nada" ' +
               'aria-label="Ver la cotizaci\u00f3n completa">' +
-              '<span aria-hidden="true">\ud83d\udc41</span>Ver</button>' +
+              icono('ver') + '</button>' +
             '<button class="icon-btn icon-btn--mini icon-btn--mini-danger" type="button" data-quitar ' +
-              'title="Quitar del tablero" aria-label="Quitar del tablero">\u2715</button>' +
+              'title="Quitar del tablero" aria-label="Quitar del tablero">' + icono('quitar') + '</button>' +
           '</span>' +
         '</div>' +
         '<details class="tarjeta__detalle"' + (abiertas[t.id] ? ' open' : '') + '>' +
@@ -481,7 +511,7 @@
           '<ul class="t-lineas">' + lineasTemplate(t.items) + '</ul>' +
           lotesTemplate(po, t) +
           (t.notas
-            ? '<p class="tarjeta__notas"><b>Notas:</b> ' + Utils.escapeHtml(t.notas) + '</p>'
+            ? '<p class="tarjeta__notas"><b>Notas:</b> ' + notasHtml(t.notas) + '</p>'
             : '') +
           '<p class="tarjeta__pie">Enviada el ' + Utils.escapeHtml(fechaHora(t.creada)) +
             (t.movida !== t.creada
@@ -887,6 +917,58 @@
 
     document.body.appendChild(dlg);
     pintar();
+    dlg.showModal();
+    ensambleEl = dlg;
+  }
+
+  function abrirNotas(id) {
+    var t = Proceso.getTarjeta(id);
+    if (!t || typeof document.createElement('dialog').showModal !== 'function') return;
+    cerrarEnsamble();
+
+    var dlg = document.createElement('dialog');
+    dlg.className = 'ensamble';
+    dlg.innerHTML = '' +
+      '<header class="ensamble__head"><div><h2 class="ensamble__title">Notas</h2>' +
+        '<p class="ensamble__meta">' + Utils.escapeHtml(PDF.folioTexto(t.folio)) + ' \u00b7 ' +
+        Utils.escapeHtml(t.cliente || 'Sin cliente') + '</p></div>' +
+        '<button class="icon-btn ensamble__cerrar" type="button" data-cerrar title="Cerrar" aria-label="Cerrar">\u2715</button></header>' +
+      '<div class="ensamble__lienzo">' +
+        '<textarea class="field__input notas__campo" data-texto rows="8" maxlength="2000" ' +
+          'placeholder="Instrucciones, o enlaces a Drive u otro servicio con los archivos para compartir\u2026"></textarea>' +
+        '<div class="notas__enlaces" data-enlaces></div>' +
+      '</div>' +
+      '<footer class="ensamble__pie">' +
+        '<button class="btn btn--primary" type="button" data-guardar>Guardar</button>' +
+        '<button class="btn" type="button" data-cerrar>Cerrar</button></footer>';
+
+    var campo = dlg.querySelector('[data-texto]');
+    var enlaces = dlg.querySelector('[data-enlaces]');
+    campo.value = t.notas || '';
+    function pintarEnlaces() {
+      var urls = campo.value.match(/https?:\/\/[^\s<]+/g) || [];
+      enlaces.innerHTML = urls.length
+        ? '<p class="ensamble__nota">Enlaces:</p>' + urls.map(function (u) {
+            u = u.replace(/[.,;:!?)\]]+$/, '');
+            return '<p><a href="' + Utils.escapeHtml(u) + '" target="_blank" rel="noopener noreferrer">' +
+              Utils.escapeHtml(u) + '</a></p>';
+          }).join('')
+        : '';
+    }
+    campo.addEventListener('input', pintarEnlaces);
+    pintarEnlaces();
+
+    dlg.addEventListener('click', function (e) {
+      if (e.target.closest('[data-guardar]')) {
+        Proceso.cambiarNotas(id, campo.value);
+        cerrarEnsamble();
+        return;
+      }
+      if (e.target.closest('[data-cerrar]') || e.target === dlg) cerrarEnsamble();
+    });
+    dlg.addEventListener('close', function () { cerrarEnsamble(); });
+
+    document.body.appendChild(dlg);
     dlg.showModal();
     ensambleEl = dlg;
   }
@@ -1323,6 +1405,7 @@
         return;
       }
 
+      if (e.target.closest('[data-notas]')) { abrirNotas(id); return; }
       if (e.target.closest('[data-archivos]')) { abrirArchivos(id); return; }
 
       if (e.target.closest('[data-imprimir]')) {

@@ -265,6 +265,11 @@
     return pedir('PATCH', '/cotizaciones/' + encodeURIComponent(id), { cliente: cliente });
   }
 
+  // Cambia las notas de una tarjeta ya enviada (instrucciones, enlaces a Drive...).
+  function cambiarNotas(id, notas) {
+    return pedir('PATCH', '/cotizaciones/' + encodeURIComponent(id), { notas: notas });
+  }
+
   // Tilda o destilda lo que el taller ya hizo de una tarjeta: las bases del clicker
   // (`basesListas`) y las teclas con su letra (`teclasListas`). Va por el mismo PATCH
   // suelto que el tilde del pago —no mueve la tarjeta de columna ni gasta bitácora— y
@@ -301,6 +306,7 @@
     cambiarPagado: cambiarPagado,
     cambiarFechaPago: cambiarFechaPago,
     cambiarCliente: cambiarCliente,
+    cambiarNotas: cambiarNotas,
     cambiarListas: cambiarListas,
     generarImpresion: generarImpresion,
     subirArchivo: subirArchivo,

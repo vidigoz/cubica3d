@@ -701,17 +701,16 @@ body.arrastrando {
 .btn-ver {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  height: 26px;
-  padding: 0 9px;
+  justify-content: center;
+  min-width: 30px;
+  height: 28px;
+  padding: 0 7px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface-2);
   color: var(--text);
   font: inherit;
-  font-size: .72rem;
-  font-weight: 700;
-  letter-spacing: .02em;
+  font-size: .95rem;
   touch-action: manipulation;
   transition: all .15s ease;
 }
@@ -725,20 +724,24 @@ body.arrastrando {
 .btn-po {
   display: inline-flex;
   align-items: center;
-  height: 26px;
-  padding: 0 9px;
-  border: 1px solid var(--primary-dark);
+  justify-content: center;
+  min-width: 30px;
+  height: 28px;
+  padding: 0 7px;
+  border: 1px solid var(--border);
   border-radius: 8px;
-  background: var(--primary-dark);
-  color: #fff;
+  background: var(--surface-2);
+  color: var(--text);
   font: inherit;
-  font-size: .72rem;
-  font-weight: 800;
-  letter-spacing: .04em;
+  font-size: .95rem;
   touch-action: manipulation;
   transition: all .15s ease;
 }
-.btn-po:hover { background: var(--primary); border-color: var(--primary); }
+.btn-po:hover {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  color: var(--primary);
+}
 
 /* Botón «Ensamble»: la receta de armado, letra por letra. Sólo aparece en las
    tarjetas de «Realizado» (ver tarjetaTemplate), de ahí el verde que ya usa esa
@@ -746,16 +749,16 @@ body.arrastrando {
 .btn-ensamble {
   display: inline-flex;
   align-items: center;
-  height: 26px;
-  padding: 0 9px;
+  justify-content: center;
+  min-width: 30px;
+  height: 28px;
+  padding: 0 7px;
   border: 1px solid #15803d;
   border-radius: 8px;
   background: #15803d;
   color: #fff;
   font: inherit;
-  font-size: .72rem;
-  font-weight: 800;
-  letter-spacing: .04em;
+  font-size: .95rem;
   touch-action: manipulation;
   transition: all .15s ease;
 }
@@ -1346,9 +1349,9 @@ label.t-lotes__sec { cursor: pointer; }
 @media (hover: none) {
   .icon-btn--mini { width: 40px; height: 40px; font-size: 1rem; }
   .btn-mover { min-height: 44px; font-size: .84rem; }
-  .btn-ver { height: 40px; padding: 0 12px; font-size: .8rem; }
-  .btn-po { height: 40px; padding: 0 14px; font-size: .8rem; }
-  .btn-ensamble { height: 40px; padding: 0 14px; font-size: .8rem; }
+  .btn-ver { height: 40px; min-width: 40px; padding: 0 10px; font-size: 1.1rem; }
+  .btn-po { height: 40px; min-width: 40px; padding: 0 10px; font-size: 1.1rem; }
+  .btn-ensamble { height: 40px; min-width: 40px; padding: 0 10px; font-size: 1.1rem; }
   .tarjeta__pagado { min-height: 36px; font-size: .84rem; }
   .tarjeta__pagado input { width: 20px; height: 20px; }
   /* Las casillas del desglose también: el rótulo entero es la casilla y crece para
@@ -1870,3 +1873,16 @@ body.con-pin { overflow: hidden; }
 .herramienta__nombre { font-weight: 700; font-size: 1.05rem; }
 .herramienta__detalle { font-size: .85rem; opacity: .7; }
 .herramienta__ir { font-size: 1.2rem; opacity: .5; }
+
+/* Notas de la tarjeta */
+.notas__campo { width: 100%; resize: vertical; }
+.notas__enlaces { margin-top: 10px; word-break: break-all; }
+.tarjeta__notas { white-space: pre-wrap; word-break: break-word; }
+.tarjeta__iconos .icon-btn--mini { width: 30px; height: 28px; }
+.btn-po, .btn-ver, .btn-ensamble { position: relative; gap: 3px; }
+.btn-po .icono, .btn-ver .icono, .btn-ensamble .icono, .tarjeta__iconos .icon-btn--mini .icono { display: block; flex: none; }
+.btn-po__cuenta { font-size: .7rem; font-weight: 800; line-height: 1; }
+.btn-po__marca { position: absolute; top: 2px; right: 2px; width: 7px; height: 7px; border-radius: 50%; background: var(--primary); }
+@media (hover: none) {
+  .btn-po .icono, .btn-ver .icono, .btn-ensamble .icono, .tarjeta__iconos .icon-btn--mini .icono { width: 22px; height: 22px; }
+}
