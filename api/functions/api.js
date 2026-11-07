@@ -81,7 +81,7 @@ import { generar } from "../tools/impresion.js";
 import { Pool } from "pg";
 import { randomBytes, scrypt, timingSafeEqual, createHash } from "node:crypto";
 
-const COLUMNAS = ["cotizacion", "confirmado", "trabajo", "realizado", "entregado"];   // las cinco del Kanban
+const COLUMNAS = ["cotizacion", "confirmado", "trabajo", "fabricado", "realizado", "entregado"];   // las seis del Kanban
 const TIPO_MANUAL = "Cotización manual";   // igual que PO.TIPO_MANUAL, en js/po.js
 const COLUMNA_ENTREGADO = "entregado";   // al entrar acá el pago se tilda solo (ver PATCH)
 const DIAS_SESION = 30;

@@ -19,6 +19,7 @@
   --columna-cotizacion: #2563eb;   /* Azul */
   --columna-confirmado: #0891b2;   /* Turquesa */
   --columna-trabajo: #eab308;      /* Amarilla */
+  --columna-fabricado: #ea580c;    /* Naranja */
   --columna-realizado: #7c3aed;    /* Morada */
   --columna-entregado: #15803d;    /* Verde */
   --radius: 14px;
@@ -470,7 +471,7 @@ button { font-family: inherit; cursor: pointer; }
 /* ---------- Proceso: tablero kanban (#/proceso) ---------- */
 .kanban {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: clamp(12px, 1.2vw, 20px);
   align-items: start;
 }
@@ -524,6 +525,7 @@ button { font-family: inherit; cursor: pointer; }
 .tarjeta--cotizacion { --tc: var(--columna-cotizacion); }
 .tarjeta--confirmado { --tc: var(--columna-confirmado); }
 .tarjeta--trabajo { --tc: var(--columna-trabajo); }
+.tarjeta--fabricado { --tc: var(--columna-fabricado); }
 .tarjeta--realizado { --tc: var(--columna-realizado); }
 .tarjeta--entregado { --tc: var(--columna-entregado); }
 
@@ -1292,8 +1294,8 @@ label.t-lotes__sec { cursor: pointer; }
 }
 
 /* ---------- Responsive ---------- */
-@media (max-width: 1240px) {
-  /* Laptop o ventana angosta: cinco columnas quedarían de menos de 220px y los
+@media (max-width: 1500px) {
+  /* Laptop o ventana angosta: seis columnas quedarían de menos de 220px y los
      botones se apilan, así que el tablero pasa a tres por fila. */
   .kanban { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
@@ -1314,7 +1316,7 @@ label.t-lotes__sec { cursor: pointer; }
 
   .kanban__tabs {
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(6, minmax(0, 1fr));
     gap: 4px;
     padding: 6px;
     border: 1px solid var(--border);

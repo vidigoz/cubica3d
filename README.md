@@ -188,8 +188,8 @@ El resto de la app no sabe nada del diseño: sólo llama a `window.PDF.documento
 
 ## Proceso (`#/proceso`)
 
-Tablero **Kanban** con cinco columnas, que son el flujo de trabajo: **Cotización → Confirmado →
-Trabajo → Realizado → Entregado**. Una cotización nueva entra a **Cotización**; **Confirmado** es
+Tablero **Kanban** con seis columnas, que son el flujo de trabajo: **Cotización → Confirmado →
+Trabajo → Fabricado → Realizado → Entregado** (**Fabricado** = ya impresa pero sin armar). Una cotización nueva entra a **Cotización**; **Confirmado** es
 la venta que el cliente ya aceptó, antes de pasarla al taller (el botón **PO** ya sale desde ahí; el
 **Ensamble**, desde **Trabajo**).
 
