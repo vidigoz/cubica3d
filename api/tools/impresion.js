@@ -7,7 +7,7 @@
  *   · la impresora sólo tiene 3 bahías: ninguna plataforma lleva más de 3 colores.
  *     Si la orden trae más, se reparte en varias plataformas;
  *   · las piezas salen de la carpeta stl/ (ver README): «Base Corrugada.stl»,
- *     «Base Lisa.stl» y Letras/…keycap-char-X.stl. La tecla es UN archivo con dos
+ *     «Base Lisa.stl», «basedebase.stl» (una por cada base) y Letras/…keycap-char-X.stl. La tecla es UN archivo con dos
  *     cuerpos (la tecla y la letra encima), así que cada uno puede ir de su color;
  *   · lo que no tiene STL (Ñ, acentos, emojis) no se imprime y se avisa.
  *
@@ -128,7 +128,8 @@ export function catalogo(carpeta) {
   if (!existsSync(carpeta)) return cat;
   for (const nombre of readdirSync(carpeta)) {
     if (!/\.stl$/i.test(nombre)) continue;
-    if (/corrug/i.test(nombre)) cat.bases.corrugado = join(carpeta, nombre);
+    if (/base\s*de\s*base/i.test(nombre)) cat.bases.basedebase = join(carpeta, nombre);
+    else if (/corrug/i.test(nombre)) cat.bases.corrugado = join(carpeta, nombre);
     else if (/lis[oa]/i.test(nombre)) cat.bases.liso = join(carpeta, nombre);
   }
   const letras = join(carpeta, "Letras");
@@ -172,6 +173,12 @@ export function instanciasDe(orden, cat) {
     const color = colorDe(g);
     for (let i = 0; i < cantidadDe(g.cantidad); i++) {
       lista.push({ clave: "base:" + acabado, texto: "Base " + acabado, colores: [color] });
+      // Cada base lleva debajo su «base de base», del mismo color que la base.
+      if (cat.bases.basedebase) {
+        lista.push({ clave: "base:basedebase", texto: "Base de base", colores: [color] });
+      } else if (i === 0) {
+        avisos.push("Falta el STL «basedebase»: no se incluyeron las bases de base.");
+      }
     }
   }
 
