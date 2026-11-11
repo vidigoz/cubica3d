@@ -118,7 +118,9 @@
   // "2× Llavero de Nombre · 3× Clicker de Nombre"
   function resumenProductos(items) {
     return items.map(function (item) {
-      return item.cantidad + '\u00d7 ' + item.tipo;
+      // Con nombre: «1× Clicker "Alec"», que es como se reconoce la tarjeta en el taller.
+      return item.cantidad + '\u00d7 ' + item.tipo +
+        (item.titulo && item.titulo !== item.tipo ? ' \u201c' + item.titulo + '\u201d' : '');
     }).join(' \u00b7 ');
   }
 
