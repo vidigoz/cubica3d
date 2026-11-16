@@ -969,6 +969,20 @@ label.t-lotes__sec { cursor: pointer; }
 .hoja__detalle-nombre { display: block; margin-bottom: 2px; font-weight: 700; }
 .hoja__color { display: inline-flex; align-items: center; gap: 4px; margin-right: 10px; font-size: 8.5pt; color: #475569; }
 .hoja__dot { display: inline-block; width: 9px; height: 9px; border: 1px solid rgba(15, 23, 42, .25); border-radius: 50%; }
+.hoja__letras { width: 100%; margin-top: 4px; border-collapse: collapse; font-size: 8.5pt; }
+.hoja__letras th {
+  padding: 2px 6px 2px 0;
+  border-bottom: 1px solid var(--border);
+  background: none;
+  text-align: left;
+  font-size: 6.5pt;
+  letter-spacing: .08em;
+  color: #64748b;
+}
+.hoja__letras td { padding: 2px 6px 2px 0; border: 0; border-bottom: 1px dotted #e2e8f0; vertical-align: middle; }
+.hoja__letras tr:last-child td { border-bottom: 0; }
+.hoja__letras .hoja__color { margin-right: 0; }
+.hoja__letra { font-weight: 800; font-size: 9.5pt; }
 .hoja__vacio { margin-top: 16px; font-size: 9.5pt; color: #64748b; }
 .hoja__totales { display: flex; justify-content: flex-end; margin-top: 12px; }
 .hoja__total-caja { min-width: 62mm; padding: 10px 12px; border-radius: 8px; background: var(--primary-soft); }
@@ -1141,7 +1155,7 @@ label.t-lotes__sec { cursor: pointer; }
    color de la tecla y color de la letra—; si no caben a lo ancho, el bloque se
    corre para el costado (en el móvil es lo normal). */
 .ensamble {
-  width: min(820px, 96vw);
+  width: min(900px, 96vw);
   max-width: none;
   max-height: 90vh;
   margin: auto;
@@ -1171,17 +1185,14 @@ label.t-lotes__sec { cursor: pointer; }
   overflow: auto;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
   padding: 12px 14px;
-  background: var(--surface-2);
-}
-.ensamble__bloque {
-  overflow-x: auto;
-  padding: 10px 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
   background: var(--surface);
 }
+/* Una sola ventana: cada nombre es una sección más del mismo papel, sin cajita ni
+   scroll propio (el único scroll es el de la ventana entera). */
+.ensamble__bloque { padding: 0 0 14px; border-bottom: 2px solid var(--border); }
+.ensamble__bloque:last-child { padding-bottom: 0; border-bottom: 0; }
 .ensamble__nombre { margin: 0; font-size: .95rem; font-weight: 800; }
 .ensamble__cant {
   margin-left: 8px;
@@ -1193,7 +1204,6 @@ label.t-lotes__sec { cursor: pointer; }
 .ensamble__nota { margin: 2px 0 8px; font-size: .72rem; color: var(--muted); }
 .ensamble__tabla {
   width: 100%;
-  min-width: 460px;
   border-collapse: collapse;
   font-size: .8rem;
 }

@@ -94,8 +94,27 @@
       '</div>';
   }
 
+  // El clicker, una fila por letra con sus tres colores (como en el ensamble):
+  //   Letra | Base | Tecla | Letra
+  function clickerTemplate(letras) {
+    function celda(pieza) {
+      return '<td><span class="hoja__color">' + Utils.marcaDetalle(pieza, 'hoja__dot') +
+        Utils.escapeHtml(pieza.nombre) + '</span></td>';
+    }
+    return '<table class="hoja__letras">' +
+      '<thead><tr><th>Letra</th><th>Base</th><th>Tecla</th><th>Letra</th></tr></thead>' +
+      '<tbody>' + letras.map(function (l) {
+        return '<tr><td class="hoja__letra">' + Utils.escapeHtml(l.caracter) + '</td>' +
+          celda(l.base) + celda(l.tecla) + celda(l.letra) + '</tr>';
+      }).join('') + '</tbody></table>';
+  }
+
   // "Base ●Negro  Nombre ●Rojo"
   function coloresTemplate(item) {
+    if (window.PO && Utils.normalize(item.tipo) === window.PO.TIPO_CLICER) {
+      var letras = window.PO.piezasDeClicer(item.detalles);
+      if (letras.length) return clickerTemplate(letras);
+    }
     return (item.detalles || []).map(function (d) {
       return '<span class="hoja__color">' + Utils.escapeHtml(d.label) +
         ' ' + Utils.marcaDetalle(d, 'hoja__dot') +
@@ -112,7 +131,7 @@
           (item.titulo
             ? '<span class="hoja__detalle-nombre">' + Utils.escapeHtml(item.titulo) + '</span>'
             : '') +
-          '<span>' + coloresTemplate(item) + '</span>' +
+          '<div>' + coloresTemplate(item) + '</div>' +
         '</td>' +
         '<td class="ta-c">' + item.cantidad + '</td>' +
         '<td class="ta-r">' + Utils.formatMoney(item.precio) + '</td>' +
