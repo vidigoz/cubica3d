@@ -281,6 +281,11 @@
     });
   }
 
+  // Los clickers (líneas) que ya se imprimieron: la lista de sus números de línea.
+  function cambiarItemsListos(id, lista) {
+    return pedir('PATCH', '/cotizaciones/' + encodeURIComponent(id), { itemsListos: lista });
+  }
+
   function borrarCotizacion(id) {
     return pedir('DELETE', '/cotizaciones/' + encodeURIComponent(id));
   }
@@ -308,6 +313,7 @@
     cambiarCliente: cambiarCliente,
     cambiarNotas: cambiarNotas,
     cambiarListas: cambiarListas,
+    cambiarItemsListos: cambiarItemsListos,
     generarImpresion: generarImpresion,
     subirArchivo: subirArchivo,
     borrarArchivo: borrarArchivo,

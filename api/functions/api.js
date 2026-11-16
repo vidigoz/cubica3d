@@ -377,6 +377,8 @@ export function crearApp(opciones) {
       // son del tablero, para saber qué falta imprimir.
       basesListas: !!fila.bases_listas,
       teclasListas: !!fila.teclas_listas,
+      // Los clickers (líneas de la cotización) que ya se imprimieron: su número de orden.
+      itemsListos: Array.isArray(fila.items_listos) ? fila.items_listos.map(Number) : [],
       creada: new Date(fila.creada).toISOString(),
       movida: new Date(fila.movida).toISOString(),
       archivos: (archivos || []).map((a) => ({ id: a.id, nombre: a.nombre, tipo: a.tipo, tamano: Number(a.tamano) })),
@@ -391,7 +393,7 @@ export function crearApp(opciones) {
   async function leerTablero() {
     const { rows } = await query(
       "select id, folio, to_char(fecha, 'YYYY-MM-DD') as fecha, cliente, notas, columna," +
-      " posicion, unidades, descuento, descuento_nota, total, pagado, to_char(fecha_pago, 'YYYY-MM-DD') as fecha_pago, bases_listas, teclas_listas," +
+      " posicion, unidades, descuento, descuento_nota, total, pagado, to_char(fecha_pago, 'YYYY-MM-DD') as fecha_pago, bases_listas, teclas_listas, items_listos," +
       " creada, movida, creada_por, movida_por" +
       " from cotizaciones where borrada_en is null" +
       " order by columna, posicion, folio"
@@ -441,7 +443,7 @@ export function crearApp(opciones) {
   async function leerTarjeta(id) {
     const { rows } = await query(
       "select id, folio, to_char(fecha, 'YYYY-MM-DD') as fecha, cliente, notas, columna," +
-      " posicion, unidades, descuento, descuento_nota, total, pagado, to_char(fecha_pago, 'YYYY-MM-DD') as fecha_pago, bases_listas, teclas_listas," +
+      " posicion, unidades, descuento, descuento_nota, total, pagado, to_char(fecha_pago, 'YYYY-MM-DD') as fecha_pago, bases_listas, teclas_listas, items_listos," +
       " creada, movida, creada_por, movida_por" +
       " from cotizaciones where id = $1", [id]
     );
@@ -747,7 +749,7 @@ export function crearApp(opciones) {
       update cotizaciones
          set fecha = coalesce($2::date, fecha), cliente = $3, notas = $4,
              unidades = $5::int, total = $6::numeric,
-             bases_listas = $7, teclas_listas = $8,
+             bases_listas = $7, teclas_listas = $8, items_listos = $13::int[],
              movida = now(), movida_por = $9,
              descuento = $11::numeric, descuento_nota = $12
        where id = $1 and borrada_en is null
@@ -804,7 +806,9 @@ export function crearApp(opciones) {
       contexto.usuario.nombre,
       JSON.stringify(items),
       descuento,
-      descuento ? recortar(meta.descuentoNota, LIMITE.descuentoNota) : ""
+      descuento ? recortar(meta.descuentoNota, LIMITE.descuentoNota) : "",
+      // Lo impreso también habla de lo que se fabricó: si cambió, se destilda igual.
+      cambioLoFabricado ? [] : (actual.itemsListos || [])
     ]);
     if (!rows[0]) return fallo("Esa cotización ya no está en el tablero.", 404, contexto.cabeceras);
     return ok({ cotizacion: await leerTarjeta(contexto.params.id) }, contexto.cabeceras);
@@ -872,6 +876,7 @@ export function crearApp(opciones) {
     const pideNotas = Object.prototype.hasOwnProperty.call(cuerpo, "notas");
     const pideBases = Object.prototype.hasOwnProperty.call(cuerpo, "basesListas");
     const pideTeclas = Object.prototype.hasOwnProperty.call(cuerpo, "teclasListas");
+    const pideItems = Object.prototype.hasOwnProperty.call(cuerpo, "itemsListos");
     const posicion = pidePosicion ? posicionValida(cuerpo.posicion) : null;
     if (pideColumna && COLUMNAS.indexOf(columna) < 0) {
       return fallo("Columna inválida.", 400, contexto.cabeceras);
@@ -882,7 +887,7 @@ export function crearApp(opciones) {
     if (pideFecha && !fechaValida(cuerpo.fechaPago)) {
       return fallo("«fechaPago» tiene que ser una fecha AAAA-MM-DD.", 400, contexto.cabeceras);
     }
-    if (!pideColumna && !pidePosicion && !pidePagado && !pideFecha && !pideCliente && !pideNotas && !pideBases && !pideTeclas) {
+    if (!pideColumna && !pidePosicion && !pidePagado && !pideFecha && !pideCliente && !pideNotas && !pideBases && !pideTeclas && !pideItems) {
       return fallo("No hay nada que cambiar.", 400, contexto.cabeceras);
     }
     if (pidePagado && typeof cuerpo.pagado !== "boolean") {
@@ -894,6 +899,10 @@ export function crearApp(opciones) {
     if (pideNotas && typeof cuerpo.notas !== "string") {
       return fallo("«notas» tiene que ser texto.", 400, contexto.cabeceras);
     }
+    if (pideItems && !(Array.isArray(cuerpo.itemsListos) && cuerpo.itemsListos.length <= 200 &&
+        cuerpo.itemsListos.every((n) => Number.isInteger(n) && n >= 0 && n < 1000))) {
+      return fallo("«itemsListos» tiene que ser una lista de números de línea.", 400, contexto.cabeceras);
+    }
     if (pideBases && typeof cuerpo.basesListas !== "boolean") {
       return fallo("«basesListas» tiene que ser true o false.", 400, contexto.cabeceras);
     }
@@ -902,7 +911,7 @@ export function crearApp(opciones) {
     }
 
     const { rows } = await query(
-      "select columna, posicion, pagado, cliente, notas, bases_listas, teclas_listas," +
+      "select columna, posicion, pagado, cliente, notas, bases_listas, teclas_listas, items_listos," +
       " to_char(fecha_pago, 'YYYY-MM-DD') as fecha_pago" +
       " from cotizaciones where id = $1 and borrada_en is null",
       [contexto.params.id]
@@ -917,6 +926,8 @@ export function crearApp(opciones) {
 
     const notas = pideNotas ? recortar(cuerpo.notas, LIMITE.notas) : actual.notas;
     const cambiaNotas = pideNotas && notas !== actual.notas;
+    const itemsListos = pideItems ? [...new Set(cuerpo.itemsListos)].sort((a, b) => a - b) : null;
+    const cambiaItems = pideItems && JSON.stringify(itemsListos) !== JSON.stringify((actual.items_listos || []).map(Number));
 
     const mueve = pideColumna && actual.columna !== columna;
     const reordena = pidePosicion && posicion !== Number(actual.posicion);
@@ -934,7 +945,7 @@ export function crearApp(opciones) {
     // El día del pago: al tildar toma el que mande el navegador (o hoy, hora de México);
     // al destildar se borra; una cotización que llega a pagada sin fecha también la toma.
     const cambiaFecha = pagado && (pideFecha ? cuerpo.fechaPago !== actual.fecha_pago : !actual.fecha_pago);
-    if (!mueve && !reordena && !tilda && !renombra && !tildaLotes && !cambiaFecha && !cambiaNotas) {
+    if (!mueve && !reordena && !tilda && !renombra && !tildaLotes && !cambiaFecha && !cambiaNotas && !cambiaItems) {
       return ok({ cotizacion: await leerTarjeta(contexto.params.id), sinCambios: true }, contexto.cabeceras);
     }
 
@@ -976,6 +987,9 @@ export function crearApp(opciones) {
         " movida = now(), movida_por = $6 where id = $1",
         [contexto.params.id, pagado, cliente, basesListas, teclasListas, contexto.usuario.nombre]
       );
+    }
+    if (cambiaItems) {
+      await query("update cotizaciones set items_listos = $2::int[] where id = $1", [contexto.params.id, itemsListos]);
     }
     if (cambiaNotas) {
       await query("update cotizaciones set notas = $2 where id = $1", [contexto.params.id, notas]);

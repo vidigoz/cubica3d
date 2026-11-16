@@ -182,6 +182,9 @@
       // vieja que no los traiga queda sin tildar.
       basesListas: !!fila.basesListas,
       teclasListas: !!fila.teclasListas,
+      // Los clickers (líneas) ya impresos: sus números de línea.
+      itemsListos: (Array.isArray(fila.itemsListos) ? fila.itemsListos : []).map(Number)
+        .filter(function (n) { return isFinite(n) && n >= 0; }),
       creada: fila.creada || ahoraISO(),
       movida: fila.movida || fila.creada || ahoraISO(),
       // Archivos de la tarjeta (sólo sus datos; el contenido se pide aparte).
@@ -595,6 +598,44 @@
     return true;
   }
 
+  // Tilda o destilda un clicker (una línea de la cotización) como ya impreso. Mismo
+  // patrón que cambiarListas(): se pinta al instante, se manda por atrás y, si el
+  // servidor falla, el tablero vuelve a como estaba. Devuelve true si cambió algo.
+  function cambiarItemListo(id, linea, listo) {
+    var i = indiceDe(id);
+    linea = Number(linea);
+    if (i < 0 || !isFinite(linea) || linea < 0 || linea >= tarjetas[i].items.length) return false;
+    var actuales = tarjetas[i].itemsListos || [];
+    var esta = actuales.indexOf(linea) >= 0;
+    if (esta === !!listo) return false;
+
+    var nuevas = listo
+      ? actuales.concat([linea]).sort(function (a, b) { return a - b; })
+      : actuales.filter(function (n) { return n !== linea; });
+
+    var respaldo = clone(tarjetas);
+    tarjetas[i].itemsListos = nuevas;
+    tarjetas[i].movida = ahoraISO();
+    notify();
+
+    enVuelo++;
+    window.Api.cambiarItemsListos(id, nuevas).then(function (datos) {
+      if (datos && datos.cotizacion) {
+        var j = indiceDe(id);
+        if (j >= 0) tarjetas[j] = sanearTarjeta(datos.cotizacion);
+      }
+      terminar();
+    }, function (error) {
+      tarjetas = respaldo;
+      notify();
+      terminar();
+      window.App.toast('No se pudo guardar lo impreso: ' + error.message, 'error');
+      recargar();
+    });
+
+    return true;
+  }
+
   // Corrige el nombre del cliente sin mover la tarjeta de columna. Devuelve true
   // si cambió algo; con el mismo nombre no llama al servidor (no hay nada que
   // guardar). Igual que cambiarPagado(): se pinta al instante y, si el servidor
@@ -721,6 +762,7 @@
     cambiarCliente: cambiarCliente,
     cambiarNotas: cambiarNotas,
     cambiarListas: cambiarListas,
+    cambiarItemListo: cambiarItemListo,
     remove: remove,
     subscribe: subscribe
   };

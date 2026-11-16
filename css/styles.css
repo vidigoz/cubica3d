@@ -787,6 +787,9 @@ body.arrastrando {
   border-bottom: 1px solid var(--border);
 }
 .t-linea:last-child { border-bottom: 0; padding-bottom: 0; }
+.t-linea__listo { flex: 0 0 auto; width: 15px; height: 15px; margin: 2px 0 0; accent-color: #15803d; cursor: pointer; }
+.t-linea--listo .t-linea__nombre { color: #15803d; text-decoration: line-through; }
+.t-linea--listo .t-linea__cant, .t-linea--listo .t-linea__tipo { opacity: .55; }
 .t-linea__cant { font-weight: 800; color: var(--primary); white-space: nowrap; }
 .t-linea__info { flex: 1; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .t-linea__tipo {

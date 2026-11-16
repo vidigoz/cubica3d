@@ -129,10 +129,21 @@
   // cuando la cotización salió de «Cotización» y hay una orden de producción
   // (ver lotesTemplate). El detalle con todos los colores sigue estando en el
   // botón «Ver» y en el PDF.
-  function lineasTemplate(items) {
-    return items.map(function (item) {
+  function lineasTemplate(items, t) {
+    // Los clickers se palomean uno por uno (ya impresos) en cuanto la tarjeta sale de
+    // «Cotización», igual que las bases y las teclas de abajo.
+    var puedeTildar = !!(t && PO && Proceso.indiceColumna(t.columna) > 0);
+    var listos = (t && t.itemsListos) || [];
+    return items.map(function (item, indice) {
+      var esClicker = puedeTildar && Utils.normalize(item.tipo) === PO.TIPO_CLICER;
+      var hecho = esClicker && listos.indexOf(indice) >= 0;
       return '' +
-        '<li class="t-linea">' +
+        '<li class="t-linea' + (hecho ? ' t-linea--listo' : '') + '">' +
+          (esClicker
+            ? '<input class="t-linea__listo" type="checkbox" data-item-listo="' + indice + '"' +
+                (hecho ? ' checked' : '') + ' title="Este clicker ya est\u00e1 impreso" ' +
+                'aria-label="Clicker impreso">'
+            : '') +
           '<span class="t-linea__cant">' + item.cantidad + '\u00d7</span>' +
           '<span class="t-linea__info">' +
             '<span class="t-linea__nombre">' +
@@ -510,7 +521,7 @@
         '</div>' +
         '<details class="tarjeta__detalle"' + (abiertas[t.id] ? ' open' : '') + '>' +
           '<summary>Detalle para fabricar</summary>' +
-          '<ul class="t-lineas">' + lineasTemplate(t.items) + '</ul>' +
+          '<ul class="t-lineas">' + lineasTemplate(t.items, t) + '</ul>' +
           lotesTemplate(po, t) +
           (t.notas
             ? '<p class="tarjeta__notas"><b>Notas:</b> ' + notasHtml(t.notas) + '</p>'
@@ -1476,6 +1487,12 @@
 
       var fechaPago = e.target.closest('[data-fecha-pago]');
       if (fechaPago) { Proceso.cambiarFechaPago(id, fechaPago.value); return; }
+
+      var clicker = e.target.closest('[data-item-listo]');
+      if (clicker) {
+        Proceso.cambiarItemListo(id, clicker.getAttribute('data-item-listo'), clicker.checked);
+        return;
+      }
 
       var casilla = e.target.closest('[data-pagado]');
       if (casilla) { Proceso.cambiarPagado(id, casilla.checked); return; }

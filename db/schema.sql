@@ -92,6 +92,7 @@ create table if not exists cotizaciones (
   fecha_pago  date,                              -- el día en que se cobró (editable); null si no está pagada
   bases_listas  boolean not null default false,  -- el taller ya hizo las bases del clicker
   teclas_listas boolean not null default false,  -- y las teclas con su letra (ver la tarjeta)
+  items_listos  integer[] not null default '{}', -- líneas (clickers) ya impresas: su número de orden
   unidades    integer not null default 0,
   descuento   numeric(12,2) not null default 0,  -- pesos que se restan al subtotal de las líneas
   descuento_nota text not null default '',       -- de qué es: promo, ajuste, lo que sea
@@ -121,6 +122,7 @@ update cotizaciones set fecha_pago = fecha where pagado and fecha_pago is null;
 -- Los tildes del taller: qué tandas del desglose de la tarjeta ya están hechas
 -- (las bases del clicker y las teclas con su letra). Las tarjetas que ya estaban
 -- quedan sin tildar, que es lo honesto: nadie dijo que estuvieran hechas.
+alter table cotizaciones add column if not exists items_listos integer[] not null default '{}';
 alter table cotizaciones add column if not exists bases_listas boolean not null default false;
 alter table cotizaciones add column if not exists teclas_listas boolean not null default false;
 -- El descuento de la cotización (en pesos) y su motivo. `total` ya lo trae restado.
