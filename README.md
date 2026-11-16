@@ -64,7 +64,7 @@ encabezado) y en `js/pdf.js` (`NEGOCIO.logo`).
 
 ## Pestañas y rutas
 
-- **Productos** (`#/productos`) — menú principal de productos + carrito de cotización.
+- **Productos** (`#/productos`) — menú principal de productos + la cotización en armado. En el celular las pestañas se abren con el botón ☰.
   - Formulario de un producto: `#/productos/llaveros` y `#/productos/clicers`.
   - **Desglose + PDF**: `#/carrito`.
 - **Proceso** (`#/proceso`) — tablero Kanban de las cotizaciones enviadas.
@@ -76,7 +76,7 @@ acaba de entregarse va **primera** y empuja a las demás hacia abajo.
 Rutas viejas: `#/cotizacion` y `#/trabajos` siguen funcionando como alias de `#/productos` y
 `#/proceso`, para que los enlaces guardados no se rompan.
 
-El chip **🛒 0 · $0.00** del encabezado muestra el carrito en cualquier pestaña: el número son las
+El chip del encabezado (icono de cotización, `0 · $0.00`) muestra la cotización en armado en cualquier pestaña: el número son las
 **piezas** (no las líneas) y al pulsarlo abre el desglose (`#/carrito`), que vive dentro del flujo
 de Productos, así que esa pestaña sigue activa.
 
@@ -84,24 +84,32 @@ de Productos, así que esa pestaña sigue activa.
 
 | Producto | Estado |
 |---|---|
-| **Llaveros de Nombre** | ✅ Funcional |
+| **Llavero** (de nombre y de logo) | ✅ Funcional |
 | **Clicker de Nombre** | ✅ Funcional |
 
-### Producto "Llaveros de Nombre"
+### Producto "Llavero"
+
+Dentro hay dos opciones, con pestañas arriba del formulario: **Llavero de nombre** y **Llavero de logo**.
+
+**Llavero de logo** (precio fijo, $100 de inicio): nombre del logo, color de la base y, opcional, los
+colores y detalles del logo. El archivo del logo se sube después con el 📎 de la tarjeta. En
+**Estadísticas** suma al conteo de **Llaveros**.
+
+#### Llavero de nombre
 
 - Campo **Nombre** (obligatorio) y **Apellido** (opcional).
 - Menús de **Color de Base** y **Color del Nombre** (se llenan con los colores en stock).
 - El precio se calcula solo:
   - Solo nombre → precio *Nombre*.
   - Con apellido → precio *Nombre + Apellido*.
-- Botón **Agregar al carrito** → se suma al carrito compartido con su **precio unitario**
+- Botón **Agregar a la cotización** → se suma al carrito compartido con su **precio unitario**
   (entra con **cantidad 1**; luego la ajustas en el desglose).
 - Botón **Siguiente →** → abre `#/carrito` para capturar los datos y exportar el PDF.
 - Botón **← Volver al menú** para regresar a la página de productos.
 - **Editar una cotización ya enviada:** el botón **Editar** de su tarjeta en Proceso la carga en el carrito y regresa a Productos para agregar o quitar lo que haga falta; con **Siguiente → Guardar cambios** la tarjeta queda actualizada (mismo folio y misma columna). El carrito que tenías en armado se guarda aparte y vuelve al terminar o cancelar.
 - **Editar un producto de la lista:** en el carrito (también al editar una tarjeta) cada línea trae un ✏️ que abre el formulario de ese producto ya lleno —nombre, colores letra por letra, desglose—; con **Guardar línea** se reemplaza en el mismo lugar y con la misma cantidad. El precio del clicker y del llavero se recalcula con los precios actuales de Configuración. Un clicker de los primeros tiempos, sin receta por letra, no se puede reconstruir: se quita y se agrega de nuevo.
 
-### Producto "Charm para Silla"
+### Producto "Charm con cinta" (antes «Charm para Silla»)
 
 - Escribes el nombre o texto (letras, números, símbolos y **emojis**: «Alejandro Perez #11»; en la PC el
   botón **😀** abre el selector). Cada letra, número, símbolo o emoji es una **pieza bicolor** —una **base** de un color y una **tapa** de otro—; los espacios no
@@ -109,7 +117,7 @@ de Productos, así que esa pestaña sigue activa.
 - Los menús **Base · Color de todas** y **Tapa · Color de todas** ponen el texto entero igual; abajo hay una
   fila por pieza para cambiar una sola.
 - **+ Agregar charm** suma charms sueltos («pelota de volly»), todos los que quieras.
-- Precio **fijo** de $350, sin importar las piezas ni los charms; se cambia en **Configuración → Precios**.
+- Viene en dos medidas de cinta: **30 cm** ($200) y **55 cm** ($350). El precio solo depende de la medida, sin importar las piezas ni los charms; ambos se cambian en **Configuración → Precios**. Las tarjetas viejas (sin medida) cuentan como de 55 cm.
 - En **Estadísticas** cuenta una tarjeta de **Bases del charm** y otra de **Tapas del charm**, con sus colores.
 
 ### Producto "Clicker de Nombre"
@@ -137,13 +145,13 @@ eligen de los colores en stock y se pueden poner **iguales para todo el nombre**
   - Hasta *N* letras (por defecto **5**) → precio **por letra corto**.
   - De *N+1* letras en adelante → precio **por letra largo**.
   - Debajo del precio se ve la cuenta (`6 letras × $30.00 (precio de 6 letras o más)`).
-- Botón **Agregar al carrito** → entra con **cantidad 1** y un **desglose completo** (por cada letra
+- Botón **Agregar a la cotización** → entra con **cantidad 1** y un **desglose completo** (por cada letra
   —y el símbolo—: `A · Base`, `A · Tecla`, `A · Letra`, `estrella · Base`…, cada pieza con su color y
   la base con su acabado), que es lo que viaja al carrito, al PDF y al tablero: con eso se fabrica sin
   tener que preguntar nada. En la **orden de producción** un emoji aparece como su propia forma
   (`⭐ ×1`) dentro de su tanda, así el taller sabe que tiene que imprimir esa pieza.
 
-## Carrito de cotización
+## Cotización en armado (antes «carrito»)
 
 - Es **compartido entre productos**: sales del formulario de un producto y vuelves al menú
   sin perder lo agregado; al agregar otro producto, **se suma al mismo carrito**.
@@ -273,7 +281,7 @@ la venta que el cliente ya aceptó, antes de pasarla al taller (el botón **PO**
 
 - **Colores en stock:** agrega (nombre + selector de color) y quita colores. Los cambios se ven al instante en los menús de la cotización.
 - **Precios:**
-  - *Llavero · Solo nombre* y *Llavero · Nombre + Apellido*.
+  - *Llavero · Solo nombre*, *Llavero · Nombre + Apellido* y *Llavero · De logo*.
   - *Clicker · Precio por letra (hasta N letras)*, *Clicker · Precio por letra (N+1 letras o más)* y
     *Clicker · El precio corto aplica hasta (letras)* (por defecto **5**). Al lado hay un ejemplo con
     el precio ya calculado, así se ve el efecto del corte sin tener que cotizar.

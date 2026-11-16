@@ -132,6 +132,7 @@
             ? '<span class="hoja__detalle-nombre">' + Utils.escapeHtml(item.titulo) + '</span>'
             : '') +
           '<div>' + coloresTemplate(item) + '</div>' +
+          (item.imagen ? '<img class="hoja__imagen" src="' + Utils.escapeHtml(item.imagen) + '" alt="Logo" />' : '') +
         '</td>' +
         '<td class="ta-c">' + item.cantidad + '</td>' +
         '<td class="ta-r">' + Utils.formatMoney(item.precio) + '</td>' +
@@ -1046,7 +1047,47 @@
     });
   }
 
+  // Las imágenes (logos) de las líneas de una tarjeta: viven como archivos de la tarjeta
+  // con el nombre «Logo - <título>.<ext>». Devuelve una promesa con las líneas, cada una
+  // con su `imagen` (data URL) cuando la encuentra. Si algo falla, devuelve las líneas
+  // tal cual: la hoja sale igual, sólo sin la imagen.
+  function leerComoData(blob) {
+    return new Promise(function (resolver, rechazar) {
+      var lector = new FileReader();
+      lector.onload = function () { resolver(String(lector.result)); };
+      lector.onerror = function () { rechazar(new Error('No se pudo leer el archivo.')); };
+      lector.readAsDataURL(blob);
+    });
+  }
+
+  function nombreDeLogo(titulo) {
+    return 'Logo - ' + String(titulo || '').replace(/[\\/]/g, '-');
+  }
+
+  function conImagenes(tarjeta) {
+    var items = (tarjeta && tarjeta.items) || [];
+    var archivos = (tarjeta && tarjeta.archivos) || [];
+    return Promise.all(items.map(function (item) {
+      if (item.imagen || !window.Api || Utils.normalize(item.tipo) !== window.PO.TIPO_LLAVERO_LOGO) {
+        return Promise.resolve(item);
+      }
+      var base = nombreDeLogo(item.titulo).toLowerCase();
+      var a = archivos.filter(function (x) {
+        return String(x.nombre || '').toLowerCase().indexOf(base + '.') === 0 && /^image\//.test(x.tipo);
+      })[0];
+      if (!a) return Promise.resolve(item);
+      return window.Api.archivoBlob(a.id).then(leerComoData).then(function (data) {
+        var copia = {};
+        Object.keys(item).forEach(function (k) { copia[k] = item[k]; });
+        copia.imagen = data;
+        return copia;
+      }, function () { return item; });
+    }));
+  }
+
   window.PDF = {
+    conImagenes: conImagenes,
+    nombreDeLogo: nombreDeLogo,
     archivo: archivo,
     descargar: descargar,
     getNegocio: getNegocio,

@@ -56,6 +56,11 @@
     return n > 0 ? n : 1;
   }
 
+  // La imagen de una línea (el logo del llavero de logo): sólo una data URL de imagen.
+  function imagenValida(valor) {
+    return typeof valor === 'string' && /^data:image\/(png|jpeg|webp|gif);base64,/.test(valor) ? valor : '';
+  }
+
   function detallesValidos(lista) {
     if (!Array.isArray(lista)) return [];
     return lista.map(function (d) {
@@ -84,7 +89,8 @@
           titulo: it.titulo,
           detalles: detallesValidos(it.detalles),
           precio: window.Utils.parseNumber(it.precio, 0),
-          cantidad: cantidadValida(it.cantidad)
+          cantidad: cantidadValida(it.cantidad),
+          imagen: imagenValida(it.imagen)
         };
       }),
       meta: {
@@ -154,7 +160,8 @@
         titulo: item.titulo,
         detalles: detallesValidos(item.detalles),
         precio: item.precio,
-        cantidad: item.cantidad
+        cantidad: item.cantidad,
+        imagen: item.imagen || ''
       };
     });
   }
@@ -202,7 +209,8 @@
       titulo: item.titulo || '',
       detalles: detallesValidos(item.detalles),
       precio: window.Utils.parseNumber(item.precio, 0),
-      cantidad: cantidadValida(item.cantidad)
+      cantidad: cantidadValida(item.cantidad),
+      imagen: imagenValida(item.imagen)
     };
     if (!items.length && !edicion) meta.fecha = hoyISO();   // la cotización arranca con la fecha de hoy
     items.push(linea);
@@ -231,7 +239,8 @@
         titulo: item.titulo || '',
         detalles: detallesValidos(item.detalles),
         precio: window.Utils.parseNumber(item.precio, 0),
-        cantidad: item.cantidad === undefined ? items[i].cantidad : cantidadValida(item.cantidad)
+        cantidad: item.cantidad === undefined ? items[i].cantidad : cantidadValida(item.cantidad),
+        imagen: imagenValida(item.imagen)
       };
       persist();
       notify();

@@ -228,7 +228,8 @@ function coloresValidos(lista) {
 // (los mismos que js/clicer.js): así el producto nunca cotiza en cero por
 // faltar el dato.
 const CLICER_POR_DEFECTO = { porLetraCorto: 15, porLetraLargo: 30, letrasCorte: 5 };
-const CHARM_PRECIO_POR_DEFECTO = 350;   // el Charm para Silla cuesta lo mismo lleve lo que lleve
+// El Charm con cinta cuesta lo mismo lleve lo que lleve; sólo cambia con la medida de la cinta.
+const CHARM_PRECIOS_POR_DEFECTO = { precio30: 200, precio55: 350 };
 
 function preciosValidos(precios) {
   const p = precios || {};
@@ -237,13 +238,17 @@ function preciosValidos(precios) {
   return {
     nombre: numero(p.nombre, 0),
     nombreApellido: numero(p.nombreApellido, 0),
+    logo: Math.max(0, redondear(numeroODefecto(p.logo, 100))),   // llavero de logo: precio fijo
     clicer: {
       porLetraCorto: Math.max(0, redondear(numeroODefecto(c.porLetraCorto, CLICER_POR_DEFECTO.porLetraCorto))),
       porLetraLargo: Math.max(0, redondear(numeroODefecto(c.porLetraLargo, CLICER_POR_DEFECTO.porLetraLargo))),
       letrasCorte: Math.max(1, Math.floor(numeroODefecto(c.letrasCorte, CLICER_POR_DEFECTO.letrasCorte)))
     },
     charm: {
-      precio: Math.max(0, redondear(numeroODefecto(ch.precio, CHARM_PRECIO_POR_DEFECTO)))
+      precio30: Math.max(0, redondear(numeroODefecto(ch.precio30, CHARM_PRECIOS_POR_DEFECTO.precio30))),
+      // Una base vieja traía un solo precio: era el del charm de 55 cm.
+      precio55: Math.max(0, redondear(numeroODefecto(
+        ch.precio55 !== undefined ? ch.precio55 : ch.precio, CHARM_PRECIOS_POR_DEFECTO.precio55)))
     }
   };
 }

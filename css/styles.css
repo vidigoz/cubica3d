@@ -172,31 +172,22 @@ button { font-family: inherit; cursor: pointer; }
 /* ---------- Productos ---------- */
 .product-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(100px, 120px));
   gap: 14px;
 }
 
 .product-card {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 6px;
-  padding: 18px;
-  text-align: left;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  transition: all .15s ease;
+  display: block;
+  padding: 0;
+  border: 0;
+  border-radius: 22px;
+  background: none;
+  cursor: pointer;
+  transition: transform .15s ease, filter .15s ease;
 }
-.product-card:hover:not(:disabled) {
-  border-color: var(--primary);
-  transform: translateY(-2px);
-  box-shadow: 0 10px 24px -14px rgba(79, 70, 229, .6);
-}
-.product-card--disabled { opacity: .6; cursor: not-allowed; }
-.product-card__emoji { font-size: 1.6rem; }
-.product-card__title { font-weight: 700; }
-.product-card__desc { font-size: .82rem; color: var(--muted); }
+.product-card:hover { transform: translateY(-3px) scale(1.02); filter: drop-shadow(0 10px 14px rgba(15, 23, 42, .25)); }
+.product-card:focus-visible { outline: 3px solid var(--primary); outline-offset: 3px; }
+.product-card__img { display: block; width: 100%; height: auto; }
 
 .badge {
   margin-top: 8px;
@@ -1900,4 +1891,28 @@ body.con-pin { overflow: hidden; }
 .btn-po__marca { position: absolute; top: 2px; right: 2px; width: 7px; height: 7px; border-radius: 50%; background: var(--primary); }
 @media (hover: none) {
   .btn-po .icono, .btn-ver .icono, .btn-ensamble .icono, .tarjeta__iconos .icon-btn--mini .icono { width: 22px; height: 22px; }
+}
+
+/* Las dos opciones del llavero (de nombre / de logo) */
+.llavero-tabs { display: inline-flex; gap: 4px; margin: 4px 0 12px; padding: 3px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); }
+.llavero-tab { padding: 7px 14px; border: 0; border-radius: 8px; background: none; font: inherit; font-size: .85rem; font-weight: 700; color: var(--muted); cursor: pointer; }
+.llavero-tab--activa { background: var(--primary); color: #fff; }
+
+/* Llavero de logo: la imagen elegida y cómo sale en la hoja de la cotización */
+.logo-subida { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.logo-subida__vista { width: 84px; height: 84px; object-fit: contain; border: 1px solid var(--border); border-radius: 10px; background: #fff; }
+.hoja__imagen { display: block; max-width: 38mm; max-height: 38mm; margin-top: 6px; object-fit: contain; }
+
+/* Menú del celular: el botón ☰ despliega las pestañas en lista (en pantallas grandes no se ve). */
+.menu-btn { display: none; }
+.cart-chip__icon { display: block; flex: none; }
+@media (max-width: 700px) {
+  .app-header { justify-content: space-between; gap: 10px; }
+  .app-header__subtitle { display: none; }
+  .app-header__actions { width: auto; margin-left: auto; }
+  .cart-chip { flex: none; padding: 8px 10px; }
+  .menu-btn { display: inline-flex; }
+  .tabs { display: none; width: 100%; order: 3; flex-direction: column; gap: 4px; }
+  .tabs--abierto { display: flex; }
+  .tab { width: 100%; padding: 12px 14px; text-align: left; font-size: .95rem; }
 }

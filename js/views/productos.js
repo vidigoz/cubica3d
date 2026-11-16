@@ -33,6 +33,7 @@
   var charmBase = [];      // color de la base, uno por pieza
   var charmTapas = [];     // color de la tapa, uno por pieza
   var charmLista = [];     // nombres de los charms sueltos («pelota de volly»)
+  var charmMedida = window.Charm.MEDIDA_POR_DEFECTO;   // la cinta elegida: '30' o '55'
   // Colores usados de la cotización manual: { color (id), piezas }. Opcionales:
   // alimentan las estadísticas de colores (su propia cuenta), no el precio.
   var manualColores = [];
@@ -65,6 +66,7 @@
      y se agrega de nuevo. */
 
   var TIPO_LLAVERO = 'Llavero de Nombre';
+  var TIPO_LLAVERO_LOGO = 'Llavero de Logo';
   var TIPO_CLICER = 'Clicker de Nombre';
 
   // El color del stock que corresponde a un detalle ({ nombre, hex }); null si ya no está.
@@ -117,6 +119,21 @@
     };
   }
 
+  // El llavero de logo: el texto de colores y detalles del logo y su imagen (si la
+  // línea viene del carrito la trae; si viene de una tarjeta, la imagen ya está en sus
+  // archivos y no hace falta subirla otra vez).
+  function parsearLlaveroLogo(item) {
+    var det = item.detalles || [];
+    var logo = det.filter(function (d) { return d.label === 'Logo'; })[0];
+    return {
+      sub: 'logo',
+      titulo: Utils.normalize(item.titulo),
+      detalle: logo ? logo.nombre : '',
+      imagen: item.imagen || '',
+      faltan: []
+    };
+  }
+
   function parsearClicer(item) {
     var det = item.detalles || [];
     var titulo = Utils.normalize(item.titulo);
@@ -149,10 +166,10 @@
     var res = window.Charm.piezasDe(item.titulo);
     if (!res.ok) return null;
     var det = item.detalles || [];
-    var piezas = det.filter(function (d) { return d.label !== 'Charm'; });
+    var piezas = det.filter(function (d) { return d.label !== 'Charm' && d.label !== window.Charm.ROTULO_MEDIDA; });
     if (piezas.length !== res.piezas.length * 2) return null;
     var faltan = [];
-    var datos = { sub: 'charms', texto: res.texto, base: [], tapa: [], faltan: faltan,
+    var datos = { sub: 'charms', texto: res.texto, medida: window.Charm.medidaDe(det), base: [], tapa: [], faltan: faltan,
       charms: det.filter(function (d) { return d.label === 'Charm'; }).map(function (d) { return d.nombre; }) };
     for (var i = 0; i < res.piezas.length; i++) {
       var b = piezas[i * 2];
@@ -184,8 +201,9 @@
   function parsear(item) {
     item = item || {};
     if (item.tipo === TIPO_LLAVERO) return parsearLlavero(item);
+    if (item.tipo === TIPO_LLAVERO_LOGO) return parsearLlaveroLogo(item);
     if (item.tipo === TIPO_CLICER) return parsearClicer(item);
-    if (item.tipo === window.PO.TIPO_CHARM) return parsearCharm(item);
+    if (window.PO.tipoCanonico(item.tipo) === window.PO.TIPO_CHARM) return parsearCharm(item);
     if (item.tipo === window.PO.TIPO_MANUAL) return parsearManual(item);
     return null;
   }
@@ -217,7 +235,7 @@
 
   function etiquetaGuardar() {
     var ed = Cart.getLineaEnEdicion();
-    return ed && ed.sub === currentSub && Cart.getLinea(ed.id) ? 'Guardar línea' : 'Agregar al carrito';
+    return ed && ed.sub === currentSub && Cart.getLinea(ed.id) ? 'Guardar línea' : 'Agregar a la cotización';
   }
 
   // Si el formulario está editando una línea, la reemplaza (misma posición) y vuelve
@@ -250,16 +268,12 @@
       '</div>';
   }
 
-  function productCard(id, route, emoji, title, desc, disabled) {
+  // La tarjeta es la imagen del producto (ya trae su nombre escrito): ella es el botón.
+  function productCard(id, route, imagen, title) {
     return '' +
-      '<button class="product-card' + (disabled ? ' product-card--disabled' : '') + '" ' +
-        'type="button" data-product="' + id + '" data-route="' + route + '"' + (disabled ? ' disabled' : '') + '>' +
-        '<span class="product-card__emoji">' + emoji + '</span>' +
-        '<span class="product-card__title">' + Utils.escapeHtml(title) + '</span>' +
-        '<span class="product-card__desc">' + Utils.escapeHtml(desc) + '</span>' +
-        (disabled
-          ? '<span class="badge badge--soon">Próximamente</span>'
-          : '<span class="badge">Cotizar</span>') +
+      '<button class="product-card" type="button" data-product="' + id + '" data-route="' + route + '" ' +
+        'title="' + Utils.escapeHtml(title) + '" aria-label="' + Utils.escapeHtml(title) + '">' +
+        '<img class="product-card__img" src="icons/productos/' + imagen + '.png" alt="' + Utils.escapeHtml(title) + '" />' +
       '</button>';
   }
 
@@ -268,16 +282,12 @@
     return '' +
       '<section class="panel">' +
         '<h3 class="panel__title">¿Qué quieres cotizar?</h3>' +
-        '<p class="panel__hint">Elige un producto y agrégalo al carrito. Puedes combinar varios productos en una misma cotización; cuando esté lista la envías desde el carrito y aparece en <b>Proceso</b>.</p>' +
+        '<p class="panel__hint">Elige un producto y agrégalo a la cotización. Puedes combinar varios productos en una misma cotización; cuando esté lista la envías desde ahí y aparece en <b>Proceso</b>.</p>' +
         '<div class="product-grid">' +
-          productCard('llaveros', 'productos/llaveros', '🔑', 'Llaveros de Nombre',
-            'Elige el color de la base y del nombre. Precio con o sin apellido.', false) +
-          productCard('clicers', 'productos/clicers', '🖱️', 'Clicker de Nombre',
-            'Cada letra con su base (color y acabado), su tecla y su letra; todo igual o letra por letra.', false) +
-          productCard('charms', 'productos/charms', '🪑', 'Charm para Silla',
-            'Letras, números y símbolos con base y tapa de color, más los charms que quieras.', false) +
-          productCard('manual', 'productos/manual', '✍️', 'Cotización manual',
-            'Para lo que no está en el menú: pones el desglose de lo que vendes y el precio a mano.', false) +
+          productCard('llaveros', 'productos/llaveros', 'llavero', 'Llavero') +
+          productCard('clicers', 'productos/clicers', 'clicker', 'Clicker') +
+          productCard('charms', 'productos/charms', 'charm', 'Charm con cinta') +
+          productCard('manual', 'productos/manual', 'manual', 'Cotización manual') +
         '</div>' +
       '</section>';
   }
@@ -286,6 +296,92 @@
     return colores.map(function (c) {
       return '<option value="' + Utils.escapeHtml(c.id) + '">' + Utils.escapeHtml(c.nombre) + '</option>';
     }).join('');
+  }
+
+  // Las dos opciones del llavero: de nombre y de logo.
+  function llaveroTabs(activo) {
+    var tabs = [['llaveros', 'Llavero de nombre'], ['logo', 'Llavero de logo']];
+    return '<div class="llavero-tabs" role="tablist">' + tabs.map(function (t) {
+      return '<button class="llavero-tab' + (t[0] === activo ? ' llavero-tab--activa' : '') + '" type="button" ' +
+        'role="tab" aria-selected="' + (t[0] === activo) + '" data-llavero-tab="' + t[0] + '">' + t[1] + '</button>';
+    }).join('') + '</div>';
+  }
+
+  // Formulario del llavero de logo: cómo se llama el logo, sus colores y detalles (opcional)
+  // y la imagen del logo, que viaja en la cotización y pasa a la tarjeta como archivo.
+  var logoImagen = '';   // data URL de la imagen elegida (o la de la línea que se edita)
+
+  function logoTemplate() {
+    var config = Store.getConfig();
+
+    return '' +
+      '<section class="panel">' +
+        '<button class="btn btn--ghost btn--back" type="button" data-action="back">← Volver al menú</button>' +
+        avisoLinea() +
+        '<h3 class="panel__title">Llavero</h3>' +
+        llaveroTabs('logo') +
+        '<form class="form" id="form-logo" novalidate>' +
+          '<label class="field">' +
+            '<span class="field__label">Nombre del logo</span>' +
+            '<input class="field__input" type="text" id="f-logo-titulo" maxlength="80" placeholder="Ej. Café Luna" autocomplete="off" />' +
+          '</label>' +
+          '<label class="field">' +
+            '<span class="field__label">Colores y detalles del logo <em class="field__opt">(opcional)</em></span>' +
+            '<input class="field__input" type="text" id="f-logo-detalle" maxlength="120" placeholder="Ej. letras blancas, borde rojo" autocomplete="off" />' +
+          '</label>' +
+          '<div class="field">' +
+            '<span class="field__label">Imagen del logo</span>' +
+            '<div class="logo-subida">' +
+              '<input class="field__input" type="file" id="f-logo-archivo" accept="image/png,image/jpeg,image/webp,image/gif" />' +
+              '<img class="logo-subida__vista" id="logo-vista" alt="Vista previa del logo" hidden />' +
+            '</div>' +
+            '<span class="field__opt">Sale en la cotización y se guarda en la tarjeta (📎).</span>' +
+          '</div>' +
+          '<p class="form__error" id="logo-error" hidden></p>' +
+          '<div class="form__footer">' +
+            '<div class="price-preview">' +
+              '<span class="price-preview__label">Precio</span>' +
+              '<span class="price-preview__value" id="logo-precio">' + Utils.formatMoney(config.precios.logo) + '</span>' +
+            '</div>' +
+            '<button class="btn btn--primary" type="submit">' + etiquetaGuardar() + '</button>' +
+          '</div>' +
+        '</form>' +
+      '</section>';
+  }
+
+  // Muestra la imagen elegida (o esconde la vista previa si no hay).
+  function pintarLogoVista() {
+    if (!rootEl) return;
+    var vista = rootEl.querySelector('#logo-vista');
+    if (!vista) return;
+    vista.hidden = !logoImagen;
+    if (logoImagen) vista.src = logoImagen;
+  }
+
+  // Agrega el llavero de logo al carrito compartido.
+  function addLogoToCart() {
+    if (!rootEl) return;
+    var config = Store.getConfig();
+    var titulo = Utils.normalize(rootEl.querySelector('#f-logo-titulo').value);
+    var detalle = Utils.normalize(rootEl.querySelector('#f-logo-detalle').value);
+    if (!titulo) { showFormError('Escribe el nombre del logo.', '#logo-error'); return; }
+    // Una línea nueva necesita su imagen; al editar una ya enviada, la imagen está en la
+    // tarjeta y sólo se cambia si se sube otra.
+    if (!logoImagen && !Cart.getLineaEnEdicion()) { showFormError('Sube la imagen del logo.', '#logo-error'); return; }
+
+    var detalles = detalle ? [{ label: 'Logo', nombre: detalle, hex: '' }] : [];
+    var item = { tipo: TIPO_LLAVERO_LOGO, titulo: titulo, detalles: detalles, precio: config.precios.logo, imagen: logoImagen };
+    if (guardarLinea(item)) return;
+    Cart.add(item);
+
+    hideFormError('#logo-error');
+    rootEl.querySelector('#f-logo-titulo').value = '';
+    rootEl.querySelector('#f-logo-detalle').value = '';
+    rootEl.querySelector('#f-logo-archivo').value = '';
+    logoImagen = '';
+    pintarLogoVista();
+    rootEl.querySelector('#f-logo-titulo').focus();
+    window.App.toast('Agregado a la cotización', 'success');
   }
 
   function formTemplate() {
@@ -298,7 +394,8 @@
       '<section class="panel">' +
         '<button class="btn btn--ghost btn--back" type="button" data-action="back">← Volver al menú</button>' +
         avisoLinea() +
-        '<h3 class="panel__title">Llaveros de Nombre</h3>' +
+        '<h3 class="panel__title">Llavero</h3>' +
+        llaveroTabs('llaveros') +
         (sinColores
           ? '<p class="alert alert--warn">No hay colores en stock. Agrégalos en <b>⚙️ Configuración</b> (arriba a la derecha) para poder cotizar.</p>'
           : '') +
@@ -467,7 +564,7 @@
       '</section>';
   }
 
-  // Formulario del Charm para Silla: el texto, los menús «todas» (base y tapa), una
+  // Formulario del Charm con cinta: la medida de la cinta, el texto, los menús «todas» (base y tapa), una
   // fila por letra, número o símbolo, y la lista de charms sueltos.
   function charmTemplate() {
     var config = Store.getConfig();
@@ -479,11 +576,20 @@
       '<section class="panel">' +
         '<button class="btn btn--ghost btn--back" type="button" data-action="back">← Volver al menú</button>' +
         avisoLinea() +
-        '<h3 class="panel__title">Charm para Silla</h3>' +
+        '<h3 class="panel__title">Charm con cinta</h3>' +
         (sinColores
           ? '<p class="alert alert--warn">No hay colores en stock. Agrégalos en <b>⚙️ Configuración</b> (arriba a la derecha) para poder cotizar.</p>'
           : '') +
         '<form class="form" id="form-charm" novalidate>' +
+          '<div class="field">' +
+            '<label class="field__label" for="f-charm-medida">Medida de la cinta</label>' +
+            '<select class="field__input" id="f-charm-medida"' + dis + '>' +
+              window.Charm.MEDIDAS.map(function (m) {
+                return '<option value="' + m.id + '"' + (m.id === charmMedida ? ' selected' : '') + '>' +
+                  m.nombre + ' \u00b7 ' + Utils.formatMoney(window.Charm.precioDe(config, m.id).total) + '</option>';
+              }).join('') +
+            '</select>' +
+          '</div>' +
           '<div class="field">' +
             '<label class="field__label" for="f-charm-texto">Nombre o texto <em class="field__opt">(letras, números, símbolos y emojis; los espacios no cuentan)</em></label>' +
             '<div class="field__row">' +
@@ -535,7 +641,7 @@
     return '' +
       '<section class="panel">' +
         '<div class="cart__head">' +
-          '<h3 class="panel__title">' + (Cart.getEdicion() ? 'Cotización en edición' : 'Carrito de cotización') + '</h3>' +
+          '<h3 class="panel__title">' + (Cart.getEdicion() ? 'Cotización en edición' : 'Cotización') + '</h3>' +
           '<div class="cart__actions">' +
             '<button class="btn btn--ghost" type="button" id="cart-detail">Siguiente →</button>' +
             (Cart.getEdicion() ? '' : '<button class="btn btn--ghost" type="button" id="cart-clear">Limpiar</button>') +
@@ -554,7 +660,7 @@
     // Un selector de emojis que haya quedado abierto no sigue a otra pantalla.
     if (window.EmojiPicker) window.EmojiPicker.cerrar();
     if (sub !== undefined) {
-      currentSub = (sub === 'llaveros' || sub === 'clicers' || sub === 'charms' || sub === 'manual') ? sub : null;
+      currentSub = (sub === 'llaveros' || sub === 'logo' || sub === 'clicers' || sub === 'charms' || sub === 'manual') ? sub : null;
     }
 
     // La línea en edición sólo vale en SU formulario: si se sale (al menú, a otro
@@ -563,6 +669,7 @@
     if (enEdicion && enEdicion.sub !== currentSub) Cart.setLineaEnEdicion(null);
 
     var formulario = currentSub === 'llaveros' ? formTemplate()
+      : currentSub === 'logo' ? logoTemplate()
       : currentSub === 'clicers' ? clicerTemplate()
       : currentSub === 'charms' ? charmTemplate()
       : currentSub === 'manual' ? manualTemplate()
@@ -592,10 +699,23 @@
       updatePricePreview();
     }
 
+    if (currentSub === 'logo') {
+      logoImagen = '';
+      if (previo) {
+        rootEl.querySelector('#f-logo-titulo').value = previo.titulo;
+        rootEl.querySelector('#f-logo-detalle').value = previo.detalle;
+        logoImagen = previo.imagen;
+      }
+      pintarLogoVista();
+    }
+
     if (currentSub === 'charms') {
       limpiarPiezasCharm();        // formulario recién montado: todo con lo de «todas»
       charmLista = [];
+      charmMedida = window.Charm.MEDIDA_POR_DEFECTO;
       if (previo) {
+        charmMedida = previo.medida;
+        rootEl.querySelector('#f-charm-medida').value = previo.medida;
         rootEl.querySelector('#f-charm-texto').value = previo.texto;
         if (previo.base[0]) rootEl.querySelector('#f-charm-base').value = previo.base[0];
         if (previo.tapa[0]) rootEl.querySelector('#f-charm-tapa').value = previo.tapa[0];
@@ -679,6 +799,33 @@
       });
     }
 
+    // Las dos opciones del llavero (de nombre / de logo)
+    container.querySelectorAll('[data-llavero-tab]').forEach(function (tab) {
+      tab.addEventListener('click', function () {
+        window.App.navigate('productos/' + tab.getAttribute('data-llavero-tab'));
+      });
+    });
+
+    var logoForm = container.querySelector('#form-logo');
+    if (logoForm) {
+      logoForm.addEventListener('submit', function (e) {
+        e.preventDefault();
+        addLogoToCart();
+      });
+      container.querySelector('#f-logo-archivo').addEventListener('change', function (e) {
+        var archivo = e.target.files && e.target.files[0];
+        if (!archivo) return;
+        Utils.imagenAData(archivo, 900).then(function (data) {
+          logoImagen = data;
+          hideFormError('#logo-error');
+          pintarLogoVista();
+        }, function (error) {
+          e.target.value = '';
+          showFormError(error.message, '#logo-error');
+        });
+      });
+    }
+
     // Formulario del producto
     var form = container.querySelector('#form-llaveros');
     if (form) {
@@ -705,6 +852,10 @@
       charmForm.addEventListener('submit', function (e) {
         e.preventDefault();
         addCharmToCart();
+      });
+      container.querySelector('#f-charm-medida').addEventListener('change', function (e) {
+        charmMedida = e.target.value;
+        updateCharmPrecio();
       });
       container.querySelector('#f-charm-texto').addEventListener('input', function () {
         pintarPiezasCharm();
@@ -845,7 +996,7 @@
       clear.addEventListener('click', function () {
         if (!Cart.getCount()) return;
         Cart.clear();
-        window.App.toast('Carrito vaciado');
+        window.App.toast('Cotización vaciada');
       });
     }
 
@@ -957,10 +1108,10 @@
     rootEl.querySelector('#f-nombre').focus();
 
     updatePricePreview();
-    window.App.toast('Agregado al carrito', 'success');
+    window.App.toast('Agregado a la cotización', 'success');
   }
 
-  /* ------------------------- Charm para Silla ------------------------- */
+  /* ------------------------- Charm con cinta ------------------------- */
 
   function listaDeCharm(pieza) { return pieza === 'base' ? charmBase : charmTapas; }
 
@@ -1079,8 +1230,8 @@
     var valor = rootEl.querySelector('#charm-precio');
     var nota = rootEl.querySelector('#charm-nota');
     if (!valor) return;
-    valor.textContent = Utils.formatMoney(window.Charm.precioDe(Store.getConfig()).total);
-    if (nota) nota.textContent = 'precio fijo';
+    valor.textContent = Utils.formatMoney(window.Charm.precioDe(Store.getConfig(), charmMedida).total);
+    if (nota) nota.textContent = 'cinta de ' + window.Charm.buscarMedida(charmMedida).nombre + ' \u00b7 precio fijo';
   }
 
   // Agrega el charm al carrito compartido, con el desglose de CADA pieza (su base y su
@@ -1111,8 +1262,8 @@
     var item = {
       tipo: window.PO.TIPO_CHARM,
       titulo: res.texto,
-      detalles: window.Charm.detallesDe(piezas, charms),
-      precio: window.Charm.precioDe(config).total
+      detalles: window.Charm.detallesDe(piezas, charms, charmMedida),
+      precio: window.Charm.precioDe(config, charmMedida).total
     };
     if (guardarLinea(item)) return;
     Cart.add(item);
@@ -1126,7 +1277,7 @@
     pintarCharms();
     updateCharmPrecio();
     campo.focus();
-    window.App.toast('Agregado al carrito', 'success');
+    window.App.toast('Agregado a la cotización', 'success');
   }
 
   /* ------------------------- Cotización manual ------------------------- */
@@ -1268,7 +1419,7 @@
     pintarColoresManual();
     updateManualImporte();
     rootEl.querySelector('#f-manual-titulo').focus();
-    window.App.toast('Agregado al carrito', 'success');
+    window.App.toast('Agregado a la cotización', 'success');
   }
 
   /* ------------------------- Clicker de Nombre ------------------------- */
@@ -1485,7 +1636,7 @@
     pintarTeclas();
     updateClicerPrecio();
     campo.focus();
-    window.App.toast('Agregado al carrito', 'success');
+    window.App.toast('Agregado a la cotización', 'success');
   }
 
   // Pinta el panel del carrito leyendo siempre del carrito compartido.
@@ -1500,7 +1651,7 @@
     if (clear) clear.disabled = items.length === 0;
 
     if (!items.length) {
-      body.innerHTML = '<p class="empty">Aún no hay productos en el carrito. ' +
+      body.innerHTML = '<p class="empty">Aún no hay productos en la cotización. ' +
         'Elige un producto en el menú para agregarlo.</p>';
       return;
     }

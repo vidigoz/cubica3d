@@ -26,7 +26,7 @@
  * saltar de mes sola. Una tarjeta sin fecha usable cae en el cajón «Sin fecha»,
  * que va al final de la lista.
  *
- * El charm para silla cuenta una BASE y una TAPA por cada letra, número o símbolo
+ * El charm con cinta (antes «para silla») cuenta una BASE y una TAPA por cada letra, número o símbolo
  * de su texto, cada una con su color (los charms sueltos no llevan color).
  *
  * La cotización manual no tiene piezas propias, pero puede anotar «colores usados»:
@@ -107,12 +107,12 @@
       nota: 'La pieza impresa: uno por unidad.'
     },
     {
-      id: 'charm-base', tipo: 'Charm para Silla', pieza: 'Base',
+      id: 'charm-base', tipo: 'Charm con cinta', pieza: 'Base',
       etiqueta: 'Bases del charm',
       nota: 'Una por letra, número o símbolo del texto, con el color de la base.'
     },
     {
-      id: 'charm-tapa', tipo: 'Charm para Silla', pieza: 'Tapa',
+      id: 'charm-tapa', tipo: 'Charm con cinta', pieza: 'Tapa',
       etiqueta: 'Tapas del charm',
       nota: 'Una por letra, número o símbolo del texto, con el color de la tapa.'
     },
@@ -258,7 +258,7 @@
     var productos = [
       { tipo: PO.TIPO_CLICER, etiqueta: 'Clickers', total: 0, cajones: {} },
       { tipo: PO.TIPO_LLAVERO, etiqueta: 'Llaveros', total: 0, cajones: {} },
-      { tipo: PO.TIPO_CHARM, etiqueta: 'Charms de silla', total: 0, cajones: {} }
+      { tipo: PO.TIPO_CHARM, etiqueta: 'Charms con cinta', total: 0, cajones: {} }
     ];
     var ventas = { total: 0, unidades: 0, tarjetas: 0, cajones: {} };
 
@@ -295,11 +295,12 @@
       items.forEach(function (item) {
         item = item || {};
         var cantidad = PO.cantidadDe(item.cantidad);
-        var tipo = Utils.normalize(item.tipo);
+        var tipo = PO.tipoCanonico(Utils.normalize(item.tipo));
         var detalles = Array.isArray(item.detalles) ? item.detalles : [];
 
         productos.forEach(function (p) {
-          if (p.tipo !== tipo) return;
+          var esDe = p.tipo === tipo || (p.tipo === PO.TIPO_LLAVERO && tipo === PO.TIPO_LLAVERO_LOGO);
+          if (!esDe) return;
           p.total += cantidad;
           p.cajones[mes] = (p.cajones[mes] || 0) + cantidad;
         });

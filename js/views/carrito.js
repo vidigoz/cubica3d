@@ -45,7 +45,7 @@
       edicionAviso() +
       '<div class="page__head page__head--row">' +
         '<div>' +
-          '<h2 class="page__title">' + (ed ? 'Editar cotización ' + Utils.escapeHtml(PDF.folioTexto(ed.folio)) : 'Carrito de cotización') + '</h2>' +
+          '<h2 class="page__title">' + (ed ? 'Editar cotización ' + Utils.escapeHtml(PDF.folioTexto(ed.folio)) : 'Cotización') + '</h2>' +
           '<p class="page__subtitle">' + (ed
             ? 'Revisa el desglose y corrige los datos. Al guardar, la tarjeta de <b>Proceso</b> queda con estos cambios; no cambia de columna.'
             : 'Revisa el desglose, captura los datos del cliente y envía la cotización: se guarda en <b>Proceso</b> y se descarga en PDF o PNG para mandárselo.') + '</p>' +
@@ -150,8 +150,8 @@
     if (!items.length) {
       return '' +
         '<div class="empty-state">' +
-          '<span class="empty-state__emoji">🛒</span>' +
-          '<p>Tu carrito está vacío. Agrega productos para armar la cotización.</p>' +
+          '<span class="empty-state__emoji">🧾</span>' +
+          '<p>Tu cotización está vacía. Agrega productos para armarla.</p>' +
           '<button class="btn btn--primary" type="button" data-action="back">Ver productos</button>' +
         '</div>';
     }
@@ -180,7 +180,7 @@
             (window.Views.productos.subDe(item)
               ? '<button class="icon-btn" type="button" data-editar-linea="' + Utils.escapeHtml(item.id) + '" title="Editar este producto: nombre, colores…" aria-label="Editar este producto">✏️</button>'
               : '') +
-            '<button class="icon-btn" type="button" data-remove="' + Utils.escapeHtml(item.id) + '" title="Quitar del carrito">✕</button>' +
+            '<button class="icon-btn" type="button" data-remove="' + Utils.escapeHtml(item.id) + '" title="Quitar de la cotización">✕</button>' +
           '</td>' +
         '</tr>';
     }).join('');
@@ -297,6 +297,40 @@
     });
   }
 
+  // Sube a la tarjeta la imagen de cada llavero de logo del carrito, como archivo
+  // «Logo - <título>.<ext>» (ahí la encuentra la hoja y se ve en el 📎). Devuelve una
+  // promesa con cuántos no pudo subir; nunca rechaza: la cotización ya está guardada.
+  function subirLogos(tarjetaId, items) {
+    var pendientes = items.filter(function (it) { return it.imagen; });
+    var fallaron = 0;
+    return pendientes.reduce(function (cadena, it) {
+      return cadena.then(function () {
+        var m = /^data:(image\/(png|jpeg|webp|gif));base64,(.*)$/.exec(it.imagen);
+        if (!m) { fallaron++; return null; }
+        var ext = m[2] === 'jpeg' ? 'jpg' : m[2];
+        return window.Api.subirArchivo(tarjetaId, {
+          nombre: PDF.nombreDeLogo(it.titulo) + '.' + ext,
+          tipo: m[1],
+          datos: m[3]
+        }).catch(function () { fallaron++; });
+      });
+    }, Promise.resolve()).then(function () {
+      return pendientes.length ? Proceso.recargar().then(function () { return fallaron; }, function () { return fallaron; }) : 0;
+    });
+  }
+
+  // Une la imagen del carrito a las líneas de la tarjeta recién creada (mismo orden).
+  function itemsConImagen(itemsTarjeta, itemsCarrito) {
+    return itemsTarjeta.map(function (it, i) {
+      var c = itemsCarrito[i];
+      if (!c || !c.imagen || c.titulo !== it.titulo) return it;
+      var copia = {};
+      Object.keys(it).forEach(function (k) { copia[k] = it[k]; });
+      copia.imagen = c.imagen;
+      return copia;
+    });
+  }
+
   function enviarCotizacion() {
     if (Cart.getEdicion()) {
       guardarEdicion();
@@ -325,12 +359,16 @@
       boton.textContent = 'Enviando…';
     }
 
+    var itemsCarrito = Cart.getItems();
     Proceso.crear({
       clientId: Cart.getClientId(),
       meta: Cart.getMeta(),
-      items: Cart.getItems()
+      items: itemsCarrito
     }).then(function (res) {
       var tarjeta = res.tarjeta;
+      subirLogos(tarjeta.id, itemsCarrito).then(function (fallaron) {
+        if (fallaron) window.App.toast('No se pudo adjuntar ' + fallaron + (fallaron === 1 ? ' logo' : ' logos') + ' a la tarjeta (m\u00e1x. 5 archivos). S\u00fabelo desde el \ud83d\udcce.', 'error');
+      });
 
       Cart.clear();
       // El folio del carrito sigue la numeración de la base: así nunca se repite
@@ -340,7 +378,7 @@
       window.App.navigate('proceso');
       // El archivo se baja solo, con los datos congelados de la tarjeta. Si falla,
       // la cotización ya quedó guardada: se avisa y se puede sacar desde la tarjeta.
-      PDF.descargar({ meta: tarjeta, items: tarjeta.items }, formato).then(function () {
+      PDF.descargar({ meta: tarjeta, items: itemsConImagen(tarjeta.items, itemsCarrito) }, formato).then(function () {
         if (res.folioReasignado) {
           // El folio que traía el formulario ya estaba usado y la base puso otro.
           window.App.toast('Ese folio ya estaba usado: quedó como ' + PDF.folioTexto(tarjeta.folio), 'error');
@@ -377,8 +415,12 @@
       boton.textContent = 'Guardando…';
     }
 
-    Proceso.editar(ed.id, { meta: Cart.getMeta(), items: Cart.getItems() }).then(function (tarjeta) {
+    var itemsCarrito = Cart.getItems();
+    Proceso.editar(ed.id, { meta: Cart.getMeta(), items: itemsCarrito }).then(function (tarjeta) {
       Cart.terminarEdicion();
+      subirLogos(tarjeta.id, itemsCarrito).then(function (fallaron) {
+        if (fallaron) window.App.toast('No se pudo adjuntar ' + fallaron + (fallaron === 1 ? ' logo' : ' logos') + ' a la tarjeta (m\u00e1x. 5 archivos).', 'error');
+      });
       window.App.navigate('proceso');
       window.App.toast('Cotización ' + PDF.folioTexto(tarjeta.folio) + ' actualizada', 'success');
     }).catch(function (error) {
@@ -441,7 +483,7 @@
       if (e.target.closest('#carrito-limpiar')) {
         if (!Cart.getCount()) return;
         Cart.clear();
-        window.App.toast('Carrito vaciado');
+        window.App.toast('Cotización vaciada');
         return;
       }
 

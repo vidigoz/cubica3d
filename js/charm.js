@@ -1,4 +1,4 @@
-/* Lógica del producto «Charm para Silla».
+/* Lógica del producto «Charm con cinta» (antes «Charm para Silla»).
  *
  * Un charm para silla se arma con piezas: cada letra, número o símbolo del texto
  * («Alejandro Perez #11») es una pieza BICOLOR —una base de un color y una tapa
@@ -8,8 +8,9 @@
  * Todo se puede poner igual para el texto entero (los menús «todas») o pieza por
  * pieza.
  *
- * El precio es FIJO (Configuración → Precios, $350 de inicio): no cambia con las
- * piezas del texto ni con los charms que se sumen.
+ * Viene en dos MEDIDAS de cinta, 30 cm y 55 cm, y el precio depende sólo de la medida
+ * (Configuración → Precios, $200 y $350 de inicio): no cambia con las piezas del texto
+ * ni con los charms que se sumen.
  *
  * Vive aparte de la vista para que el precio y el desglose se calculen en un solo
  * lugar. Se expone como window.Charm */
@@ -20,14 +21,30 @@
 
   var TEXTO_MAX = 40;      // piezas del texto (sin contar espacios)
   var CHARM_MAX = 100;     // largo del nombre de un charm suelto
+  var ROTULO_MEDIDA = 'Medida';   // el primer detalle del charm: «Medida · 30 cm»
 
-  // Si la base todavía no tiene el precio del charm (una base vieja), se usa éste.
-  var PRECIO_POR_DEFECTO = 350;
+  // Las medidas de la cinta. `precio` es la clave del precio en Configuración.
+  var MEDIDAS = [
+    { id: '30', nombre: '30 cm', precio: 'precio30' },
+    { id: '55', nombre: '55 cm', precio: 'precio55' }
+  ];
+  var MEDIDA_POR_DEFECTO = '55';   // los charms de antes (sin medida) valían lo que hoy los de 55
 
-  // El precio fijo tal como quedó en Configuración.
-  function precioFijo(config) {
+  // Si la base todavía no tiene los precios del charm (una base vieja), se usan éstos.
+  var PRECIOS_POR_DEFECTO = { precio30: 200, precio55: 350 };
+
+  function buscarMedida(id) {
+    for (var i = 0; i < MEDIDAS.length; i++) {
+      if (MEDIDAS[i].id === String(id)) return MEDIDAS[i];
+    }
+    return null;
+  }
+
+  // El precio de una medida tal como quedó en Configuración.
+  function precioFijo(config, medida) {
+    var m = buscarMedida(medida) || buscarMedida(MEDIDA_POR_DEFECTO);
     var c = (config && config.precios && config.precios.charm) || {};
-    return Math.max(0, Utils.parseNumber(c.precio, PRECIO_POR_DEFECTO));
+    return Math.max(0, Utils.parseNumber(c[m.precio], PRECIOS_POR_DEFECTO[m.precio]));
   }
 
   // "Alejandro  Perez #11" -> { ok: true, texto: "Alejandro Perez #11",
@@ -55,9 +72,9 @@
     return { ok: true, error: '', texto: texto, piezas: piezas };
   }
 
-  // Cuánto sale: el precio fijo, lleve las piezas y los charms que lleve.
-  function precioDe(config) {
-    return { total: Math.round(precioFijo(config) * 100) / 100 };
+  // Cuánto sale: el precio de la medida, lleve las piezas y los charms que lleve.
+  function precioDe(config, medida) {
+    return { total: Math.round(precioFijo(config, medida) * 100) / 100 };
   }
 
   // Alinea una lista de elecciones con las piezas que hay ahora en el campo: lo ya
@@ -73,10 +90,13 @@
   }
 
   // Desglose que viaja al carrito, al tablero y al PDF: por CADA pieza su base y su
-  // tapa con su color, y luego los charms sueltos (sin color: sólo su nombre).
+  // tapa con su color, y luego los charms sueltos (sin color: sólo su nombre). El
+  // primer detalle es la medida de la cinta («Medida · 30 cm»).
   //   piezas: [{ caracter, base: <color>, tapa: <color> }] · charms: ['pelota de volly']
-  function detallesDe(piezas, charms) {
+  function detallesDe(piezas, charms, medida) {
     var lista = [];
+    var m = buscarMedida(medida) || buscarMedida(MEDIDA_POR_DEFECTO);
+    lista.push({ label: ROTULO_MEDIDA, nombre: m.nombre, hex: '' });
     (piezas || []).forEach(function (p) {
       var pieza = p || {};
       lista.push({ label: pieza.caracter + ' · Base', nombre: pieza.base ? pieza.base.nombre : '', hex: pieza.base ? pieza.base.hex : '' });
@@ -91,7 +111,17 @@
   window.Charm = {
     TEXTO_MAX: TEXTO_MAX,
     CHARM_MAX: CHARM_MAX,
-    PRECIO_POR_DEFECTO: PRECIO_POR_DEFECTO,
+    ROTULO_MEDIDA: ROTULO_MEDIDA,
+    MEDIDAS: MEDIDAS.map(function (m) { return { id: m.id, nombre: m.nombre }; }),
+    MEDIDA_POR_DEFECTO: MEDIDA_POR_DEFECTO,
+    PRECIOS_POR_DEFECTO: PRECIOS_POR_DEFECTO,
+    buscarMedida: buscarMedida,
+    // La medida de un charm ya cotizado (sus detalles); los de antes no la traen.
+    medidaDe: function (detalles) {
+      var d = (detalles || []).filter(function (x) { return x && x.label === ROTULO_MEDIDA; })[0];
+      var m = d && MEDIDAS.filter(function (x) { return x.nombre === d.nombre; })[0];
+      return m ? m.id : MEDIDA_POR_DEFECTO;
+    },
     precioFijo: precioFijo,
     piezasDe: piezasDe,
     precioDe: precioDe,

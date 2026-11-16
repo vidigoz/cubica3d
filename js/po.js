@@ -33,8 +33,15 @@
   // Los mismos nombres que usan las líneas de la cotización y del tablero.
   var TIPO_CLICER = 'Clicker de Nombre';
   var TIPO_LLAVERO = 'Llavero de Nombre';
+  var TIPO_LLAVERO_LOGO = 'Llavero de Logo';   // base de color + el logo (que va como archivo en la tarjeta)
   var TIPO_MANUAL = 'Cotización manual';
-  var TIPO_CHARM = 'Charm para Silla';
+  var TIPO_CHARM = 'Charm con cinta';
+  var TIPO_CHARM_VIEJO = 'Charm para Silla';   // como se llamaba: las tarjetas viejas lo conservan
+
+  // El nombre de siempre de un producto: el charm viejo cuenta como «Charm con cinta».
+  function tipoCanonico(tipo) {
+    return tipo === TIPO_CHARM_VIEJO ? TIPO_CHARM : tipo;
+  }
 
   // Las piezas del clicker, tal como las nombra window.Clicer en los labels
   // («A · Base»): el label dice el carácter y la pieza, separados por ·.
@@ -214,7 +221,7 @@
       item = item || {};
       var detalles = Array.isArray(item.detalles) ? item.detalles : [];
       var cantidad = cantidadDe(item.cantidad);
-      var tipo = Utils.normalize(item.tipo);
+      var tipo = tipoCanonico(Utils.normalize(item.tipo));
       // Una línea sin tipo, sin nombre y sin detalles no es un producto: es
       // basura de un dato viejo. No se cuenta ni se inventa un grupo con ella.
       if (!tipo && !Utils.normalize(item.titulo) && !detalles.length) return;
@@ -290,9 +297,9 @@
       go.cantidad += cantidad;
       sumarTitulo(go, item, cantidad);
       suyas.forEach(function (p) {
-        // Charm para Silla: el material es «Base» y «Tapa» por color (no una fila por
+        // Charm con cinta: el material es «Base» y «Tapa» por color (no una fila por
         // letra), y los charms sueltos no llevan color: no son material.
-        if (tipo === TIPO_CHARM) {
+        if (tipo === TIPO_CHARM || tipo === TIPO_LLAVERO_LOGO) {
           if (!p.hex) return;
           p = { label: p.label.replace(/^.* \u00b7 /, ''), nombre: p.nombre, hex: p.hex };
         }
@@ -473,9 +480,12 @@
     TIPO_CLICER: TIPO_CLICER,
     TIPO_MANUAL: TIPO_MANUAL,
     TIPO_CHARM: TIPO_CHARM,
+    TIPO_CHARM_VIEJO: TIPO_CHARM_VIEJO,
+    tipoCanonico: tipoCanonico,
     rotuloColorUsado: rotuloColorUsado,
     coloresUsados: coloresUsados,
     TIPO_LLAVERO: TIPO_LLAVERO,
+    TIPO_LLAVERO_LOGO: TIPO_LLAVERO_LOGO,
     PIEZAS: { base: PIEZA_BASE, tecla: PIEZA_TECLA, letra: PIEZA_LETRA },
     cantidadDe: cantidadDe,
     sufijoDe: sufijoDe,

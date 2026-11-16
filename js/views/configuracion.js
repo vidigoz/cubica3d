@@ -59,7 +59,7 @@
         '<h3 class="panel__title">Precios</h3>' +
         '<p class="panel__hint">Los llaveros cambian según si llevan apellido; los clickers, según cuántas letras tenga el nombre (cada letra lleva base, tecla y letra).</p>' +
         '<form class="form" id="form-precios">' +
-          '<div class="form__row">' +
+          '<div class="form__row form__row--tres">' +
             '<label class="field field--grow">' +
               '<span class="field__label">Llavero · Solo nombre</span>' +
               '<input class="field__input" type="number" min="0" step="1" id="p-nombre" value="' + config.precios.nombre + '" />' +
@@ -67,6 +67,10 @@
             '<label class="field field--grow">' +
               '<span class="field__label">Llavero · Nombre + Apellido</span>' +
               '<input class="field__input" type="number" min="0" step="1" id="p-nombreApellido" value="' + config.precios.nombreApellido + '" />' +
+            '</label>' +
+            '<label class="field field--grow">' +
+              '<span class="field__label">Llavero · De logo</span>' +
+              '<input class="field__input" type="number" min="0" step="1" id="p-logo" value="' + config.precios.logo + '" />' +
             '</label>' +
           '</div>' +
           '<div class="form__row form__row--tres">' +
@@ -88,8 +92,12 @@
             ' letras, $' + (config.precios.clicer.porLetraLargo * (corte + 1)).toFixed(2) + '.</p>' +
           '<div class="form__row">' +
             '<label class="field field--grow">' +
-              '<span class="field__label">Charm para Silla · Precio fijo</span>' +
-              '<input class="field__input" type="number" min="0" step="1" id="p-charm-precio" value="' + config.precios.charm.precio + '" />' +
+              '<span class="field__label">Charm con cinta · 30 cm</span>' +
+              '<input class="field__input" type="number" min="0" step="1" id="p-charm-precio30" value="' + config.precios.charm.precio30 + '" />' +
+            '</label>' +
+            '<label class="field field--grow">' +
+              '<span class="field__label">Charm con cinta · 55 cm</span>' +
+              '<input class="field__input" type="number" min="0" step="1" id="p-charm-precio55" value="' + config.precios.charm.precio55 + '" />' +
             '</label>' +
           '</div>' +
           '<p class="form__error" id="precio-error" hidden></p>' +
@@ -178,10 +186,12 @@
       e.preventDefault();
       var n = Utils.parseNumber(container.querySelector('#p-nombre').value, NaN);
       var na = Utils.parseNumber(container.querySelector('#p-nombreApellido').value, NaN);
+      var logo = Utils.parseNumber(container.querySelector('#p-logo').value, NaN);
       var clicerCorto = Utils.parseNumber(container.querySelector('#p-clicer-corto').value, NaN);
       var clicerLargo = Utils.parseNumber(container.querySelector('#p-clicer-largo').value, NaN);
       var clicerCorte = Utils.parseNumber(container.querySelector('#p-clicer-corte').value, NaN);
-      var charmPrecio = Utils.parseNumber(container.querySelector('#p-charm-precio').value, NaN);
+      var charm30 = Utils.parseNumber(container.querySelector('#p-charm-precio30').value, NaN);
+      var charm55 = Utils.parseNumber(container.querySelector('#p-charm-precio55').value, NaN);
 
       if (!isFinite(n) || n < 0) {
         showError(container, '#precio-error', 'El precio de "Llavero · Solo nombre" debe ser un número mayor o igual a 0.');
@@ -189,6 +199,10 @@
       }
       if (!isFinite(na) || na < 0) {
         showError(container, '#precio-error', 'El precio de "Llavero · Nombre + Apellido" debe ser un número mayor o igual a 0.');
+        return;
+      }
+      if (!isFinite(logo) || logo < 0) {
+        showError(container, '#precio-error', 'El precio de "Llavero · De logo" debe ser un número mayor o igual a 0.');
         return;
       }
       if (!isFinite(clicerCorto) || clicerCorto < 0) {
@@ -204,20 +218,21 @@
         return;
       }
 
-      if (!isFinite(charmPrecio) || charmPrecio < 0) {
-        showError(container, '#precio-error', 'El precio del Charm para Silla debe ser un número mayor o igual a 0.');
+      if (!isFinite(charm30) || charm30 < 0 || !isFinite(charm55) || charm55 < 0) {
+        showError(container, '#precio-error', 'Los precios del Charm con cinta (30 cm y 55 cm) deben ser números mayores o iguales a 0.');
         return;
       }
 
       Store.setPrecios({
         nombre: n,
         nombreApellido: na,
+        logo: logo,
         clicer: {
           porLetraCorto: clicerCorto,
           porLetraLargo: clicerLargo,
           letrasCorte: Math.floor(clicerCorte)
         },
-        charm: { precio: charmPrecio }
+        charm: { precio30: charm30, precio55: charm55 }
       });
       hideError(container, '#precio-error');
       window.App.toast('Precios guardados', 'success');

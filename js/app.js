@@ -67,7 +67,7 @@
     }
   }
 
-  // Refresca el chip "🛒 2 · $200.00" del header. Se ejecuta al navegar y en
+  // Refresca el chip "2 · $200.00" del header. Se ejecuta al navegar y en
   // cada cambio del carrito (window.Cart.subscribe), desde cualquier pestaña.
   function refreshCartChip() {
     if (!cartChip) return;
@@ -232,8 +232,27 @@
   tabsEl.addEventListener('click', function (e) {
     var tab = e.target.closest('.tab');
     if (!tab) return;
+    cerrarMenu();
     navigate(tab.getAttribute('data-route'));
   });
+
+  // Menú desplegable del celular: el botón ☰ abre y cierra la lista de pestañas.
+  var menuBtn = document.getElementById('btn-menu');
+  function cerrarMenu() {
+    tabsEl.classList.remove('tabs--abierto');
+    if (menuBtn) menuBtn.setAttribute('aria-expanded', 'false');
+  }
+  if (menuBtn) {
+    menuBtn.addEventListener('click', function () {
+      var abierto = tabsEl.classList.toggle('tabs--abierto');
+      menuBtn.setAttribute('aria-expanded', abierto ? 'true' : 'false');
+    });
+    document.addEventListener('click', function (e) {
+      if (!tabsEl.classList.contains('tabs--abierto')) return;
+      if (e.target.closest('#tabs') || e.target.closest('#btn-menu')) return;
+      cerrarMenu();
+    });
+  }
 
   // El chip del carrito abre el desglose de la cotización (#/carrito), donde
   // se capturan los datos del cliente, se envía al tablero y se saca el PDF.

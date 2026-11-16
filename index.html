@@ -23,8 +23,8 @@
       <button class="tab" type="button" role="tab" data-route="herramientas">Herramientas</button>
     </nav>
     <div class="app-header__actions">
-      <button class="cart-chip" type="button" id="cart-chip" title="Ir al carrito de cotización">
-        <span class="cart-chip__icon" aria-hidden="true">🛒</span>
+      <button class="cart-chip" type="button" id="cart-chip" title="Ir a la cotización" aria-label="Ir a la cotización">
+        <svg class="cart-chip__icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 12h6M9 16h6"/></svg>
         <span class="cart-chip__count" id="cart-count">0</span>
         <span class="cart-chip__sep" aria-hidden="true">·</span>
         <span class="cart-chip__total" id="cart-total">$0.00</span>
@@ -32,6 +32,7 @@
       <span class="user-chip" id="user-chip" hidden></span>
       <button class="icon-btn icon-btn--gear" type="button" id="btn-config"
         title="Configuración" aria-label="Configuración">⚙️</button>
+      <button class="icon-btn menu-btn" type="button" id="btn-menu" aria-label="Menú" aria-expanded="false" aria-controls="tabs">☰</button>
     </div>
   </header>
 

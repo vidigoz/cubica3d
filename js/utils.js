@@ -60,7 +60,44 @@
   var EMOJI = '(?:\\p{Regional_Indicator}{2}|\\p{Extended_Pictographic}(?:\\uFE0F|\\p{Emoji_Modifier})?' +
     '(?:\\u200D\\p{Extended_Pictographic}(?:\\uFE0F|\\p{Emoji_Modifier})?)*)';
 
+  // Una imagen elegida por el usuario, ya chica y lista para guardarse junto a una línea
+  // del carrito: se acota a `maxPx` y se devuelve como data URL (PNG si conserva el
+  // fondo transparente y no pesa mucho; si no, JPG sobre blanco).
+  function imagenAData(archivo, maxPx) {
+    maxPx = maxPx || 900;
+    return new Promise(function (resolver, rechazar) {
+      if (!archivo || !/^image\/(png|jpeg|webp|gif)$/.test(archivo.type)) {
+        rechazar(new Error('Sube una imagen PNG, JPG, WEBP o GIF.'));
+        return;
+      }
+      var img = new Image();
+      var url = URL.createObjectURL(archivo);
+      img.onload = function () {
+        URL.revokeObjectURL(url);
+        var escala = Math.min(1, maxPx / Math.max(img.width, img.height));
+        var c = document.createElement('canvas');
+        c.width = Math.max(1, Math.round(img.width * escala));
+        c.height = Math.max(1, Math.round(img.height * escala));
+        var ctx = c.getContext('2d');
+        ctx.drawImage(img, 0, 0, c.width, c.height);
+        var png = archivo.type === 'image/jpeg' ? '' : c.toDataURL('image/png');
+        if (png && png.length <= 600000) { resolver(png); return; }
+        var j = document.createElement('canvas');
+        j.width = c.width;
+        j.height = c.height;
+        var jc = j.getContext('2d');
+        jc.fillStyle = '#ffffff';
+        jc.fillRect(0, 0, j.width, j.height);
+        jc.drawImage(c, 0, 0);
+        resolver(j.toDataURL('image/jpeg', 0.85));
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); rechazar(new Error('No se pudo leer la imagen.')); };
+      img.src = url;
+    });
+  }
+
   window.Utils = {
+    imagenAData: imagenAData,
     EMOJI: EMOJI,
     marcaDetalle: marcaDetalle,
     descuentoValido: descuentoValido,

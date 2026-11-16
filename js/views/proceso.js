@@ -116,10 +116,16 @@
   }
 
   // "2× Llavero de Nombre · 3× Clicker de Nombre"
+  // El producto con su medida cuando la tiene: «Charm con cinta 30 cm».
+  function tipoConMedida(item) {
+    var medida = (item.detalles || []).filter(function (d) { return d && d.label === 'Medida'; })[0];
+    return item.tipo + (medida && medida.nombre ? ' ' + medida.nombre : '');
+  }
+
   function resumenProductos(items) {
     return items.map(function (item) {
       // Con nombre: «1× Clicker "Alec"», que es como se reconoce la tarjeta en el taller.
-      return item.cantidad + '\u00d7 ' + item.tipo +
+      return item.cantidad + '\u00d7 ' + tipoConMedida(item) +
         (item.titulo && item.titulo !== item.tipo ? ' \u201c' + item.titulo + '\u201d' : '');
     }).join(' \u00b7 ');
   }
@@ -149,7 +155,7 @@
             '<span class="t-linea__nombre">' +
               Utils.escapeHtml(item.titulo || item.tipo) + '</span>' +
             (item.titulo
-              ? '<span class="t-linea__tipo">' + Utils.escapeHtml(item.tipo) + '</span>'
+              ? '<span class="t-linea__tipo">' + Utils.escapeHtml(tipoConMedida(item)) + '</span>'
               : '') +
           '</span>' +
           '<span class="t-linea__precio">' + Utils.formatMoney(importeLinea(item)) + '</span>' +
@@ -180,7 +186,7 @@
 
       var habiaBorrador = Cart.getCount() > 0;
       Cart.empezarEdicion(t);
-      if (habiaBorrador) window.App.toast('Tu carrito en armado queda guardado y vuelve al terminar');
+      if (habiaBorrador) window.App.toast('Tu cotización en armado queda guardada y vuelve al terminar');
     }
     window.App.navigate('productos');
   }
@@ -538,7 +544,7 @@
   // Qué hacer para que la columna deje de estar vacía (ahora sin arrastrar nada).
   function vacioTemplate(col) {
     var indice = Proceso.indiceColumna(col.id);
-    if (indice === 0) return 'Env\u00eda una cotizaci\u00f3n desde el carrito y aparecer\u00e1 aqu\u00ed.';
+    if (indice === 0) return 'Env\u00eda una cotizaci\u00f3n desde Productos y aparecer\u00e1 aqu\u00ed.';
     return 'A\u00fan no hay ninguna: en una tarjeta de ' + Proceso.COLUMNAS[indice - 1].nombre +
       ' pulsa \u00ab' + col.nombre + ' \u2192\u00bb.';
   }
@@ -1401,7 +1407,7 @@
       // Ver la cotización completa en pantalla, sin descargar nada.
       if (e.target.closest('[data-ver]')) {
         var c = Proceso.getTarjeta(id);
-        if (c) PDF.ver({ meta: c, items: c.items });
+        if (c) PDF.conImagenes(c).then(function (items) { PDF.ver({ meta: c, items: items }); });
         return;
       }
 
