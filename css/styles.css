@@ -1934,3 +1934,10 @@ body.con-pin { overflow: hidden; }
 .marco__ayuda { display: block; margin-top: 10px; font-size: .78rem; color: var(--muted); }
 .marco-prev { display: flex; justify-content: center; padding: 8px 0; }
 .marco-prev canvas { max-width: 100%; height: auto; border: 1px solid var(--border); border-radius: 10px; }
+
+/* La imagen del clicker (Clicer.vistaHtml): una tecla (SVG) por letra, con su base, su tecla y su letra. */
+.ck-fila { display: flex; flex-wrap: wrap; gap: .3em; font-size: 15px; }
+.ck { display: block; width: 3.6em; height: 3.6em; flex: none; filter: drop-shadow(0 .1em .15em rgba(15, 23, 42, .25)); }
+.clicer-vista { padding: 10px 0; }
+.hoja__ck { margin: 4px 0 6px; }
+.hoja__ck .ck-fila { font-size: 8pt; }

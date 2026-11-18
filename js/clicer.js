@@ -228,7 +228,73 @@
     return lista;
   }
 
+  // La imagen del clicker tal como va a quedar: una tecla por letra, con su base, su tecla
+  // y su letra cada una de su color; si la base es corrugada, con sus olanes alrededor.
+  // Sirve para la cotización (formulario y hoja).
+  //   piezas: [{ caracter, base: { hex }, tecla: { hex }, letra: { hex }, corrugado: bool }]
+  // Cada tecla es un SVG (sale igual en pantalla y al imprimir); su tamaño sale del
+  // font-size de .ck-fila en css/styles.css.
+  var OLANES = 36;   // cuántos olanes lleva una base corrugada
+
+  // Los centros de los olanes: puntos repartidos a lo largo de un cuadrado de esquinas
+  // redondas (x, y, lado y radio de esquina en el viewBox de 100).
+  function puntosDeOlanes(x, y, lado, r, n) {
+    var recto = lado - 2 * r;
+    var arco = Math.PI * r / 2;
+    var tramos = [recto, arco, recto, arco, recto, arco, recto, arco];
+    var total = 4 * recto + 4 * arco;
+    var pts = [];
+    for (var i = 0; i < n; i++) {
+      var d = (i + 0.5) * total / n;
+      var t = 0;
+      while (d > tramos[t]) { d -= tramos[t]; t++; }
+      var px, py;
+      var cx = [x + lado - r, x + lado - r, x + r, x + r];   // centros de las esquinas: arriba-der., abajo-der., abajo-izq., arriba-izq.
+      var cy = [y + r, y + lado - r, y + lado - r, y + r];
+      if (t % 2 === 0) {                                      // tramo recto: arriba, derecha, abajo, izquierda
+        var k = t / 2;
+        if (k === 0) { px = x + r + d; py = y; }
+        else if (k === 1) { px = x + lado; py = y + r + d; }
+        else if (k === 2) { px = x + lado - r - d; py = y + lado; }
+        else { px = x; py = y + lado - r - d; }
+      } else {                                                // esquina: el ángulo avanza 90°
+        var e = (t - 1) / 2;
+        var ang = (-90 + e * 90 + (d / arco) * 90) * Math.PI / 180;
+        px = cx[e] + r * Math.cos(ang);
+        py = cy[e] + r * Math.sin(ang);
+      }
+      pts.push([px, py]);
+    }
+    return pts;
+  }
+
+  function vistaHtml(piezas) {
+    var esc = Utils.escapeHtml;
+    var color = function (c, otro) { return c && c.hex ? esc(c.hex) : otro; };
+    var olanes = puntosDeOlanes(9, 9, 82, 16, OLANES);
+    return '<span class="ck-fila" aria-hidden="true">' + (piezas || []).map(function (p) {
+      var caracter = String(p.caracter || '');
+      var chica = Array.from(caracter).length > 2;
+      var base = color(p.base, '#cccccc');
+      return '<svg class="ck" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">' +
+        (p.corrugado
+          ? '<g fill="' + base + '" stroke="rgba(0,0,0,.28)" stroke-width="1">' + olanes.map(function (o) {
+              return '<circle cx="' + o[0].toFixed(1) + '" cy="' + o[1].toFixed(1) + '" r="3.6"/>';
+            }).join('') + '</g>'
+          : '') +
+        '<rect x="9" y="9" width="82" height="82" rx="16" fill="' + base + '" stroke="rgba(0,0,0,.28)" stroke-width="1"/>' +
+        (p.corrugado ? '<rect x="12" y="12" width="76" height="76" rx="13" fill="' + base + '"/>' : '') +
+        '<rect x="22" y="22" width="56" height="56" rx="11" fill="' + color(p.tecla, '#eeeeee') + '" stroke="rgba(0,0,0,.25)" stroke-width="1"/>' +
+        '<text x="50" y="51" text-anchor="middle" dominant-baseline="central" ' +
+          'font-family="Arial Rounded MT Bold, Nunito, Segoe UI, Arial, sans-serif" font-weight="900" ' +
+          'font-size="' + (chica ? 22 : 38) + '" fill="' + color(p.letra, '#111111') + '" ' +
+          'stroke="rgba(0,0,0,.45)" stroke-width="1" paint-order="stroke">' + esc(caracter) + '</text>' +
+      '</svg>';
+    }).join('') + '</span>';
+  }
+
   window.Clicer = {
+    vistaHtml: vistaHtml,
     ACABADOS: acabados(),
     PIEZAS: PIEZAS.map(function (p) { return { id: p.id, nombre: p.nombre }; }),
     PRECIOS_POR_DEFECTO: PRECIOS_POR_DEFECTO,

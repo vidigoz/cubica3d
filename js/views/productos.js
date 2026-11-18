@@ -661,6 +661,7 @@
               '</div>' +
             '</div>' +
           '</div>' +
+          '<div class="clicer-vista" id="clicer-vista"></div>' +
           '<div class="field">' +
             '<span class="field__label">Letra por letra <em class="field__opt">(base, tecla y letra de cada una)</em></span>' +
             '<div class="teclas" id="clicer-teclas"></div>' +
@@ -1736,6 +1737,29 @@
       var sel = cont.querySelector('[data-pieza="' + pieza + '"][data-letra="' + i + '"]');
       pintarSwatch(sw, hexDe(colores, (sel && sel.value) || listaDeClicer(pieza)[i]));
     });
+    pintarVistaClicer();
+  }
+
+  // La imagen del clicker con lo que hay elegido ahora: una tecla por letra.
+  function pintarVistaClicer() {
+    if (!rootEl) return;
+    var cont = rootEl.querySelector('#clicer-vista');
+    if (!cont) return;
+    var campo = rootEl.querySelector('#f-clicer-nombre');
+    var res = Clicer.letrasDe(campo ? campo.value : '');
+    if (!res.ok) { cont.innerHTML = ''; return; }
+    var colores = Store.getConfig().colores;
+    var lista = rootEl.querySelector('#clicer-teclas');
+    var elegido = function (pieza, i) {
+      var sel = lista && lista.querySelector('[data-pieza="' + pieza + '"][data-letra="' + i + '"]');
+      return findColor(colores, (sel && sel.value) || listaDeClicer(pieza)[i]);
+    };
+    cont.innerHTML = Clicer.vistaHtml(res.letras.map(function (caracter, i) {
+      var selA = lista && lista.querySelector('[data-pieza="acabado"][data-letra="' + i + '"]');
+      var acabado = (selA && selA.value) || listaDeClicer('acabado')[i] || '';
+      return { caracter: caracter, base: elegido('base', i), tecla: elegido('tecla', i), letra: elegido('letra', i),
+        corrugado: /corrug/i.test(acabado) };
+    }));
   }
 
   function pintarSwatch(el, hex) {

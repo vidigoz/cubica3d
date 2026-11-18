@@ -101,7 +101,12 @@
       return '<td><span class="hoja__color">' + Utils.marcaDetalle(pieza, 'hoja__dot') +
         Utils.escapeHtml(pieza.nombre) + '</span></td>';
     }
-    return '<table class="hoja__letras">' +
+    var teclas = letras.map(function (l) {
+      return { caracter: l.caracter, base: l.base, tecla: l.tecla, letra: l.letra,
+        corrugado: /corrug/i.test(window.PO.colorYAcabado(l.base.nombre).acabado) };
+    });
+    return '<div class="hoja__ck">' + window.Clicer.vistaHtml(teclas) + '</div>' +
+      '<table class="hoja__letras">' +
       '<thead><tr><th>Letra</th><th>Base</th><th>Tecla</th><th>Letra</th></tr></thead>' +
       '<tbody>' + letras.map(function (l) {
         return '<tr><td class="hoja__letra">' + Utils.escapeHtml(l.caracter) + '</td>' +
