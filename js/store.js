@@ -24,6 +24,8 @@
       nombreApellido: 100,
       // Llavero de logo: precio fijo.
       logo: 100,
+      // Marco de fotos: precio fijo.
+      marco: 120,
       // Clicker de Nombre: precio POR LETRA (cada letra lleva base, tecla y letra).
       // Hasta `letrasCorte` letras manda el corto; de ahí en adelante, el largo.
       clicer: { porLetraCorto: 15, porLetraLargo: 30, letrasCorte: 5 },
@@ -60,6 +62,7 @@
       out.precios.nombre = window.Utils.parseNumber(parsed.precios.nombre, DEFAULT_CONFIG.precios.nombre);
       out.precios.nombreApellido = window.Utils.parseNumber(parsed.precios.nombreApellido, DEFAULT_CONFIG.precios.nombreApellido);
       out.precios.logo = window.Utils.parseNumber(parsed.precios.logo, DEFAULT_CONFIG.precios.logo);
+      out.precios.marco = window.Utils.parseNumber(parsed.precios.marco, DEFAULT_CONFIG.precios.marco);
 
       // Clicker: los dos tramos por letra y hasta cuántas letras manda el corto.
       var clicer = parsed.precios.clicer || {};
@@ -178,6 +181,7 @@
     config.precios.nombre = window.Utils.parseNumber(precios.nombre, config.precios.nombre);
     config.precios.nombreApellido = window.Utils.parseNumber(precios.nombreApellido, config.precios.nombreApellido);
     config.precios.logo = window.Utils.parseNumber(precios.logo, config.precios.logo);
+    config.precios.marco = window.Utils.parseNumber(precios.marco, config.precios.marco);
 
     // El clicker se manda como un bloque aparte: lo que no venga, se conserva.
     var clicer = precios.clicer || {};

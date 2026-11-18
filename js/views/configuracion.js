@@ -59,6 +59,12 @@
         '<h3 class="panel__title">Precios</h3>' +
         '<p class="panel__hint">Los llaveros cambian según si llevan apellido; los clickers, según cuántas letras tenga el nombre (cada letra lleva base, tecla y letra).</p>' +
         '<form class="form" id="form-precios">' +
+          '<div class="form__row">' +
+            '<label class="field field--grow">' +
+              '<span class="field__label">Marco de fotos · Precio fijo</span>' +
+              '<input class="field__input" type="number" min="0" step="1" id="p-marco" value="' + config.precios.marco + '" />' +
+            '</label>' +
+          '</div>' +
           '<div class="form__row form__row--tres">' +
             '<label class="field field--grow">' +
               '<span class="field__label">Llavero · Solo nombre</span>' +
@@ -187,6 +193,7 @@
       var n = Utils.parseNumber(container.querySelector('#p-nombre').value, NaN);
       var na = Utils.parseNumber(container.querySelector('#p-nombreApellido').value, NaN);
       var logo = Utils.parseNumber(container.querySelector('#p-logo').value, NaN);
+      var marco = Utils.parseNumber(container.querySelector('#p-marco').value, NaN);
       var clicerCorto = Utils.parseNumber(container.querySelector('#p-clicer-corto').value, NaN);
       var clicerLargo = Utils.parseNumber(container.querySelector('#p-clicer-largo').value, NaN);
       var clicerCorte = Utils.parseNumber(container.querySelector('#p-clicer-corte').value, NaN);
@@ -199,6 +206,10 @@
       }
       if (!isFinite(na) || na < 0) {
         showError(container, '#precio-error', 'El precio de "Llavero · Nombre + Apellido" debe ser un número mayor o igual a 0.');
+        return;
+      }
+      if (!isFinite(marco) || marco < 0) {
+        showError(container, '#precio-error', 'El precio del Marco de fotos debe ser un número mayor o igual a 0.');
         return;
       }
       if (!isFinite(logo) || logo < 0) {
@@ -227,6 +238,7 @@
         nombre: n,
         nombreApellido: na,
         logo: logo,
+        marco: marco,
         clicer: {
           porLetraCorto: clicerCorto,
           porLetraLargo: clicerLargo,

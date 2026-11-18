@@ -239,6 +239,7 @@ function preciosValidos(precios) {
     nombre: numero(p.nombre, 0),
     nombreApellido: numero(p.nombreApellido, 0),
     logo: Math.max(0, redondear(numeroODefecto(p.logo, 100))),   // llavero de logo: precio fijo
+    marco: Math.max(0, redondear(numeroODefecto(p.marco, 120))),   // marco de fotos: precio fijo
     clicer: {
       porLetraCorto: Math.max(0, redondear(numeroODefecto(c.porLetraCorto, CLICER_POR_DEFECTO.porLetraCorto))),
       porLetraLargo: Math.max(0, redondear(numeroODefecto(c.porLetraLargo, CLICER_POR_DEFECTO.porLetraLargo))),

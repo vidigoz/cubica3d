@@ -1,0 +1,4 @@
+Fuentes del Marco de fotos (herramienta de Herramientas). Todas son de Google Fonts y
+tienen licencia SIL Open Font License 1.1 (uso libre, incluso comercial):
+Lobster, Pacifico, Great Vibes, Kaushan Script, Cookie, Playball, Courgette y Bebas Neue.
+https://github.com/google/fonts

@@ -258,7 +258,8 @@
     var productos = [
       { tipo: PO.TIPO_CLICER, etiqueta: 'Clickers', total: 0, cajones: {} },
       { tipo: PO.TIPO_LLAVERO, etiqueta: 'Llaveros', total: 0, cajones: {} },
-      { tipo: PO.TIPO_CHARM, etiqueta: 'Charms con cinta', total: 0, cajones: {} }
+      { tipo: PO.TIPO_CHARM, etiqueta: 'Charms con cinta', total: 0, cajones: {} },
+      { tipo: PO.TIPO_MARCO, etiqueta: 'Marcos de fotos', total: 0, cajones: {} }
     ];
     var ventas = { total: 0, unidades: 0, tarjetas: 0, cajones: {} };
 

@@ -62,6 +62,18 @@ márgenes y lo deja a 320 px, así el cubo llena la placa del encabezado y la ca
 Para usar otro logo con otro nombre de archivo, actualiza la ruta en `index.html` (favicon y
 encabezado) y en `js/pdf.js` (`NEGOCIO.logo`).
 
+## Herramientas
+
+La pestaña **Herramientas** (`#/herramientas`) tiene enlaces a páginas externas de diseño y una
+herramienta propia:
+
+- **Marco de fotos** (`#/herramientas/marco`) — marco de dos piezas (Bottom frame y Top frame, los STL de
+  `stl/Frame/`). Se eligen los colores de cada pieza (del stock de Configuración) y el texto curvo del Top
+  frame: texto, fuente (8, en `fonts/marco/`), tamaño, curvatura, posición, giro e inclinación. Una vista 2D
+  desde arriba muestra cómo queda y se descargan STL por color (el Top frame sale partido en **pieza**,
+  **borde** y **texto**, porque un STL no lleva color). Todo se calcula en el navegador
+  (`js/marco.js`, `js/views/marco.js`, librerías en `js/vendor/`). Se prueba con `__prueba-marco.mjs`.
+
 ## Pestañas y rutas
 
 - **Productos** (`#/productos`) — menú principal de productos + la cotización en armado. En el celular las pestañas se abren con el botón ☰.
@@ -86,6 +98,7 @@ de Productos, así que esa pestaña sigue activa.
 |---|---|
 | **Llavero** (de nombre y de logo) | ✅ Funcional |
 | **Clicker de Nombre** | ✅ Funcional |
+| **Marco de fotos** | ✅ Funcional |
 
 ### Producto "Llavero"
 
@@ -119,6 +132,14 @@ colores y detalles del logo. El archivo del logo se sube después con el 📎 de
 - **+ Agregar charm** suma charms sueltos («pelota de volly»), todos los que quieras.
 - Viene en dos medidas de cinta: **30 cm** ($200) y **55 cm** ($350). El precio solo depende de la medida, sin importar las piezas ni los charms; ambos se cambian en **Configuración → Precios**. Las tarjetas viejas (sin medida) cuentan como de 55 cm.
 - En **Estadísticas** cuenta una tarjeta de **Bases del charm** y otra de **Tapas del charm**, con sus colores.
+
+### Producto "Marco de fotos"
+
+El marco de dos piezas de la herramienta de Herramientas, como producto: **nombre** (con su fuente) y **dos
+colores** —el de la **pieza** y el del **marco con nombre**— del stock, con una vista del marco tal como va a
+quedar (el tamaño de la letra se ajusta solo para que el nombre quepa). Precio **fijo** de $120
+(*Configuración → Precios → Marco de fotos*). Va a la cotización con los detalles Pieza, Marco y nombre,
+Fuente y Tamaño; en la PO cuenta como «otros» con sus dos colores; en **Estadísticas** suma a «Marcos de fotos».
 
 ### Producto "Clicker de Nombre"
 
@@ -281,7 +302,7 @@ la venta que el cliente ya aceptó, antes de pasarla al taller (el botón **PO**
 
 - **Colores en stock:** agrega (nombre + selector de color) y quita colores. Los cambios se ven al instante en los menús de la cotización.
 - **Precios:**
-  - *Llavero · Solo nombre*, *Llavero · Nombre + Apellido* y *Llavero · De logo*.
+  - *Llavero · Solo nombre*, *Llavero · Nombre + Apellido* y *Llavero · De logo*, y *Marco de fotos*.
   - *Clicker · Precio por letra (hasta N letras)*, *Clicker · Precio por letra (N+1 letras o más)* y
     *Clicker · El precio corto aplica hasta (letras)* (por defecto **5**). Al lado hay un ejemplo con
     el precio ya calculado, así se ve el efecto del corte sin tener que cotizar.

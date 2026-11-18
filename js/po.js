@@ -33,6 +33,7 @@
   // Los mismos nombres que usan las líneas de la cotización y del tablero.
   var TIPO_CLICER = 'Clicker de Nombre';
   var TIPO_LLAVERO = 'Llavero de Nombre';
+  var TIPO_MARCO = 'Marco de Fotos';   // pieza + marco con nombre: dos colores, el nombre y su fuente
   var TIPO_LLAVERO_LOGO = 'Llavero de Logo';   // base de color + el logo (que va como archivo en la tarjeta)
   var TIPO_MANUAL = 'Cotización manual';
   var TIPO_CHARM = 'Charm con cinta';
@@ -299,7 +300,7 @@
       suyas.forEach(function (p) {
         // Charm con cinta: el material es «Base» y «Tapa» por color (no una fila por
         // letra), y los charms sueltos no llevan color: no son material.
-        if (tipo === TIPO_CHARM || tipo === TIPO_LLAVERO_LOGO) {
+        if (tipo === TIPO_CHARM || tipo === TIPO_LLAVERO_LOGO || tipo === TIPO_MARCO) {
           if (!p.hex) return;
           p = { label: p.label.replace(/^.* \u00b7 /, ''), nombre: p.nombre, hex: p.hex };
         }
@@ -486,6 +487,7 @@
     coloresUsados: coloresUsados,
     TIPO_LLAVERO: TIPO_LLAVERO,
     TIPO_LLAVERO_LOGO: TIPO_LLAVERO_LOGO,
+    TIPO_MARCO: TIPO_MARCO,
     PIEZAS: { base: PIEZA_BASE, tecla: PIEZA_TECLA, letra: PIEZA_LETRA },
     cantidadDe: cantidadDe,
     sufijoDe: sufijoDe,

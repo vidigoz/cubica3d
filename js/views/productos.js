@@ -67,6 +67,7 @@
 
   var TIPO_LLAVERO = 'Llavero de Nombre';
   var TIPO_LLAVERO_LOGO = 'Llavero de Logo';
+  var TIPO_MARCO = 'Marco de Fotos';
   var TIPO_CLICER = 'Clicker de Nombre';
 
   // El color del stock que corresponde a un detalle ({ nombre, hex }); null si ya no está.
@@ -131,6 +132,24 @@
       detalle: logo ? logo.nombre : '',
       imagen: item.imagen || '',
       faltan: []
+    };
+  }
+
+  // El marco de fotos: el nombre, su fuente y los dos colores (la pieza y el marco con nombre).
+  function parsearMarco(item) {
+    var det = item.detalles || [];
+    function de(rotulo) { return det.filter(function (d) { return d.label === rotulo; })[0]; }
+    var pieza = de('Pieza'), marco = de('Marco y nombre'), fuente = de('Fuente');
+    if (!pieza || !marco) return null;
+    var faltan = [];
+    var f = window.Views.marco.FUENTES.filter(function (x) { return fuente && x.nombre === fuente.nombre; })[0];
+    return {
+      sub: 'marco',
+      nombre: Utils.normalize(item.titulo),
+      fuente: f ? f.id : window.Views.marco.FUENTES[0].id,
+      pieza: idDeDetalle(pieza, faltan),
+      marco: idDeDetalle(marco, faltan),
+      faltan: faltan
     };
   }
 
@@ -202,6 +221,7 @@
     item = item || {};
     if (item.tipo === TIPO_LLAVERO) return parsearLlavero(item);
     if (item.tipo === TIPO_LLAVERO_LOGO) return parsearLlaveroLogo(item);
+    if (item.tipo === TIPO_MARCO) return parsearMarco(item);
     if (item.tipo === TIPO_CLICER) return parsearClicer(item);
     if (window.PO.tipoCanonico(item.tipo) === window.PO.TIPO_CHARM) return parsearCharm(item);
     if (item.tipo === window.PO.TIPO_MANUAL) return parsearManual(item);
@@ -287,6 +307,7 @@
           productCard('llaveros', 'productos/llaveros', 'llavero', 'Llavero') +
           productCard('clicers', 'productos/clicers', 'clicker', 'Clicker') +
           productCard('charms', 'productos/charms', 'charm', 'Charm con cinta') +
+          productCard('marco', 'productos/marco', 'marco', 'Marco de fotos') +
           productCard('manual', 'productos/manual', 'manual', 'Cotización manual') +
         '</div>' +
       '</section>';
@@ -382,6 +403,148 @@
     pintarLogoVista();
     rootEl.querySelector('#f-logo-titulo').focus();
     window.App.toast('Agregado a la cotización', 'success');
+  }
+
+  // Formulario del Marco de fotos: el nombre, su fuente y dos colores —la pieza y el
+  // marco con nombre—, con la vista del marco tal como va a quedar.
+  var marcoVista = 0;     // para ignorar un dibujo viejo cuando ya hay otro más nuevo
+  var marcoTamano = 0;    // el tamaño de letra con el que quedó el último dibujo
+
+  function marcoTemplate() {
+    var config = Store.getConfig();
+    var sinColores = config.colores.length === 0;
+    var options = colorOptions(config.colores);
+    var dis = sinColores ? ' disabled' : '';
+    var fuentes = window.Views.marco.FUENTES.map(function (f) {
+      return '<option value="' + f.id + '">' + Utils.escapeHtml(f.nombre) + '</option>';
+    }).join('');
+
+    return '' +
+      '<section class="panel">' +
+        '<button class="btn btn--ghost btn--back" type="button" data-action="back">← Volver al menú</button>' +
+        avisoLinea() +
+        '<h3 class="panel__title">Marco de fotos</h3>' +
+        (sinColores
+          ? '<p class="alert alert--warn">No hay colores en stock. Agrégalos en <b>⚙️ Configuración</b> (arriba a la derecha) para poder cotizar.</p>'
+          : '') +
+        '<form class="form" id="form-marco" novalidate>' +
+          '<div class="form__row">' +
+            '<label class="field">' +
+              '<span class="field__label">Nombre</span>' +
+              '<input class="field__input" type="text" id="f-marco-nombre" maxlength="40" placeholder="Ej. Feliz navidad" autocomplete="off" />' +
+            '</label>' +
+            '<label class="field">' +
+              '<span class="field__label">Fuente</span>' +
+              '<select class="field__input" id="f-marco-fuente">' + fuentes + '</select>' +
+            '</label>' +
+          '</div>' +
+          '<div class="form__row">' +
+            '<div class="field">' +
+              '<span class="field__label">Color de la pieza</span>' +
+              '<div class="field__row">' +
+                '<select class="field__input" id="f-marco-pieza"' + dis + '>' + options + '</select>' +
+                '<span class="swatch" id="swatch-marco-pieza"></span>' +
+              '</div>' +
+            '</div>' +
+            '<div class="field">' +
+              '<span class="field__label">Color del marco con nombre</span>' +
+              '<div class="field__row">' +
+                '<select class="field__input" id="f-marco-color"' + dis + '>' + options + '</select>' +
+                '<span class="swatch" id="swatch-marco-color"></span>' +
+              '</div>' +
+            '</div>' +
+          '</div>' +
+          '<div class="marco-prev"><canvas id="marco-vista"></canvas></div>' +
+          '<p class="field__opt" id="marco-nota"></p>' +
+          '<p class="form__error" id="marco-error" hidden></p>' +
+          '<div class="form__footer">' +
+            '<div class="price-preview">' +
+              '<span class="price-preview__label">Precio</span>' +
+              '<span class="price-preview__value">' + Utils.formatMoney(config.precios.marco) + '</span>' +
+            '</div>' +
+            '<button class="btn btn--primary" type="submit"' + dis + '>' + etiquetaGuardar() + '</button>' +
+          '</div>' +
+        '</form>' +
+      '</section>';
+  }
+
+  function datosMarco() {
+    var config = Store.getConfig();
+    return {
+      config: config,
+      nombre: Utils.normalize(rootEl.querySelector('#f-marco-nombre').value),
+      fuente: rootEl.querySelector('#f-marco-fuente').value,
+      pieza: findColor(config.colores, rootEl.querySelector('#f-marco-pieza').value),
+      marco: findColor(config.colores, rootEl.querySelector('#f-marco-color').value)
+    };
+  }
+
+  function pintarMarcoSwatches() {
+    if (!rootEl) return;
+    var d = datosMarco();
+    var a = rootEl.querySelector('#swatch-marco-pieza'), b = rootEl.querySelector('#swatch-marco-color');
+    if (a) a.style.background = d.pieza ? d.pieza.hex : '';
+    if (b) b.style.background = d.marco ? d.marco.hex : '';
+  }
+
+  // Redibuja la vista del marco con lo que hay en el formulario.
+  function pintarMarcoVista() {
+    if (!rootEl || !rootEl.querySelector('#marco-vista')) return Promise.resolve(null);
+    var d = datosMarco();
+    var yo = ++marcoVista;
+    var nota = rootEl.querySelector('#marco-nota');
+    return window.Views.marco.vistaProducto(rootEl.querySelector('#marco-vista'), {
+      texto: d.nombre,
+      fuente: d.fuente,
+      pieza: d.pieza ? d.pieza.hex : '#dc2626',
+      marco: d.marco ? d.marco.hex : '#ffffff'
+    }).then(function (res) {
+      if (yo !== marcoVista) return null;
+      marcoTamano = res.tamano;
+      if (nota) {
+        nota.textContent = res.faltan.length
+          ? 'Esta fuente no tiene: ' + res.faltan.join(' ') + ' (no se imprimiría).'
+          : (d.nombre ? 'Letras de ' + res.tamano + ' mm (se ajusta solo para que el nombre quepa).' : '');
+      }
+      return res;
+    }, function (error) {
+      if (nota && yo === marcoVista) nota.textContent = 'No se pudo dibujar el marco: ' + error.message;
+      return null;
+    });
+  }
+
+  // Agrega el marco de fotos a la cotización.
+  function addMarcoToCart() {
+    if (!rootEl) return;
+    var d = datosMarco();
+    if (!d.nombre) { showFormError('Escribe el nombre que lleva el marco.', '#marco-error'); return; }
+    if (!d.pieza || !d.marco) { showFormError('Elige los dos colores.', '#marco-error'); return; }
+    pintarMarcoVista().then(function (res) {
+      if (!res) { showFormError('Espera a que cargue la vista del marco e inténtalo de nuevo.', '#marco-error'); return; }
+      if (res.faltan.length) {
+        showFormError('Esta fuente no tiene: ' + res.faltan.join(' ') + '. Quítalo o cambia de fuente.', '#marco-error');
+        return;
+      }
+      var fuente = window.Views.marco.FUENTES.filter(function (f) { return f.id === d.fuente; })[0];
+      var item = {
+        tipo: TIPO_MARCO,
+        titulo: d.nombre,
+        detalles: [
+          { label: 'Pieza', nombre: d.pieza.nombre, hex: d.pieza.hex },
+          { label: 'Marco y nombre', nombre: d.marco.nombre, hex: d.marco.hex },
+          { label: 'Fuente', nombre: fuente.nombre, hex: '' },
+          { label: 'Tamaño', nombre: res.tamano + ' mm', hex: '' }
+        ],
+        precio: d.config.precios.marco
+      };
+      if (guardarLinea(item)) return;
+      Cart.add(item);
+      hideFormError('#marco-error');
+      rootEl.querySelector('#f-marco-nombre').value = '';
+      pintarMarcoVista();
+      rootEl.querySelector('#f-marco-nombre').focus();
+      window.App.toast('Agregado a la cotización', 'success');
+    });
   }
 
   function formTemplate() {
@@ -660,7 +823,7 @@
     // Un selector de emojis que haya quedado abierto no sigue a otra pantalla.
     if (window.EmojiPicker) window.EmojiPicker.cerrar();
     if (sub !== undefined) {
-      currentSub = (sub === 'llaveros' || sub === 'logo' || sub === 'clicers' || sub === 'charms' || sub === 'manual') ? sub : null;
+      currentSub = (sub === 'llaveros' || sub === 'logo' || sub === 'marco' || sub === 'clicers' || sub === 'charms' || sub === 'manual') ? sub : null;
     }
 
     // La línea en edición sólo vale en SU formulario: si se sale (al menú, a otro
@@ -670,6 +833,7 @@
 
     var formulario = currentSub === 'llaveros' ? formTemplate()
       : currentSub === 'logo' ? logoTemplate()
+      : currentSub === 'marco' ? marcoTemplate()
       : currentSub === 'clicers' ? clicerTemplate()
       : currentSub === 'charms' ? charmTemplate()
       : currentSub === 'manual' ? manualTemplate()
@@ -707,6 +871,22 @@
         logoImagen = previo.imagen;
       }
       pintarLogoVista();
+    }
+
+    if (currentSub === 'marco') {
+      if (previo) {
+        rootEl.querySelector('#f-marco-nombre').value = previo.nombre;
+        rootEl.querySelector('#f-marco-fuente').value = previo.fuente;
+        if (previo.pieza) rootEl.querySelector('#f-marco-pieza').value = previo.pieza;
+        if (previo.marco) rootEl.querySelector('#f-marco-color').value = previo.marco;
+        avisarColoresFaltantes(previo);
+      } else {
+        // sin elegir nada, la pieza y el marco no deben ser del mismo color
+        var sel = rootEl.querySelector('#f-marco-color');
+        if (sel && sel.options.length > 1) sel.selectedIndex = 1;
+      }
+      pintarMarcoSwatches();
+      pintarMarcoVista();
     }
 
     if (currentSub === 'charms') {
@@ -796,6 +976,20 @@
     if (back) {
       back.addEventListener('click', function () {
         window.App.navigate('productos');
+      });
+    }
+
+    // Formulario del marco de fotos
+    var marcoForm = container.querySelector('#form-marco');
+    if (marcoForm) {
+      marcoForm.addEventListener('submit', function (e) {
+        e.preventDefault();
+        addMarcoToCart();
+      });
+      var redibujar = function () { pintarMarcoSwatches(); pintarMarcoVista(); };
+      ['#f-marco-nombre'].forEach(function (s) { container.querySelector(s).addEventListener('input', redibujar); });
+      ['#f-marco-fuente', '#f-marco-pieza', '#f-marco-color'].forEach(function (s) {
+        container.querySelector(s).addEventListener('change', redibujar);
       });
     }
 

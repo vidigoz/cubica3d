@@ -1916,3 +1916,21 @@ body.con-pin { overflow: hidden; }
   .tabs--abierto { display: flex; }
   .tab { width: 100%; padding: 12px 14px; text-align: left; font-size: .95rem; }
 }
+
+/* Herramienta «Marco de fotos» (#/herramientas/marco) */
+.marco__cuerpo { display: grid; grid-template-columns: minmax(260px, 340px) 1fr; gap: 16px; align-items: start; }
+.marco__panel { display: flex; flex-direction: column; gap: 12px; }
+.marco__rango { width: 100%; accent-color: var(--primary); }
+.marco__valor { margin-left: 6px; color: var(--primary); font-weight: 800; }
+.marco__lienzos { display: flex; flex-wrap: wrap; gap: 18px; align-items: flex-start; }
+.marco__fig { margin: 0; text-align: center; }
+.marco__fig canvas { display: block; max-width: 100%; height: auto; border: 1px solid var(--border); border-radius: 10px; }
+.marco__fig figcaption { margin-top: 6px; font-size: .8rem; font-weight: 700; color: var(--muted); }
+.marco__descargas { display: flex; flex-wrap: wrap; gap: 8px; }
+@media (max-width: 800px) {
+  .marco__cuerpo { grid-template-columns: 1fr; }
+}
+.marco__panel .field__opt { display: block; font-size: .74rem; color: var(--muted); }
+.marco__ayuda { display: block; margin-top: 10px; font-size: .78rem; color: var(--muted); }
+.marco-prev { display: flex; justify-content: center; padding: 8px 0; }
+.marco-prev canvas { max-width: 100%; height: auto; border: 1px solid var(--border); border-radius: 10px; }
