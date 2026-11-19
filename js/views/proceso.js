@@ -158,7 +158,16 @@
               ? '<span class="t-linea__tipo">' + Utils.escapeHtml(tipoConMedida(item)) + '</span>'
               : '') +
           '</span>' +
-          '<span class="t-linea__precio">' + Utils.formatMoney(importeLinea(item)) + '</span>' +
+          // Debajo del nombre, en su propia fila: el precio a la izquierda y, en los
+          // clickers, el icono para bajar sólo sus archivos a la derecha.
+          '<span class="t-linea__pie">' +
+            '<span class="t-linea__precio">' + Utils.formatMoney(importeLinea(item)) + '</span>' +
+            (esClicker
+              ? '<button class="icon-btn icon-btn--mini t-linea__bajar" type="button" data-imprimir-item="' + indice + '" ' +
+                  'title="Descargar los archivos de impresi\u00f3n 3D de este clicker (solo este)" ' +
+                  'aria-label="Descargar los archivos de este clicker">' + icono('imprimir') + '</button>'
+              : '') +
+          '</span>' +
         '</li>';
     }).join('');
   }
@@ -746,12 +755,17 @@
 
   // Pide los archivos al servidor y baja un .3mf por plataforma (máximo 3 colores
   // cada una), sin zip ni resumen.
-  function imprimir3D(t) {
-    var po = poDe(t);
-    if (!po) return;
+  // Con `item` (una línea de la tarjeta) sólo se hacen los archivos de ESE clicker (todas
+  // sus unidades); sin él, los de la orden entera.
+  function imprimir3D(t, item) {
+    var po = item ? (PO ? PO.leer([item]) : null) : poDe(t);
+    if (!po || !(po.bases.length || po.teclas.length)) {
+      window.App.toast('Ese clicker no tiene piezas para imprimir.', 'error');
+      return;
+    }
     window.App.toast('Preparando la impresi\u00f3n\u2026');
     window.Api.generarImpresion({
-      titulo: PDF.folioTexto(t.folio) + ' ' + (t.cliente || ''),
+      titulo: PDF.folioTexto(t.folio) + ' ' + (t.cliente || '') + (item ? ' ' + item.titulo : ''),
       bases: po.bases,
       teclas: po.teclas
     }).then(function (r) {
@@ -1426,6 +1440,14 @@
 
       if (e.target.closest('[data-notas]')) { abrirNotas(id); return; }
       if (e.target.closest('[data-archivos]')) { abrirArchivos(id); return; }
+
+      var uno = e.target.closest('[data-imprimir-item]');
+      if (uno) {
+        var tj = Proceso.getTarjeta(id);
+        var linea = tj && tj.items[Number(uno.getAttribute('data-imprimir-item'))];
+        if (linea) imprimir3D(tj, linea);
+        return;
+      }
 
       if (e.target.closest('[data-imprimir]')) {
         var imp = Proceso.getTarjeta(id);

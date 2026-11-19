@@ -1941,3 +1941,9 @@ body.con-pin { overflow: hidden; }
 .clicer-vista { padding: 10px 0; }
 .hoja__ck { margin: 4px 0 6px; }
 .hoja__ck .ck-fila { font-size: 8pt; }
+/* La línea de la cotización en la tarjeta (las tarjetas se angostan en pantallas anchas):
+   arriba casilla, cantidad y nombre; abajo, en su propia fila, el precio y el icono. */
+.t-linea { flex-wrap: wrap; row-gap: 6px; }
+.t-linea__info { flex: 1 1 0; }
+.t-linea__pie { flex: 0 0 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.t-linea__bajar { flex: 0 0 auto; width: 32px; height: 28px; }
