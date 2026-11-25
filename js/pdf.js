@@ -114,11 +114,57 @@
       }).join('') + '</tbody></table>';
   }
 
+  // El charm con cinta, como el clicker pero con dos colores por pieza: una fila por
+  //   Letra | Base | Letra   (la «Tapa» del desglose es la letra).
+  // Arriba la medida de la cinta y abajo los charms sueltos, como antes. Devuelve ''
+  // si los detalles no tienen la forma de un charm (entonces sale la lista de siempre).
+  var PIEZA_CHARM = /^(.*) \u00b7 (Base|Tapa)$/;
+
+  function charmTemplate(detalles) {
+    var otros = [];
+    var piezas = [];
+    for (var i = 0; i < detalles.length; i++) {
+      var d = detalles[i] || {};
+      var m = PIEZA_CHARM.exec(String(d.label || ''));
+      if (!m) { otros.push(d); continue; }
+      var t = detalles[i + 1] || {};
+      var mt = PIEZA_CHARM.exec(String(t.label || ''));
+      if (m[2] !== 'Base' || !mt || mt[2] !== 'Tapa' || mt[1] !== m[1]) return '';
+      piezas.push({ caracter: m[1], base: d, letra: t });
+      i++;
+    }
+    if (!piezas.length) return '';
+    function celda(pieza) {
+      return '<td><span class="hoja__color">' + Utils.marcaDetalle(pieza, 'hoja__dot') +
+        Utils.escapeHtml(pieza.nombre) + '</span></td>';
+    }
+    function lista(ds) {
+      return ds.map(function (x) {
+        return '<span class="hoja__color">' + Utils.escapeHtml(x.label) + ' ' +
+          Utils.marcaDetalle(x, 'hoja__dot') + Utils.escapeHtml(x.nombre) + '</span>';
+      }).join('');
+    }
+    var medida = otros.filter(function (x) { return x.label === 'Medida'; });
+    var resto = otros.filter(function (x) { return x.label !== 'Medida'; });
+    return (medida.length ? '<div>' + lista(medida) + '</div>' : '') +
+      '<table class="hoja__letras">' +
+      '<thead><tr><th>Letra</th><th>Base</th><th>Letra</th></tr></thead>' +
+      '<tbody>' + piezas.map(function (p) {
+        return '<tr><td class="hoja__letra">' + Utils.escapeHtml(p.caracter) + '</td>' +
+          celda(p.base) + celda(p.letra) + '</tr>';
+      }).join('') + '</tbody></table>' +
+      (resto.length ? '<div>' + lista(resto) + '</div>' : '');
+  }
+
   // "Base ●Negro  Nombre ●Rojo"
   function coloresTemplate(item) {
     if (window.PO && Utils.normalize(item.tipo) === window.PO.TIPO_CLICER) {
       var letras = window.PO.piezasDeClicer(item.detalles);
       if (letras.length) return clickerTemplate(letras);
+    }
+    if (window.PO && window.PO.tipoCanonico(Utils.normalize(item.tipo)) === window.PO.TIPO_CHARM) {
+      var charm = charmTemplate(item.detalles || []);
+      if (charm) return charm;
     }
     return (item.detalles || []).map(function (d) {
       return '<span class="hoja__color">' + Utils.escapeHtml(d.label) +
