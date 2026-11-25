@@ -116,6 +116,8 @@
       apellido: conApellido ? titulo.slice(espacio + 1) : '',
       base: idDeDetalle(det[0], faltan),
       colorNombre: idDeDetalle(det[1], faltan),
+      precio: item.precio,
+      cantidad: item.cantidad,
       faltan: faltan
     };
   }
@@ -131,6 +133,8 @@
       titulo: Utils.normalize(item.titulo),
       detalle: logo ? logo.nombre : '',
       imagen: item.imagen || '',
+      precio: item.precio,
+      cantidad: item.cantidad,
       faltan: []
     };
   }
@@ -278,6 +282,78 @@
     }
   }
 
+  /* ------------------ Cantidad y precio de los llaveros ------------------ */
+  // Los llaveros (de nombre y de logo) llevan su cantidad y su precio unitario en el
+  // formulario. El precio arranca con el de Configuración, pero se puede cambiar para
+  // ESA línea de la cotización: no toca el precio global. Mientras no lo cambien a mano
+  // (data-tocado), sigue al de Configuración (p. ej. al poner o quitar el apellido).
+
+  function camposCantidadPrecio(prefijo, precio) {
+    return '' +
+      '<div class="form__row">' +
+        '<label class="field">' +
+          '<span class="field__label">Cantidad</span>' +
+          '<input class="field__input" type="number" id="f-' + prefijo + '-cantidad" min="1" step="1" value="1" inputmode="numeric" />' +
+        '</label>' +
+        '<label class="field">' +
+          '<span class="field__label">Precio unitario ($) <em class="field__opt">(sólo esta cotización)</em></span>' +
+          '<input class="field__input" type="number" id="f-' + prefijo + '-precio" min="0" step="0.01" value="' + precio + '" inputmode="decimal" />' +
+        '</label>' +
+      '</div>';
+  }
+
+  // Pone el precio de Configuración si nadie lo cambió a mano (o si `forzar`).
+  function precioPorDefecto(prefijo, precio, forzar) {
+    var el = rootEl && rootEl.querySelector('#f-' + prefijo + '-precio');
+    if (!el) return;
+    if (forzar) el.removeAttribute('data-tocado');
+    if (!el.hasAttribute('data-tocado')) el.value = String(precio);
+  }
+
+  // Llena cantidad y precio con los de la línea que se edita. Si su precio no es el
+  // de Configuración, se respeta como puesto a mano.
+  function cargarCantidadPrecio(prefijo, previo, precioConfig) {
+    var cant = rootEl.querySelector('#f-' + prefijo + '-cantidad');
+    var prec = rootEl.querySelector('#f-' + prefijo + '-precio');
+    cant.value = String(previo.cantidad || 1);
+    var precio = Utils.parseNumber(previo.precio, precioConfig);
+    prec.value = String(precio);
+    if (precio !== precioConfig) prec.setAttribute('data-tocado', '');
+    else prec.removeAttribute('data-tocado');
+  }
+
+  // { cantidad, precio } del formulario, o { error } si algo no sirve.
+  function leerCantidadPrecio(prefijo, precioConfig) {
+    var cantTxt = Utils.normalize(rootEl.querySelector('#f-' + prefijo + '-cantidad').value);
+    var precTxt = Utils.normalize(rootEl.querySelector('#f-' + prefijo + '-precio').value);
+    var cantidad = cantTxt === '' ? 1 : Number(cantTxt);
+    if (!isFinite(cantidad) || cantidad < 1 || Math.floor(cantidad) !== cantidad) {
+      return { error: 'La cantidad tiene que ser un número entero desde 1.' };
+    }
+    var precio = precTxt === '' ? precioConfig : Number(precTxt);
+    if (!isFinite(precio) || precio < 0) return { error: 'El precio tiene que ser un número de 0 en adelante.' };
+    return { cantidad: cantidad, precio: Math.round(precio * 100) / 100 };
+  }
+
+  // Importe que se muestra: precio x cantidad (con lo que haya escrito).
+  function importeLlavero(prefijo, precioConfig) {
+    var cant = rootEl.querySelector('#f-' + prefijo + '-cantidad');
+    var prec = rootEl.querySelector('#f-' + prefijo + '-precio');
+    if (!cant || !prec) return 0;
+    var n = Math.floor(Utils.parseNumber(cant.value, 1));
+    return Utils.parseNumber(prec.value, precioConfig) * (n > 0 ? n : 1);
+  }
+
+  function enlazarCantidadPrecio(container, prefijo, alCambiar) {
+    var cant = container.querySelector('#f-' + prefijo + '-cantidad');
+    var prec = container.querySelector('#f-' + prefijo + '-precio');
+    if (cant) cant.addEventListener('input', alCambiar);
+    if (prec) prec.addEventListener('input', function () {
+      prec.setAttribute('data-tocado', '');
+      alCambiar();
+    });
+  }
+
   /* ---------------------------- Plantillas ---------------------------- */
 
   function pageHead() {
@@ -358,10 +434,11 @@
             '</div>' +
             '<span class="field__opt">Sale en la cotización y se guarda en la tarjeta (📎).</span>' +
           '</div>' +
+          camposCantidadPrecio('logo', config.precios.logo) +
           '<p class="form__error" id="logo-error" hidden></p>' +
           '<div class="form__footer">' +
             '<div class="price-preview">' +
-              '<span class="price-preview__label">Precio</span>' +
+              '<span class="price-preview__label">Importe</span>' +
               '<span class="price-preview__value" id="logo-precio">' + Utils.formatMoney(config.precios.logo) + '</span>' +
             '</div>' +
             '<button class="btn btn--primary" type="submit">' + etiquetaGuardar() + '</button>' +
@@ -390,8 +467,12 @@
     // tarjeta y sólo se cambia si se sube otra.
     if (!logoImagen && !Cart.getLineaEnEdicion()) { showFormError('Sube la imagen del logo.', '#logo-error'); return; }
 
+    var cp = leerCantidadPrecio('logo', config.precios.logo);
+    if (cp.error) { showFormError(cp.error, '#logo-error'); return; }
+
     var detalles = detalle ? [{ label: 'Logo', nombre: detalle, hex: '' }] : [];
-    var item = { tipo: TIPO_LLAVERO_LOGO, titulo: titulo, detalles: detalles, precio: config.precios.logo, imagen: logoImagen };
+    var item = { tipo: TIPO_LLAVERO_LOGO, titulo: titulo, detalles: detalles, precio: cp.precio,
+      cantidad: cp.cantidad, imagen: logoImagen };
     if (guardarLinea(item)) return;
     Cart.add(item);
 
@@ -401,6 +482,9 @@
     rootEl.querySelector('#f-logo-archivo').value = '';
     logoImagen = '';
     pintarLogoVista();
+    rootEl.querySelector('#f-logo-cantidad').value = '1';
+    precioPorDefecto('logo', config.precios.logo, true);
+    updateLogoImporte();
     rootEl.querySelector('#f-logo-titulo').focus();
     window.App.toast('Agregado a la cotización', 'success');
   }
@@ -589,10 +673,11 @@
               '</div>' +
             '</div>' +
           '</div>' +
+          camposCantidadPrecio('llavero', config.precios.nombre) +
           '<p class="form__error" id="form-error" hidden></p>' +
           '<div class="form__footer">' +
             '<div class="price-preview">' +
-              '<span class="price-preview__label">Precio</span>' +
+              '<span class="price-preview__label">Importe</span>' +
               '<span class="price-preview__value" id="price-value">$0.00</span>' +
             '</div>' +
             '<button class="btn btn--primary" type="submit"' + dis + '>' + etiquetaGuardar() + '</button>' +
@@ -858,6 +943,7 @@
         rootEl.querySelector('#f-apellido').value = previo.apellido;
         if (previo.base) rootEl.querySelector('#f-color-base').value = previo.base;
         if (previo.colorNombre) rootEl.querySelector('#f-color-nombre').value = previo.colorNombre;
+        cargarCantidadPrecio('llavero', previo, precioLlaveroConfig());
         avisarColoresFaltantes(previo);
       }
       updateSwatches();
@@ -870,8 +956,10 @@
         rootEl.querySelector('#f-logo-titulo').value = previo.titulo;
         rootEl.querySelector('#f-logo-detalle').value = previo.detalle;
         logoImagen = previo.imagen;
+        cargarCantidadPrecio('logo', previo, Store.getConfig().precios.logo);
       }
       pintarLogoVista();
+      updateLogoImporte();
     }
 
     if (currentSub === 'marco') {
@@ -1007,6 +1095,7 @@
         e.preventDefault();
         addLogoToCart();
       });
+      enlazarCantidadPrecio(container, 'logo', updateLogoImporte);
       container.querySelector('#f-logo-archivo').addEventListener('change', function (e) {
         var archivo = e.target.files && e.target.files[0];
         if (!archivo) return;
@@ -1033,6 +1122,7 @@
       var apellido = container.querySelector('#f-apellido');
       nombre.addEventListener('input', updatePricePreview);
       apellido.addEventListener('input', updatePricePreview);
+      enlazarCantidadPrecio(container, 'llavero', updatePricePreview);
 
       var baseSel = container.querySelector('#f-color-base');
       var nomSel = container.querySelector('#f-color-nombre');
@@ -1220,9 +1310,21 @@
     var valueEl = rootEl.querySelector('#price-value');
     if (!apellido || !valueEl) return;
 
+    var precio = precioLlaveroConfig();
+    precioPorDefecto('llavero', precio);
+    valueEl.textContent = Utils.formatMoney(importeLlavero('llavero', precio));
+  }
+
+  // El precio de Configuración del llavero de nombre: con o sin apellido.
+  function precioLlaveroConfig() {
     var precios = Store.getConfig().precios;
-    var precio = Utils.normalize(apellido.value) ? precios.nombreApellido : precios.nombre;
-    valueEl.textContent = Utils.formatMoney(precio);
+    var apellido = rootEl && rootEl.querySelector('#f-apellido');
+    return apellido && Utils.normalize(apellido.value) ? precios.nombreApellido : precios.nombre;
+  }
+
+  function updateLogoImporte() {
+    var el = rootEl && rootEl.querySelector('#logo-precio');
+    if (el) el.textContent = Utils.formatMoney(importeLlavero('logo', Store.getConfig().precios.logo));
   }
 
   function updateSwatches() {
@@ -1283,7 +1385,8 @@
       return;
     }
 
-    var precio = apellido ? config.precios.nombreApellido : config.precios.nombre;
+    var cp = leerCantidadPrecio('llavero', apellido ? config.precios.nombreApellido : config.precios.nombre);
+    if (cp.error) { showFormError(cp.error); return; }
 
     var llavero = {
       tipo: 'Llavero de Nombre',
@@ -1292,7 +1395,8 @@
         { label: 'Base', nombre: base.nombre, hex: base.hex },
         { label: 'Nombre', nombre: colorNombre.nombre, hex: colorNombre.hex }
       ],
-      precio: precio
+      precio: cp.precio,
+      cantidad: cp.cantidad
     };
     if (guardarLinea(llavero)) return;
     Cart.add(llavero);
@@ -1300,6 +1404,8 @@
     hideFormError();
     rootEl.querySelector('#f-nombre').value = '';
     rootEl.querySelector('#f-apellido').value = '';
+    rootEl.querySelector('#f-llavero-cantidad').value = '1';
+    precioPorDefecto('llavero', config.precios.nombre, true);
     rootEl.querySelector('#f-nombre').focus();
 
     updatePricePreview();
