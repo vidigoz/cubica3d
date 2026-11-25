@@ -89,6 +89,10 @@ opciones.origenPermitido = [opciones.origenPermitido, ...origenesPropios(puerto)
 
 const app = crearApp(opciones);
 
+// El servidor MCP (/mcp), con las llaves del .env (MCP_LLAVE_LECTURA / MCP_LLAVE_ESCRITURA).
+const { crearMcp } = await import("../functions/mcp.js");
+const mcp = crearMcp(app, { lectura: process.env.MCP_LLAVE_LECTURA, escritura: process.env.MCP_LLAVE_ESCRITURA });
+
 /* -------------------------------- El sitio -------------------------------- */
 // Sólo se sirven archivos del sitio. api/ (ahí está el .env con la cadena y la
 // contraseña), node_modules/, .git/ y las carpetas ocultas quedan afuera: sin esa
@@ -146,8 +150,9 @@ const servidor = createServer(async (peticion, respuesta) => {
   }
 
   try {
-    // Todo lo que no sea /api es el sitio: se sirve del disco, tal cual.
-    if (!String(peticion.url).startsWith("/api")) {
+    const esMcp = /^\/mcp(\/|\?|$)/.test(String(peticion.url));
+    // Todo lo que no sea /api ni /mcp es el sitio: se sirve del disco, tal cual.
+    if (!String(peticion.url).startsWith("/api") && !esMcp) {
       const archivo = archivoDe(peticion.url);
       if (!archivo) {
         return contestar(404, { "Content-Type": "text/plain; charset=utf-8" },
@@ -170,7 +175,7 @@ const servidor = createServer(async (peticion, respuesta) => {
       cabeceras[clave] = Array.isArray(valor) ? valor.join(", ") : valor;
     }
 
-    const salida = await app.fetch(new Request(
+    const salida = await (esMcp ? mcp : app).fetch(new Request(
       "http://" + (peticion.headers.host || "localhost") + peticion.url,
       { method: peticion.method, headers: cabeceras, body: cuerpo }
     ));

@@ -74,6 +74,21 @@ herramienta propia:
   **borde** y **texto**, porque un STL no lleva color). Todo se calcula en el navegador
   (`js/marco.js`, `js/views/marco.js`, librerías en `js/vendor/`). Se prueba con `__prueba-marco.mjs`.
 
+## Servidor MCP para agentes (`/mcp`)
+
+Para que agentes de IA consulten el tablero y creen cotizaciones: `https://<sitio>/mcp` (transporte
+«Streamable HTTP» de MCP, sin sesión). Código: `api/functions/mcp.js` (usa el mismo API por dentro) y
+`netlify/functions/mcp.mjs`; en local también responde en `http://localhost:8787/mcp`.
+
+- **Llaves** (variables de entorno; en local en `api/.env`, en Netlify en *Environment variables*):
+  `MCP_LLAVE_LECTURA` (consultar) y `MCP_LLAVE_ESCRITURA` (consultar + crear cotizaciones). El agente la manda
+  como `Authorization: Bearer <llave>`; si el cliente sólo acepta una URL, `…/mcp?llave=<llave>`.
+- **Herramientas**: `catalogo`, `listar_tarjetas`, `leer_tarjeta`, `estadisticas` y (con la de escritura)
+  `crear_cotizacion`. Los productos se describen por nombre y colores del stock; el precio lo calcula el
+  cotizador (menos la cotización manual). Lo que crea un agente entra a «Cotización» con la nota
+  «🤖 Creada por un agente (MCP)»; `referencia` evita duplicados.
+- Prueba: `cd api && node __mcp.pglite.test.js`.
+
 ## Pestañas y rutas
 
 - **Productos** (`#/productos`) — menú principal de productos + la cotización en armado. En el celular las pestañas se abren con el botón ☰.

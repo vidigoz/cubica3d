@@ -1947,3 +1947,10 @@ body.con-pin { overflow: hidden; }
 .t-linea__info { flex: 1 1 0; }
 .t-linea__pie { flex: 0 0 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .t-linea__bajar { flex: 0 0 auto; width: 32px; height: 28px; }
+.t-linea__nombre { overflow-wrap: anywhere; }
+/* En el celular la tarjeta ocupa todo el ancho: ahí caben nombre, precio e icono en una sola fila. */
+@media (max-width: 700px) {
+  .t-linea { flex-wrap: nowrap; }
+  .t-linea__pie { display: contents; }
+  .t-linea__bajar { align-self: flex-start; width: 28px; height: 26px; margin: -3px 0 0 -2px; }
+}

@@ -1192,7 +1192,26 @@ export function crearApp(opciones) {
     }
   }
 
-  return { fetch: manejar };
+  // Lo que usa el servidor MCP (api/functions/mcp.js) por dentro, sin pasar por la
+  // sesión del navegador: leer y crear con las MISMAS reglas que el API. `usuario`
+  // es el nombre que queda como «creada por» en la tarjeta.
+  const interno = {
+    columnas: COLUMNAS.slice(),
+    leerConfig: async () => (await leerConfig()).config,
+    leerTablero: async () => (await leerTablero()).cotizaciones,
+    leerTarjeta: leerTarjeta,
+    crearCotizacion: async (cuerpo, usuario) => {
+      const respuesta = await crearCotizacion(
+        new Request("http://interno/api/cotizaciones", { method: "POST", body: JSON.stringify(cuerpo) }),
+        { params: { id: "" }, cabeceras: {}, usuario: { nombre: usuario || "Agente" } }
+      );
+      const datos = await respuesta.json();
+      if (respuesta.status !== 200) throw new Error(datos.error || "No se pudo crear la cotización.");
+      return datos;
+    }
+  };
+
+  return { fetch: manejar, interno: interno };
 }
 
 /* --------------------------- Enlace con la base --------------------------- */
