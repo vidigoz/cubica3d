@@ -61,15 +61,20 @@
     return typeof valor === 'string' && /^data:image\/(png|jpeg|webp|gif);base64,/.test(valor) ? valor : '';
   }
 
+  // Un detalle puede traer su foto (`imagen`, la de un concepto de la cotización manual).
+  // Sólo vive en el carrito: al enviar se sube a la tarjeta como archivo.
   function detallesValidos(lista) {
     if (!Array.isArray(lista)) return [];
     return lista.map(function (d) {
       d = d || {};
-      return {
+      var limpio = {
         label: d.label == null ? '' : String(d.label),
         nombre: d.nombre == null ? '' : String(d.nombre),
         hex: d.hex == null ? '' : String(d.hex)
       };
+      var imagen = imagenValida(d.imagen);
+      if (imagen) limpio.imagen = imagen;
+      return limpio;
     });
   }
 

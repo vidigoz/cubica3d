@@ -211,7 +211,7 @@
     (item.detalles || []).forEach(function (d) {
       var m = /^Color usado(?: \u00d7(\d+))?$/.exec(Utils.normalize(d.label));
       if (!m) {
-        datos.filas.push({ concepto: d.label, detalle: d.nombre });
+        datos.filas.push({ concepto: d.label, detalle: d.nombre, imagen: d.imagen || '' });
         return;
       }
       var id = idDeDetalle(d, faltan);
@@ -1202,7 +1202,32 @@
         if (ultima.length) ultima[ultima.length - 1].focus();
       });
       // Las filas se repintan al agregar o quitar una: el listener va en el contenedor.
+      // La foto de cada concepto: se achica (máx. 900 px) y queda en la fila.
+      container.querySelector('#manual-filas').addEventListener('change', function (e) {
+        var input = e.target.closest('[data-manual-foto]');
+        if (!input) return;
+        var archivo = input.files && input.files[0];
+        if (!archivo) return;
+        var i = Number(input.getAttribute('data-manual-foto'));
+        Utils.imagenAData(archivo, 900).then(function (data) {
+          leerFilasManual();
+          if (manualFilas[i]) manualFilas[i].imagen = data;
+          hideFormError('#manual-error');
+          pintarFilasManual();
+        }, function (error) {
+          input.value = '';
+          showFormError(error.message, '#manual-error');
+        });
+      });
       container.querySelector('#manual-filas').addEventListener('click', function (e) {
+        var quitarFoto = e.target.closest('[data-manual-foto-quitar]');
+        if (quitarFoto) {
+          leerFilasManual();
+          var k = Number(quitarFoto.getAttribute('data-manual-foto-quitar'));
+          if (manualFilas[k]) manualFilas[k].imagen = '';
+          pintarFilasManual();
+          return;
+        }
         var quitar = e.target.closest('[data-manual-quitar]');
         if (!quitar) return;
         leerFilasManual();
@@ -1586,11 +1611,13 @@
   // Lee lo escrito en las filas del desglose y lo guarda en manualFilas.
   function leerFilasManual() {
     if (!rootEl) return;
+    var antes = manualFilas;
     manualFilas = [];
-    rootEl.querySelectorAll('#manual-filas .manual-fila').forEach(function (fila) {
+    rootEl.querySelectorAll('#manual-filas .manual-fila').forEach(function (fila, i) {
       manualFilas.push({
         concepto: fila.querySelector('[data-manual-concepto]').value,
-        detalle: fila.querySelector('[data-manual-detalle]').value
+        detalle: fila.querySelector('[data-manual-detalle]').value,
+        imagen: (antes[i] && antes[i].imagen) || ''
       });
     });
   }
@@ -1612,6 +1639,16 @@
             'placeholder="Detalle (Ej. logo a dos colores)" aria-label="Detalle ' + (i + 1) + '" ' +
             'value="' + Utils.escapeHtml(f.detalle) + '" autocomplete="off" />' +
           '<button class="icon-btn" type="button" data-manual-quitar="' + i + '" title="Quitar concepto">✕</button>' +
+          '<div class="manual-fila__foto">' +
+            (f.imagen
+              ? '<img class="manual-fila__vista" src="' + Utils.escapeHtml(f.imagen) + '" alt="Foto del concepto ' + (i + 1) + '" />' +
+                '<button class="btn btn--ghost btn--sm" type="button" data-manual-foto-quitar="' + i + '">Quitar foto</button>'
+              : '') +
+            '<label class="btn btn--ghost btn--sm manual-fila__subir">' +
+              (f.imagen ? 'Cambiar foto' : '📷 Agregar foto') +
+              '<input type="file" accept="image/png,image/jpeg,image/webp,image/gif" data-manual-foto="' + i + '" hidden />' +
+            '</label>' +
+          '</div>' +
         '</div>';
     }).join('');
   }
@@ -1686,8 +1723,15 @@
     }
 
     leerFilasManual();
+    var sinConcepto = manualFilas.some(function (f) { return f.imagen && !Utils.normalize(f.concepto); });
+    if (sinConcepto) {
+      showFormError('Escribe el concepto de cada foto (Ej. Decoración arbolito).', '#manual-error');
+      return;
+    }
     var detalles = manualFilas.map(function (f) {
-      return { label: Utils.normalize(f.concepto), nombre: Utils.normalize(f.detalle), hex: '' };
+      var d = { label: Utils.normalize(f.concepto), nombre: Utils.normalize(f.detalle), hex: '' };
+      if (f.imagen) d.imagen = f.imagen;
+      return d;
     }).filter(function (d) { return d.label || d.nombre; });
 
     // Los colores usados van como detalles «Color usado» con su color: las

@@ -123,7 +123,9 @@
     return (item.detalles || []).map(function (d) {
       return '<span class="hoja__color">' + Utils.escapeHtml(d.label) +
         ' ' + Utils.marcaDetalle(d, 'hoja__dot') +
-        Utils.escapeHtml(d.nombre) + '</span>';
+        Utils.escapeHtml(d.nombre) + '</span>' +
+        (d.imagen ? '<img class="hoja__imagen hoja__imagen--concepto" src="' + Utils.escapeHtml(d.imagen) +
+          '" alt="' + Utils.escapeHtml(d.label || 'Foto') + '" />' : '');
     }).join('');
   }
 
@@ -1069,10 +1071,52 @@
     return 'Logo - ' + String(titulo || '').replace(/[\\/]/g, '-');
   }
 
+  // La foto de un concepto de la cotización manual: «Foto - <título> - <concepto>».
+  function nombreDeFoto(titulo, concepto) {
+    return ('Foto - ' + String(titulo || '') + ' - ' + String(concepto || '')).replace(/[\\/]/g, '-');
+  }
+
+  // El archivo de imagen de la tarjeta que se llama `base` (sin extensión). Si hay
+  // varios (se volvió a subir), el último.
+  function imagenDe(archivos, base) {
+    base = base.toLowerCase();
+    var hallados = archivos.filter(function (x) {
+      return String(x.nombre || '').toLowerCase().indexOf(base + '.') === 0 && /^image\//.test(x.tipo);
+    });
+    return hallados[hallados.length - 1] || null;
+  }
+
+  function copiaCon(obj, clave, valor) {
+    var copia = {};
+    Object.keys(obj).forEach(function (k) { copia[k] = obj[k]; });
+    copia[clave] = valor;
+    return copia;
+  }
+
+  // Las fotos de los conceptos de una línea manual (las que no trae ya).
+  function fotosDeConceptos(item, archivos) {
+    var det = item.detalles || [];
+    var hayAlguna = false;
+    return Promise.all(det.map(function (d) {
+      if (d.imagen || !d.label) return Promise.resolve(d);
+      var a = imagenDe(archivos, nombreDeFoto(item.titulo, d.label));
+      if (!a) return Promise.resolve(d);
+      return window.Api.archivoBlob(a.id).then(leerComoData).then(function (data) {
+        hayAlguna = true;
+        return copiaCon(d, 'imagen', data);
+      }, function () { return d; });
+    })).then(function (detalles) {
+      return hayAlguna ? copiaCon(item, 'detalles', detalles) : item;
+    });
+  }
+
   function conImagenes(tarjeta) {
     var items = (tarjeta && tarjeta.items) || [];
     var archivos = (tarjeta && tarjeta.archivos) || [];
     return Promise.all(items.map(function (item) {
+      if (window.Api && Utils.normalize(item.tipo) === window.PO.TIPO_MANUAL) {
+        return fotosDeConceptos(item, archivos);
+      }
       if (item.imagen || !window.Api || Utils.normalize(item.tipo) !== window.PO.TIPO_LLAVERO_LOGO) {
         return Promise.resolve(item);
       }
@@ -1093,6 +1137,7 @@
   window.PDF = {
     conImagenes: conImagenes,
     nombreDeLogo: nombreDeLogo,
+    nombreDeFoto: nombreDeFoto,
     archivo: archivo,
     descargar: descargar,
     getNegocio: getNegocio,

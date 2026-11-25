@@ -1954,3 +1954,10 @@ body.con-pin { overflow: hidden; }
   .t-linea__pie { display: contents; }
   .t-linea__bajar { align-self: flex-start; width: 28px; height: 26px; margin: -3px 0 0 -2px; }
 }
+
+/* Cotización manual: la foto de cada concepto (sale en la cotización y se guarda en la tarjeta). */
+.manual-fila__foto { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.manual-fila__vista { width: 64px; height: 64px; object-fit: cover; border: 1px solid var(--border); border-radius: 8px; background: #fff; }
+.manual-fila__subir { cursor: pointer; }
+.hoja__imagen--concepto { margin: 4px 0 8px; }
+.manual-fila__foto .btn { padding: 6px 10px; font-size: 13px; }

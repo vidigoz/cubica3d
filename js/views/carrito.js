@@ -297,19 +297,27 @@
     });
   }
 
-  // Sube a la tarjeta la imagen de cada llavero de logo del carrito, como archivo
-  // «Logo - <título>.<ext>» (ahí la encuentra la hoja y se ve en el 📎). Devuelve una
-  // promesa con cuántos no pudo subir; nunca rechaza: la cotización ya está guardada.
+  // Sube a la tarjeta las imágenes del carrito, como archivos (ahí las encuentra la hoja
+  // y se ven en el 📎): el logo de cada llavero de logo («Logo - <título>.<ext>») y la
+  // foto de cada concepto de una cotización manual («Foto - <título> - <concepto>.<ext>»).
+  // Devuelve una promesa con cuántas no pudo subir; nunca rechaza: la cotización ya está
+  // guardada.
   function subirLogos(tarjetaId, items) {
-    var pendientes = items.filter(function (it) { return it.imagen; });
+    var pendientes = [];
+    items.forEach(function (it) {
+      if (it.imagen) pendientes.push({ nombre: PDF.nombreDeLogo(it.titulo), data: it.imagen });
+      (it.detalles || []).forEach(function (d) {
+        if (d.imagen) pendientes.push({ nombre: PDF.nombreDeFoto(it.titulo, d.label), data: d.imagen });
+      });
+    });
     var fallaron = 0;
-    return pendientes.reduce(function (cadena, it) {
+    return pendientes.reduce(function (cadena, p) {
       return cadena.then(function () {
-        var m = /^data:(image\/(png|jpeg|webp|gif));base64,(.*)$/.exec(it.imagen);
+        var m = /^data:(image\/(png|jpeg|webp|gif));base64,(.*)$/.exec(p.data);
         if (!m) { fallaron++; return null; }
         var ext = m[2] === 'jpeg' ? 'jpg' : m[2];
         return window.Api.subirArchivo(tarjetaId, {
-          nombre: PDF.nombreDeLogo(it.titulo) + '.' + ext,
+          nombre: p.nombre + '.' + ext,
           tipo: m[1],
           datos: m[3]
         }).catch(function () { fallaron++; });
@@ -320,13 +328,35 @@
   }
 
   // Une la imagen del carrito a las líneas de la tarjeta recién creada (mismo orden).
+  // También las fotos de los conceptos (mismo orden de detalles).
   function itemsConImagen(itemsTarjeta, itemsCarrito) {
     return itemsTarjeta.map(function (it, i) {
       var c = itemsCarrito[i];
-      if (!c || !c.imagen || c.titulo !== it.titulo) return it;
+      if (!c || c.titulo !== it.titulo) return it;
       var copia = {};
       Object.keys(it).forEach(function (k) { copia[k] = it[k]; });
-      copia.imagen = c.imagen;
+      if (c.imagen) copia.imagen = c.imagen;
+      copia.detalles = (it.detalles || []).map(function (d, j) {
+        var dc = (c.detalles || [])[j];
+        if (!dc || !dc.imagen || dc.label !== d.label) return d;
+        var dd = {};
+        Object.keys(d).forEach(function (k) { dd[k] = d[k]; });
+        dd.imagen = dc.imagen;
+        return dd;
+      });
+      return copia;
+    });
+  }
+
+  // Lo que viaja al API: sin las imágenes (el API no las guarda en la línea; van
+  // aparte, como archivos de la tarjeta).
+  function sinImagenes(items) {
+    return items.map(function (it) {
+      var copia = {};
+      Object.keys(it).forEach(function (k) { if (k !== 'imagen') copia[k] = it[k]; });
+      copia.detalles = (it.detalles || []).map(function (d) {
+        return { label: d.label, nombre: d.nombre, hex: d.hex };
+      });
       return copia;
     });
   }
@@ -363,11 +393,11 @@
     Proceso.crear({
       clientId: Cart.getClientId(),
       meta: Cart.getMeta(),
-      items: itemsCarrito
+      items: sinImagenes(itemsCarrito)
     }).then(function (res) {
       var tarjeta = res.tarjeta;
       subirLogos(tarjeta.id, itemsCarrito).then(function (fallaron) {
-        if (fallaron) window.App.toast('No se pudo adjuntar ' + fallaron + (fallaron === 1 ? ' logo' : ' logos') + ' a la tarjeta (m\u00e1x. 5 archivos). S\u00fabelo desde el \ud83d\udcce.', 'error');
+        if (fallaron) window.App.toast('No se pudo adjuntar ' + fallaron + (fallaron === 1 ? ' imagen' : ' im\u00e1genes') + ' a la tarjeta (m\u00e1x. 5 archivos). S\u00fabela desde el \ud83d\udcce.', 'error');
       });
 
       Cart.clear();
@@ -416,10 +446,10 @@
     }
 
     var itemsCarrito = Cart.getItems();
-    Proceso.editar(ed.id, { meta: Cart.getMeta(), items: itemsCarrito }).then(function (tarjeta) {
+    Proceso.editar(ed.id, { meta: Cart.getMeta(), items: sinImagenes(itemsCarrito) }).then(function (tarjeta) {
       Cart.terminarEdicion();
       subirLogos(tarjeta.id, itemsCarrito).then(function (fallaron) {
-        if (fallaron) window.App.toast('No se pudo adjuntar ' + fallaron + (fallaron === 1 ? ' logo' : ' logos') + ' a la tarjeta (m\u00e1x. 5 archivos).', 'error');
+        if (fallaron) window.App.toast('No se pudo adjuntar ' + fallaron + (fallaron === 1 ? ' imagen' : ' im\u00e1genes') + ' a la tarjeta (m\u00e1x. 5 archivos).', 'error');
       });
       window.App.navigate('proceso');
       window.App.toast('Cotización ' + PDF.folioTexto(tarjeta.folio) + ' actualizada', 'success');
