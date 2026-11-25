@@ -23,13 +23,14 @@
 
   var Utils = window.Utils;
 
-  // El nombre se parte en «letras», una por tecla. Una letra es una letra de verdad
-  // (acentos y Ñ incluidos), un NÚMERO o un EMOJI, y el emoji cuenta como una letra más: lleva sus
-  // tres piezas y paga el mismo precio por letra. Un emoji puede ser varios caracteres
+  // El nombre se parte en «letras», una por tecla. Una letra es una letra (acentos y Ñ
+  // incluidos), un NÚMERO, un SIGNO (# ! ? & ♥ …) o un EMOJI, y cada una lleva sus tres
+  // piezas y paga el mismo precio por letra. Un emoji puede ser varios caracteres
   // (con su variante, un tono de piel, una bandera o varios unidos: 👨‍👩‍👧), por eso se
-  // reconoce la secuencia entera y no carácter por carácter. Espacios y
-  // signos no son teclas.
-  var PIEZA = new RegExp('(' + Utils.EMOJI + ')|([A-Za-z0-9ÁÉÍÓÚÜÑáéíóúüñ])|([^])', 'gu');
+  // reconoce la secuencia entera y no carácter por carácter; los modificadores sueltos se
+  // ignoran. Sólo los espacios (es una sola palabra) y el · (separa la pieza en los
+  // rótulos) no son teclas.
+  var PIEZA = new RegExp('(' + Utils.EMOJI + ')|[\\uFE0F\\u200D\\u20E3]|([\\s\\u00b7])|([^])', 'gu');
 
   // El símbolo es la tecla que se escribe a mano («estrella», «corazón», «logo»):
   // no se mapea a ningún carácter, así que no tiene que ser una letra. Sólo se
@@ -101,20 +102,20 @@
     var sim = simboloDe(simbolo);
     if (!sim.ok) return { ok: false, error: sim.error, nombre: '', letras: [], simbolo: '', indiceSimbolo: -1 };
     if (!limpio) return { ok: false, error: 'Escribe el nombre.', nombre: '', letras: [], simbolo: '', indiceSimbolo: -1 };
-    // Se parte en letras y emojis; cualquier otra cosa (espacio, signo) no sirve.
+    // Se parte en letras, números, signos y emojis; sólo el espacio (y el ·) no sirve.
     limpio = limpio.normalize('NFC');
     var letras = [];
     var invalido = false;
-    limpio.replace(PIEZA, function (todo, emoji, letra) {
+    limpio.replace(PIEZA, function (todo, emoji, espacio, letra) {
       if (emoji) letras.push(emoji);
+      else if (espacio) invalido = true;
       else if (letra) letras.push(letra.toUpperCase());
-      else invalido = true;
       return todo;
     });
-    if (invalido) {
+    if (invalido || !letras.length) {
       return {
         ok: false,
-        error: 'El nombre tiene que ser una sola palabra, sólo con letras, números y emojis (sin espacios ni signos).',
+        error: 'El nombre tiene que ser una sola palabra (sin espacios): letras, números, signos y emojis.',
         nombre: '',
         letras: [],
         simbolo: '',

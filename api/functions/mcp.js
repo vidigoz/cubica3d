@@ -71,19 +71,20 @@ function cantidadDe(v) {
   return n;
 }
 
-// Las «letras» del clicker: letras, números y emojis (un emoji cuenta como una).
+// Las «letras» del clicker: letras, números, signos y emojis (un emoji cuenta como una).
+// Sólo el espacio y el · (separa la pieza en los rótulos) no son teclas; igual que js/clicer.js.
 function letrasDeClicker(nombre) {
   const limpioNombre = limpio(nombre);
   if (!limpioNombre) fallar("Falta el nombre del clicker.");
   const letras = [];
   let malo = false;
-  limpioNombre.replace(new RegExp("(" + EMOJI + ")|([A-Za-z0-9ÁÉÍÓÚÜÑáéíóúüñ])|([^])", "gu"), (t, emoji, letra) => {
+  limpioNombre.replace(new RegExp("(" + EMOJI + ")|[\\uFE0F\\u200D\\u20E3]|([\\s\\u00b7])|([^])", "gu"), (t, emoji, espacio, letra) => {
     if (emoji) letras.push(emoji);
+    else if (espacio) malo = true;
     else if (letra) letras.push(letra.toUpperCase());
-    else malo = true;
     return t;
   });
-  if (malo) fallar("El nombre del clicker tiene que ser una sola palabra, sólo letras, números y emojis (sin espacios ni signos).");
+  if (malo || !letras.length) fallar("El nombre del clicker tiene que ser una sola palabra (sin espacios): letras, números, signos y emojis.");
   if (letras.length > 30) fallar("El nombre del clicker es demasiado largo (máx. 30 letras).");
   return { nombre: limpioNombre, letras };
 }
@@ -347,7 +348,7 @@ const HERRAMIENTAS = [
             properties: {
               tipo: { type: "string", enum: ["clicker", "llavero_nombre", "llavero_logo", "charm", "marco", "manual"] },
               cantidad: { type: "integer", minimum: 1 },
-              nombre: { type: "string", description: "clicker: una palabra (letras, números, emojis). llavero_nombre: nombre. marco: el nombre que lleva." },
+              nombre: { type: "string", description: "clicker: una palabra sin espacios (letras, números, signos, emojis). llavero_nombre: nombre. marco: el nombre que lleva." },
               apellido: { type: "string", description: "llavero_nombre (opcional)." },
               color_base: ESQUEMA_COLOR, acabado: { type: "string", enum: ["corrugado", "liso"], description: "clicker: acabado de la base." },
               color_tecla: ESQUEMA_COLOR, color_letra: ESQUEMA_COLOR,
