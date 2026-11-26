@@ -429,7 +429,26 @@
   // El tilde del pago, pegado al importe. Se puede cambiar en cualquier columna
   // (a veces se cobra por adelantado y a veces se entrega y se cobra después); al
   // pasar la tarjeta a «Entregado» llega tildado solo. Lo guarda Proceso.
+  // Pagada: la fecha y la forma (efectivo / tarjeta) de su último pago. Con abonos sin
+  // completar: cuánto lleva y cuánto falta. El botón 💵 abre todos sus pagos (abonos).
+  var METODOS = [
+    { id: '', nombre: 'Sin especificar' },
+    { id: 'efectivo', nombre: 'Efectivo' },
+    { id: 'tarjeta', nombre: 'Tarjeta' }
+  ];
+
+  function metodoOpciones(elegido, conVacio) {
+    return METODOS.filter(function (m) { return conVacio || m.id; }).map(function (m) {
+      return '<option value="' + m.id + '"' + (m.id === (elegido || '') ? ' selected' : '') + '>' +
+        Utils.escapeHtml(m.nombre) + '</option>';
+    }).join('');
+  }
+
+  function saldoDe(t) { return Math.max(0, Math.round((t.total - (t.abonado || 0)) * 100) / 100); }
+
   function pagadoTemplate(t) {
+    var pagos = t.pagos || [];
+    var ultimo = pagos[pagos.length - 1];
     return '<div class="tarjeta__pago">' +
       '<label class="tarjeta__pagado">' +
         '<input type="checkbox" data-pagado' + (t.pagado ? ' checked' : '') +
@@ -439,9 +458,175 @@
       (t.pagado
         ? '<input class="tarjeta__fecha-pago" type="date" data-fecha-pago value="' +
             Utils.escapeHtml(t.fechaPago || '') + '" title="D\u00eda en que se pag\u00f3 (cuenta en las estad\u00edsticas)" ' +
-            'aria-label="Fecha de pago">'
-        : '') +
+            'aria-label="Fecha de pago">' +
+          (ultimo
+            ? '<select class="tarjeta__metodo-pago' + (ultimo.metodo ? '' : ' tarjeta__metodo-pago--sin') + '" data-metodo-pago ' +
+                'title="Forma de pago" aria-label="Forma de pago">' + metodoOpciones(ultimo.metodo, true) + '</select>'
+            : '')
+        : (t.abonado > 0
+          ? '<span class="tarjeta__abonado">Abonado ' + Utils.formatMoney(t.abonado) +
+              ' \u00b7 resta ' + Utils.formatMoney(saldoDe(t)) + '</span>'
+          : '')) +
+      '<button class="tarjeta__abonos-btn" type="button" data-pagos title="Pagos y abonos" aria-label="Pagos y abonos">' +
+        '\ud83d\udcb5' + (pagos.length ? ' <b>' + pagos.length + '</b>' : '') +
+      '</button>' +
       '</div>';
+  }
+
+  /* ------------------------------ Pagos (abonos) ------------------------------
+     La ventana con todos los pagos de una cotización: cada uno se corrige ahí mismo
+     (fecha, forma, monto, nota) o se borra, y abajo se agrega un abono. Lo que se
+     cambie se guarda solo; el «Pagado» lo decide el servidor (pagada cuando lo abonado
+     llega al total) y la tarjeta y Finanzas se rehacen con lo que conteste. */
+
+  var pagosEl = null;
+
+  function cerrarPagos() {
+    if (!pagosEl) return;
+    var el = pagosEl;
+    pagosEl = null;
+    if (el.open) el.close();
+    el.remove();
+  }
+
+  function hoyISO() {
+    var d = new Date();
+    return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+  }
+
+  function pagosCuerpo(t) {
+    var saldo = saldoDe(t);
+    var filas = (t.pagos || []).map(function (p) {
+      return '<tr data-pago-id="' + Utils.escapeHtml(p.id) + '">' +
+        '<td data-campo="Fecha"><input class="field__input" type="date" data-p="fecha" value="' + Utils.escapeHtml(p.fecha) + '" aria-label="Fecha"></td>' +
+        '<td data-campo="Forma"><select class="field__input" data-p="metodo" aria-label="Forma de pago">' + metodoOpciones(p.metodo, true) + '</select></td>' +
+        '<td data-campo="Monto"><input class="field__input" type="number" min="0.01" step="0.01" inputmode="decimal" data-p="monto" value="' + p.monto + '" aria-label="Monto"></td>' +
+        '<td data-campo="Nota"><input class="field__input" type="text" maxlength="200" data-p="nota" value="' + Utils.escapeHtml(p.nota) + '" placeholder="Nota" aria-label="Nota"></td>' +
+        '<td><button class="icon-btn" type="button" data-p-borrar title="Borrar este pago" aria-label="Borrar este pago">\ud83d\uddd1</button></td>' +
+      '</tr>';
+    }).join('');
+    return '' +
+      '<div class="pagos__resumen">' +
+        '<div><span>Total</span><b>' + Utils.formatMoney(t.total) + '</b></div>' +
+        '<div><span>Abonado</span><b>' + Utils.formatMoney(t.abonado || 0) + '</b></div>' +
+        '<div class="' + (saldo > 0 ? 'pagos__saldo' : 'pagos__saldo pagos__saldo--cero') + '"><span>Resta</span><b>' +
+          Utils.formatMoney(saldo) + '</b></div>' +
+      '</div>' +
+      '<div class="pagos__area">' +
+        '<h3 class="pagos__area-titulo">Pagos registrados (' + (t.pagos || []).length + ')</h3>' +
+        (filas
+          ? '<table class="pagos__tabla"><thead><tr><th>Fecha</th><th>Forma</th><th>Monto</th><th>Nota</th><th></th></tr></thead>' +
+              '<tbody>' + filas + '</tbody></table>'
+          : '<p class="empty pagos__vacio">Todavía no hay pagos registrados.</p>') +
+      '</div>' +
+      '<form class="pagos__nuevo" data-p-nuevo novalidate>' +
+        '<h3 class="pagos__sub">Agregar abono</h3>' +
+        '<div class="pagos__campos">' +
+          '<label class="field"><span class="field__label">Fecha</span><input class="field__input" type="date" name="fecha" value="' + hoyISO() + '"></label>' +
+          '<label class="field"><span class="field__label">Monto ($)</span><input class="field__input" type="number" min="0.01" step="0.01" inputmode="decimal" name="monto" value="' + (saldo > 0 ? saldo : '') + '"></label>' +
+          '<label class="field"><span class="field__label">Forma</span><select class="field__input" name="metodo">' + metodoOpciones('efectivo', false) + '</select></label>' +
+          '<label class="field"><span class="field__label">Nota <em class="field__opt">(opcional)</em></span><input class="field__input" type="text" maxlength="200" name="nota" placeholder="Ej. anticipo"></label>' +
+        '</div>' +
+        '<button class="btn btn--primary" type="submit">Agregar abono</button>' +
+      '</form>';
+  }
+
+  function pintarPagos(id) {
+    if (!pagosEl) return;
+    var t = Proceso.getTarjeta(id);
+    if (!t) { cerrarPagos(); return; }
+    pagosEl.querySelector('.pagos__cuerpo').innerHTML = pagosCuerpo(t);
+  }
+
+  function abrirPagos(id) {
+    var t = Proceso.getTarjeta(id);
+    if (!t || typeof document.createElement('dialog').showModal !== 'function') return;
+    cerrarPagos();
+
+    var dlg = document.createElement('dialog');
+    dlg.className = 'ensamble pagos';
+    dlg.innerHTML = '' +
+      '<header class="ensamble__head">' +
+        '<div>' +
+          '<h2 class="ensamble__title">Pagos</h2>' +
+          '<p class="ensamble__meta">' + Utils.escapeHtml(PDF.folioTexto(t.folio)) +
+            ' \u00b7 ' + Utils.escapeHtml(t.cliente || 'Sin cliente') + '</p>' +
+        '</div>' +
+        '<button class="icon-btn ensamble__cerrar" type="button" data-cerrar title="Cerrar" aria-label="Cerrar">\u2715</button>' +
+      '</header>' +
+      '<div class="pagos__cuerpo"></div>' +
+      '<footer class="ensamble__pie"><button class="btn" type="button" data-cerrar>Cerrar</button></footer>';
+
+    dlg.addEventListener('click', function (e) {
+      if (e.target.closest('[data-cerrar]') || e.target === dlg) { cerrarPagos(); return; }
+      var borrar = e.target.closest('[data-p-borrar]');
+      if (!borrar) return;
+      var fila = borrar.closest('[data-pago-id]');
+      if (!window.confirm('\u00bfBorrar este pago?')) return;
+      Proceso.borrarPago(id, fila.getAttribute('data-pago-id')).then(function () { pintarPagos(id); }, function () { pintarPagos(id); });
+    });
+    // Cada campo de un pago se guarda al cambiarlo.
+    dlg.addEventListener('change', function (e) {
+      var campo = e.target.closest('[data-p]');
+      if (!campo) return;
+      var fila = campo.closest('[data-pago-id]');
+      var nombre = campo.getAttribute('data-p');
+      var valor = campo.value;
+      if (nombre === 'monto') {
+        valor = Number(valor);
+        if (!isFinite(valor) || valor <= 0) { window.App.toast('El monto tiene que ser mayor que 0', 'error'); pintarPagos(id); return; }
+      }
+      if (nombre === 'fecha' && !/^\d{4}-\d{2}-\d{2}$/.test(valor)) { pintarPagos(id); return; }
+      var cambios = {};
+      cambios[nombre] = valor;
+      Proceso.editarPago(id, fila.getAttribute('data-pago-id'), cambios).then(function () { pintarPagos(id); }, function () { pintarPagos(id); });
+    });
+    dlg.addEventListener('submit', function (e) {
+      var form = e.target.closest('[data-p-nuevo]');
+      if (!form) return;
+      e.preventDefault();
+      var monto = Number(form.elements.monto.value);
+      var fecha = form.elements.fecha.value;
+      if (!isFinite(monto) || monto <= 0) { window.App.toast('Escribe el monto del abono', 'error'); return; }
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) { window.App.toast('Elige la fecha del abono', 'error'); return; }
+      var boton = form.querySelector('[type=submit]');
+      boton.disabled = true;
+      Proceso.agregarPago(id, { fecha: fecha, monto: monto, metodo: form.elements.metodo.value, nota: form.elements.nota.value })
+        .then(function (tt) {
+          pintarPagos(id);
+          window.App.toast(tt && tt.pagado ? 'Abono guardado: la cotizaci\u00f3n qued\u00f3 pagada' : 'Abono guardado', 'success');
+        }, function () { boton.disabled = false; });
+    });
+    dlg.addEventListener('close', cerrarPagos);
+
+    document.body.appendChild(dlg);
+    pagosEl = dlg;
+    pintarPagos(id);
+    dlg.showModal();
+  }
+
+  // Desde otra pantalla (Finanzas): ir a la tarjeta, dejarla a la vista y abrir sus pagos.
+  var tarjetaPendiente = null;
+
+  function abrirTarjeta(id) {
+    var t = Proceso.getTarjeta(id);
+    if (!t) { window.App.toast('Esa cotizaci\u00f3n ya no est\u00e1 en el tablero', 'error'); return; }
+    columnaActiva = t.columna;
+    tarjetaPendiente = id;
+    window.App.navigate('proceso');
+  }
+
+  function enfocarPendiente() {
+    if (!tarjetaPendiente || !rootEl) return;
+    var id = tarjetaPendiente;
+    tarjetaPendiente = null;
+    var el = rootEl.querySelector('.tarjeta[data-id="' + id + '"]');
+    if (el) {
+      el.scrollIntoView({ block: 'center' });
+      el.classList.add('tarjeta--foco');
+      setTimeout(function () { el.classList.remove('tarjeta--foco'); }, 2500);
+    }
+    abrirPagos(id);
   }
 
   // El nombre del cliente, que se puede corregir ahí mismo: es un botón sin caja
@@ -1026,6 +1211,7 @@
       '</div>';
 
     bind();
+    enfocarPendiente();
   }
 
   /* ------------------------- Interacciones ------------------------- */
@@ -1418,6 +1604,12 @@
         return;
       }
 
+      // Los pagos (abonos) de la cotización.
+      if (e.target.closest('[data-pagos]')) {
+        abrirPagos(id);
+        return;
+      }
+
       // Ver la cotización completa en pantalla, sin descargar nada.
       if (e.target.closest('[data-ver]')) {
         var c = Proceso.getTarjeta(id);
@@ -1522,8 +1714,21 @@
         return;
       }
 
+      var metodo = e.target.closest('[data-metodo-pago]');
+      if (metodo) { Proceso.cambiarMetodoPago(id, metodo.value); return; }
+
       var casilla = e.target.closest('[data-pagado]');
-      if (casilla) { Proceso.cambiarPagado(id, casilla.checked); return; }
+      if (casilla) {
+        // Destildar borra sus pagos: si eran varios abonos, se pregunta antes.
+        var tp = Proceso.getTarjeta(id);
+        if (!casilla.checked && tp && tp.pagos.length > 1 &&
+            !window.confirm('Se borrar\u00e1n los ' + tp.pagos.length + ' pagos registrados de esta cotizaci\u00f3n. \u00bfSeguro?')) {
+          casilla.checked = true;
+          return;
+        }
+        Proceso.cambiarPagado(id, casilla.checked);
+        return;
+      }
 
       // Las casillas del taller van de a dos (bases y teclas): se manda la pareja,
       // con la que se acaba de tocar cambiada y la otra como está.
@@ -1555,5 +1760,5 @@
   });
 
   window.Views = window.Views || {};
-  window.Views.proceso = { render: render };
+  window.Views.proceso = { render: render, abrirTarjeta: abrirTarjeta };
 })();

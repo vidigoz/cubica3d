@@ -260,6 +260,16 @@ function estadisticasDe(tarjetas, filtroMes) {
   const porColumna = {};
   const cotizado = {}, producido = {}, colores = {};
   const PRODUCIDAS = ["realizado", "entregado"];
+  // Lo cobrado (pagos y abonos, por la fecha de cada pago), por forma de pago.
+  const cobrado = { total: 0, efectivo: 0, tarjeta: 0, sin_especificar: 0 };
+  for (const t of tarjetas) {
+    for (const p of t.pagos || []) {
+      if (!enMes(p.fecha)) continue;
+      const forma = p.metodo === "efectivo" || p.metodo === "tarjeta" ? p.metodo : "sin_especificar";
+      cobrado[forma] = redondear(cobrado[forma] + Number(p.monto || 0));
+      cobrado.total = redondear(cobrado.total + Number(p.monto || 0));
+    }
+  }
   for (const t of tarjetas) {
     porColumna[NOMBRES_COLUMNA[t.columna] || t.columna] = (porColumna[NOMBRES_COLUMNA[t.columna] || t.columna] || 0) + 1;
     if (t.pagado) {
@@ -282,6 +292,7 @@ function estadisticasDe(tarjetas, filtroMes) {
   return {
     mes: filtroMes || "todo",
     ventas_pagadas: ventas,
+    cobrado_por_forma_de_pago: cobrado,
     tarjetas_por_columna: porColumna,
     unidades_cotizadas_por_producto: cotizado,
     unidades_producidas_por_producto: producido,
@@ -324,7 +335,7 @@ const HERRAMIENTAS = [
   },
   {
     name: "estadisticas", alcance: "lectura",
-    description: "Ventas pagadas (total y por mes), tarjetas por columna, unidades cotizadas y producidas por producto y colores más usados. Opcional: un mes AAAA-MM.",
+    description: "Ventas pagadas (total y por mes), lo cobrado por forma de pago (efectivo, tarjeta, sin especificar), tarjetas por columna, unidades cotizadas y producidas por producto y colores más usados. Opcional: un mes AAAA-MM.",
     inputSchema: {
       type: "object", additionalProperties: false,
       properties: { mes: { type: "string", pattern: "^\\d{4}-\\d{2}$", description: "AAAA-MM; sin él, todo." } }

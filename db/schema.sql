@@ -183,3 +183,43 @@ create table if not exists archivos (
   creado_por    text
 );
 create index if not exists archivos_cotizacion_idx on archivos (cotizacion_id);
+
+-- ------------------------------------------------------------- Pagos y gastos
+-- Los PAGOS de una cotización: puede ser uno solo (se tilda «Pagado» y se cobra todo) o
+-- varios abonos. La cotización queda pagada cuando lo abonado llega a su total (eso lo
+-- recalcula el API cada vez que cambia un pago o el total: ver recalcularPago). La forma
+-- de pago es efectivo o tarjeta; null = «sin especificar» (las que ya estaban pagadas
+-- antes de que existiera esto, o las que se tildan solas al pasar a «Entregado»).
+create table if not exists pagos (
+  id            uuid primary key default gen_random_uuid(),
+  cotizacion_id uuid not null references cotizaciones(id) on delete cascade,
+  fecha         date not null,
+  monto         numeric(12,2) not null check (monto > 0),
+  metodo        text check (metodo in ('efectivo', 'tarjeta')),
+  nota          text not null default '',
+  creado        timestamptz not null default now(),
+  creado_por    text
+);
+create index if not exists pagos_cotizacion_idx on pagos (cotizacion_id, fecha);
+-- Puesta al día: cada cotización que ya estaba pagada (y no tiene pagos) recibe UN pago
+-- por su total, con su fecha de pago y la forma «sin especificar», para cuadrarla a mano.
+insert into pagos (cotizacion_id, fecha, monto, metodo, creado_por)
+  select c.id, coalesce(c.fecha_pago, c.fecha), c.total, null, 'migración'
+  from cotizaciones c
+  where c.pagado and c.total > 0
+    and not exists (select 1 from pagos p where p.cotizacion_id = c.id);
+
+-- Los GASTOS del negocio (Estadísticas → Finanzas): fecha, monto, forma de pago y una nota
+-- de qué fue. No dependen de ninguna cotización.
+create table if not exists gastos (
+  id          uuid primary key default gen_random_uuid(),
+  fecha       date not null,
+  monto       numeric(12,2) not null check (monto > 0),
+  metodo      text not null check (metodo in ('efectivo', 'tarjeta')),
+  nota        text not null default '',
+  creado      timestamptz not null default now(),
+  creado_por  text,
+  editado     timestamptz,
+  editado_por text
+);
+create index if not exists gastos_fecha_idx on gastos (fecha);

@@ -313,6 +313,19 @@ la venta que el cliente ya aceptó, antes de pasarla al taller (el botón **PO**
 - El contador de folios del carrito se sincroniza con el tablero (`Proceso.siguienteFolio()`), así
   que reiniciar el carrito nunca repite un folio ya enviado.
 
+## Pagos, abonos y Finanzas
+
+- **En la tarjeta**: al tildar **Pagado** se registra un pago por lo que falte cobrar, con su fecha y la
+  **forma de pago** (Efectivo / Tarjeta; las que ya estaban pagadas quedaron como «Sin especificar»). El botón
+  💵 abre todos los pagos de la cotización: ahí se agregan **abonos** y se corrige o borra cada pago. La tarjeta
+  queda pagada sola cuando lo abonado llega al total (y vuelve a tener saldo si se edita a un total mayor).
+  Destildar **Pagado** borra sus pagos.
+- **Estadísticas → Finanzas** (`js/views/finanzas.js`): ventas cobradas (efectivo, tarjeta, sin especificar),
+  gastos, lo que queda y la caja de efectivo; la tabla de pagos (folio, cliente, monto, fecha, forma; tocar una
+  fila abre la tarjeta con sus pagos) y los **gastos** (fecha, monto, forma y nota), con filtros por mes y forma.
+- Base: tablas `pagos` y `gastos` (`db/schema.sql`); hay que correr `cd api && npm run schema` en Neon antes
+  de desplegar esta versión.
+
 ## Configuración
 
 - **Colores en stock:** agrega (nombre + selector de color) y quita colores. Los cambios se ven al instante en los menús de la cotización.

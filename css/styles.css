@@ -1961,3 +1961,200 @@ body.con-pin { overflow: hidden; }
 .manual-fila__subir { cursor: pointer; }
 .hoja__imagen--concepto { margin: 4px 0 8px; }
 .manual-fila__foto .btn { padding: 6px 10px; font-size: 13px; }
+
+/* ---------------- Pagos (abonos) en la tarjeta y Finanzas ---------------- */
+.tarjeta__metodo-pago {
+  font: inherit; font-size: .74rem; font-weight: 700; color: #15803d;
+  padding: 1px 4px; min-height: 24px;
+  border: 1px solid var(--line, #d0d7de); border-radius: 6px; background: transparent;
+}
+.tarjeta__metodo-pago--sin { color: #b45309; border-color: #f59e0b; }
+.tarjeta__abonado { font-size: .74rem; font-weight: 700; color: #b45309; }
+.tarjeta__abonos-btn {
+  margin-left: auto; display: inline-flex; align-items: center; gap: 3px;
+  min-height: 24px; padding: 0 6px; font: inherit; font-size: .74rem;
+  border: 1px solid var(--border); border-radius: 6px; background: var(--surface); cursor: pointer;
+}
+.tarjeta__abonos-btn:hover { border-color: var(--primary); }
+.tarjeta--foco { outline: 3px solid var(--primary); outline-offset: 2px; transition: outline-color .3s; }
+@media (max-width: 700px) {
+  .tarjeta__metodo-pago, .tarjeta__abonos-btn { min-height: 36px; font-size: .84rem; }
+}
+
+.pagos { width: min(760px, 96vw); }
+.pagos__cuerpo { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 14px; display: flex; flex-direction: column; gap: 14px; }
+.pagos__resumen { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.pagos__resumen > div { display: flex; flex-direction: column; padding: 8px 10px; border-radius: 8px; background: var(--primary-soft); }
+.pagos__resumen span { font-size: .72rem; color: var(--muted); font-weight: 700; text-transform: uppercase; }
+.pagos__resumen b { font-size: 1.05rem; }
+.pagos__saldo b { color: #b45309; }
+.pagos__saldo--cero b { color: #15803d; }
+.pagos__tabla { width: 100%; border-collapse: collapse; font-size: .85rem; }
+.pagos__tabla th { text-align: left; font-size: .72rem; color: var(--muted); padding: 4px; border-bottom: 1px solid var(--border); }
+.pagos__tabla td { padding: 4px; border-bottom: 1px dotted var(--border); }
+.pagos__tabla .field__input { min-height: 34px; padding: 4px 6px; }
+.pagos__sub { margin: 0 0 8px; font-size: .9rem; }
+.pagos__nuevo { border-top: 1px solid var(--border); padding-top: 12px; display: flex; flex-direction: column; gap: 10px; }
+.pagos__campos { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.pagos__nuevo .btn { align-self: flex-end; }
+
+
+.fin-filtros { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.fin-filtros .field { min-width: 170px; }
+.fin-cifras { margin-bottom: 8px; }
+.fin-cifra__sub { display: block; margin-top: 4px; font-size: .74rem; color: var(--muted); white-space: normal; }
+.fin-sin { color: #b45309; font-weight: 700; }
+.fin-cifra--gasto .estat-cifra__valor { color: #b91c1c; }
+.fin-cifra--balance .estat-cifra__valor { color: #15803d; }
+.fin-cifra--negativo .estat-cifra__valor { color: #b91c1c; }
+.fin-sub { margin: 18px 0 8px; font-size: .95rem; }
+.fin-tabla thead th:nth-child(-n+2), .fin-tabla tbody td:nth-child(-n+2), .fin-tabla tfoot td:first-child { text-align: left; }
+.fin-acciones__btns { display: inline-flex; gap: 4px; }
+.fin-forma__corto { display: none; }
+@media (max-width: 700px) {
+  .fin-tabla { font-size: .8rem; }
+  .fin-tabla th, .fin-tabla td { padding: 6px 5px; white-space: normal; }
+  /* La tabla de ventas esconde su 3ª columna en el celular; en Finanzas es el monto. */
+  .fin-tabla th:nth-child(3), .fin-tabla td:nth-child(3) { display: table-cell; }
+  .fin-tabla .fin-folio { white-space: nowrap; }
+  .fin-anio, .fin-forma__largo { display: none; }
+  .fin-forma__corto { display: inline; }
+  .fin-forma { padding: 1px 6px; font-size: .7rem; }
+}
+.fin-fila { cursor: pointer; }
+.fin-fila:hover, .fin-fila:focus-visible { background: var(--primary-soft); outline: none; }
+.fin-folio { font-weight: 800; color: var(--primary); }
+.fin-cliente { white-space: normal; }
+.fin-nota { display: block; font-size: .74rem; color: var(--muted); }
+.fin-forma { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: .74rem; font-weight: 700; }
+.fin-forma--efectivo { background: #dcfce7; color: #166534; }
+.fin-forma--tarjeta { background: #dbeafe; color: #1e40af; }
+.fin-forma--sin { background: #fef3c7; color: #92400e; }
+.fin-acciones { white-space: nowrap; }
+.fin-fila--editando { background: var(--primary-soft); }
+.fin-gasto-form { display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; padding: 12px; border: 1px dashed var(--border); border-radius: 10px; }
+.fin-gasto-campos { display: grid; grid-template-columns: 150px 130px 130px minmax(0, 1fr); gap: 8px; }
+.fin-gasto-acciones { display: flex; gap: 8px; justify-content: flex-end; }
+@media (max-width: 700px) {
+  .fin-gasto-campos { grid-template-columns: 1fr 1fr; }
+  .fin-gasto-nota { grid-column: 1 / -1; }
+}
+
+/* --------- Finanzas y Pagos: cada área en su caja, con su franja de color --------- */
+.fin-area {
+  margin-top: 14px;
+  border: 1px solid #cbd5e1;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  overflow: hidden;
+}
+.fin-area__titulo {
+  margin: 0;
+  padding: 9px 14px;
+  font-size: .9rem;
+  font-weight: 800;
+  border-bottom: 1px solid #cbd5e1;
+  background: #f1f5f9;
+  color: #0f172a;
+}
+.fin-area__cuerpo { padding: 12px 14px; }
+.fin-area--filtros .fin-area__cuerpo { background: #f8fafc; }
+.fin-area--filtros .fin-filtros { margin-bottom: 0; }
+.fin-area--resumen .fin-area__titulo { background: #eef2ff; color: #3730a3; border-bottom-color: #c7d2fe; }
+.fin-area--resumen { border-color: #c7d2fe; }
+.fin-area--pagos .fin-area__titulo { background: #dcfce7; color: #166534; border-bottom-color: #86efac; }
+.fin-area--pagos { border-color: #86efac; }
+.fin-area--gastos .fin-area__titulo { background: #fee2e2; color: #991b1b; border-bottom-color: #fca5a5; }
+.fin-area--gastos { border-color: #fca5a5; }
+.fin-area .estat-tabla-wrap { border: 1px solid #cbd5e1; border-radius: 8px; }
+.fin-area .estat-cifras.fin-cifras { margin: 0; }
+
+/* Tarjetas del resumen: cada una con su color a la izquierda y fondo suave. */
+.fin-cifras .estat-cifra { border-left-width: 4px; border-color: #cbd5e1; }
+.fin-cifra--ventas { border-left-color: #4f46e5 !important; background: #eef2ff; }
+.fin-cifra--gasto { border-left-color: #dc2626 !important; background: #fef2f2; }
+.fin-cifra--balance { border-left-color: #16a34a !important; background: #f0fdf4; }
+.fin-cifra--negativo { border-left-color: #dc2626 !important; background: #fef2f2; }
+.fin-cifra--efectivo { border-left-color: #15803d !important; background: #f8fafc; }
+.fin-cifra--tarjeta { border-left-color: #1d4ed8 !important; background: #f8fafc; }
+
+/* Tablas: encabezado con fondo, líneas marcadas y filas alternadas. */
+.fin-tabla thead th { background: #e2e8f0; color: #334155; border-bottom: 1px solid #94a3b8; }
+.fin-tabla td { border-bottom: 1px solid #cbd5e1; }
+.fin-tabla tbody tr:nth-child(even) { background: #f8fafc; }
+.fin-tabla tbody tr.fin-fila:hover { background: #e0e7ff; }
+.fin-tabla tfoot td { background: #f1f5f9; border-top: 2px solid #94a3b8; }
+.fin-gasto-form { border: 1px solid #fca5a5; border-style: solid; background: #fff7f7; }
+
+/* Ventana de pagos */
+.pagos__resumen > div { border: 1px solid #c7d2fe; }
+.pagos__resumen .pagos__saldo { background: #fffbeb; border-color: #fcd34d; }
+.pagos__resumen .pagos__saldo--cero { background: #f0fdf4; border-color: #86efac; }
+.pagos__area { border: 1px solid #86efac; border-radius: var(--radius-sm); overflow: hidden; }
+.pagos__area-titulo { margin: 0; padding: 8px 12px; font-size: .85rem; font-weight: 800; background: #dcfce7; color: #166534; border-bottom: 1px solid #86efac; }
+.pagos__vacio { padding: 12px; margin: 0; }
+.pagos__tabla th { background: #f1f5f9; color: #334155; padding: 6px 8px; border-bottom: 1px solid #94a3b8; }
+.pagos__tabla td { padding: 6px 8px; border-bottom: 1px solid #cbd5e1; }
+.pagos__tabla tbody tr:nth-child(even) { background: #f8fafc; }
+.pagos__nuevo { border: 1px solid #c7d2fe; border-radius: var(--radius-sm); padding: 12px; background: #f5f7ff; }
+.pagos__sub { color: #3730a3; }
+@media (max-width: 700px) {
+  .fin-area__cuerpo { padding: 10px; }
+
+  /* Ventana de pagos en el celular: pantalla completa, cada pago en su tarjetita con
+     etiquetas, y el abono nuevo en dos columnas. */
+  .pagos {
+    width: 100vw; max-width: 100vw; height: 100dvh; max-height: 100dvh;
+    margin: 0; border-radius: 0;
+  }
+  .pagos__cuerpo { padding: 12px; gap: 12px; }
+  .pagos__resumen { gap: 6px; }
+  .pagos__resumen > div { padding: 6px 8px; }
+  .pagos__resumen span { font-size: .64rem; }
+  .pagos__resumen b { font-size: .95rem; }
+
+  .pagos__tabla thead { display: none; }
+  .pagos__tabla, .pagos__tabla tbody { display: block; width: 100%; }
+  .pagos__tabla tbody tr {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas: "fecha forma" "monto borrar" "nota nota";
+    gap: 8px 10px;
+    margin: 8px;
+    padding: 10px;
+    border: 1px solid #cbd5e1;
+    border-radius: 10px;
+    background: #fff;
+  }
+  .pagos__tabla tbody tr:nth-child(even) { background: #f8fafc; }
+  .pagos__tabla td { display: block; padding: 0; border: 0; min-width: 0; }
+  .pagos__tabla td[data-campo="Fecha"] { grid-area: fecha; }
+  .pagos__tabla td[data-campo="Forma"] { grid-area: forma; }
+  .pagos__tabla td[data-campo="Monto"] { grid-area: monto; }
+  .pagos__tabla td[data-campo="Nota"] { grid-area: nota; }
+  .pagos__tabla td:last-child { grid-area: borrar; display: flex; align-items: flex-end; justify-content: flex-end; }
+  .pagos__tabla td[data-campo]::before {
+    content: attr(data-campo);
+    display: block;
+    margin-bottom: 3px;
+    font-size: .68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .pagos__tabla .field__input { width: 100%; min-height: 40px; font-size: 16px; }
+  .pagos__tabla [data-p-borrar] { width: 40px; height: 40px; border: 1px solid #fca5a5; background: #fef2f2; border-radius: 8px; }
+
+  .pagos__nuevo { padding: 10px; }
+  .pagos__campos { grid-template-columns: 1fr 1fr; gap: 8px 10px; }
+  .pagos__campos .field:nth-child(n+3) { grid-column: 1 / -1; }
+  .pagos__campos .field__input { width: 100%; min-height: 42px; font-size: 16px; }
+  .pagos__nuevo .btn { align-self: stretch; min-height: 44px; }
+  .pagos .ensamble__pie { padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); }
+  .pagos .ensamble__pie .btn { width: 100%; min-height: 44px; }
+}
+@media (max-width: 700px) {
+  .fin-cifras.estat-cifras { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .fin-cifras .fin-cifra--ventas { grid-column: 1 / -1; }
+  .fin-cifras .estat-cifra { padding: 10px; }
+}

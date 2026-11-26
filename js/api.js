@@ -247,11 +247,34 @@
 
   // Tilda o destilda «Pagado» sin mover la tarjeta de columna.
   // `fechaPago` (AAAA-MM-DD) es el día que el navegador cree que es hoy.
-  function cambiarPagado(id, pagado, fechaPago) {
+  function cambiarPagado(id, pagado, fechaPago, metodoPago) {
     var cuerpo = { pagado: !!pagado };
     if (pagado && fechaPago) cuerpo.fechaPago = fechaPago;
+    if (pagado && metodoPago !== undefined) cuerpo.metodoPago = metodoPago || null;
     return pedir('PATCH', '/cotizaciones/' + encodeURIComponent(id), cuerpo);
   }
+
+  // La forma (efectivo / tarjeta / null) del último pago de una cotización pagada.
+  function cambiarMetodoPago(id, metodo) {
+    return pedir('PATCH', '/cotizaciones/' + encodeURIComponent(id), { metodoPago: metodo || null });
+  }
+
+  // Abonos de una cotización: { fecha, monto, metodo, nota }. Devuelven { cotizacion }.
+  function agregarPago(id, pago) {
+    return pedir('POST', '/cotizaciones/' + encodeURIComponent(id) + '/pagos', pago);
+  }
+  function editarPago(pagoId, cambios) {
+    return pedir('PATCH', '/pagos/' + encodeURIComponent(pagoId), cambios);
+  }
+  function borrarPago(pagoId) {
+    return pedir('DELETE', '/pagos/' + encodeURIComponent(pagoId));
+  }
+
+  // Gastos del negocio (Finanzas): { fecha, monto, metodo, nota }.
+  function gastos() { return pedir('GET', '/gastos'); }
+  function crearGasto(gasto) { return pedir('POST', '/gastos', gasto); }
+  function editarGasto(id, cambios) { return pedir('PATCH', '/gastos/' + encodeURIComponent(id), cambios); }
+  function borrarGasto(id) { return pedir('DELETE', '/gastos/' + encodeURIComponent(id)); }
 
   // Cambia el día del pago de una cotización ya pagada.
   function cambiarFechaPago(id, fechaPago) {
@@ -315,6 +338,14 @@
     cambiarListas: cambiarListas,
     cambiarItemsListos: cambiarItemsListos,
     generarImpresion: generarImpresion,
+    cambiarMetodoPago: cambiarMetodoPago,
+    agregarPago: agregarPago,
+    editarPago: editarPago,
+    borrarPago: borrarPago,
+    gastos: gastos,
+    crearGasto: crearGasto,
+    editarGasto: editarGasto,
+    borrarGasto: borrarGasto,
     subirArchivo: subirArchivo,
     borrarArchivo: borrarArchivo,
     archivoBlob: archivoBlob,

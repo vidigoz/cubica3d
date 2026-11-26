@@ -177,6 +177,18 @@
       pagado: !!fila.pagado,
       // El día del pago (AAAA-MM-DD); sólo lo tiene una cotización pagada.
       fechaPago: fila.pagado ? String(fila.fechaPago || '').slice(0, 10) : '',
+      // Los pagos (abonos), del más viejo al más nuevo: { id, fecha, monto, metodo, nota }.
+      // metodo: 'efectivo' | 'tarjeta' | '' (sin especificar).
+      pagos: (Array.isArray(fila.pagos) ? fila.pagos : []).map(function (p) {
+        return {
+          id: String(p.id || ''),
+          fecha: String(p.fecha || '').slice(0, 10),
+          monto: window.Utils.parseNumber(p.monto, 0),
+          metodo: p.metodo === 'efectivo' || p.metodo === 'tarjeta' ? p.metodo : '',
+          nota: String(p.nota || '')
+        };
+      }),
+      abonado: window.Utils.parseNumber(fila.abonado, 0),
       // Los tildes del taller: qué tandas del desglose ya están hechas (bases del
       // clicker y teclas con su letra). Son del tablero, no de la hoja: una base
       // vieja que no los traiga queda sin tildar.
@@ -517,6 +529,7 @@
       if (datos && datos.cotizacion) {
         var j = indiceDe(id);
         if (j >= 0) tarjetas[j] = sanearTarjeta(datos.cotizacion);
+        notify();   // trae sus pagos (el del saldo, con su forma)
       }
       terminar();
     }, function (error) {
@@ -528,6 +541,71 @@
     });
 
     return true;
+  }
+
+  // La forma de pago ('efectivo' | 'tarjeta' | '') del último pago de una tarjeta pagada.
+  function cambiarMetodoPago(id, metodo) {
+    var i = indiceDe(id);
+    metodo = metodo === 'efectivo' || metodo === 'tarjeta' ? metodo : '';
+    if (i < 0 || !tarjetas[i].pagado) return false;
+    var pagos = tarjetas[i].pagos;
+    if (pagos.length && pagos[pagos.length - 1].metodo === metodo) return false;
+
+    var respaldo = clone(tarjetas);
+    if (pagos.length) pagos[pagos.length - 1].metodo = metodo;
+    notify();
+
+    enVuelo++;
+    window.Api.cambiarMetodoPago(id, metodo).then(function (datos) {
+      if (datos && datos.cotizacion) {
+        var j = indiceDe(id);
+        if (j >= 0) tarjetas[j] = sanearTarjeta(datos.cotizacion);
+        notify();
+      }
+      terminar();
+    }, function (error) {
+      tarjetas = respaldo;
+      notify();
+      terminar();
+      window.App.toast('No se pudo guardar la forma de pago: ' + error.message, 'error');
+      recargar();
+    });
+    return true;
+  }
+
+  // Abonos: agregar, corregir o borrar un pago. Esperan al servidor (es él quien decide
+  // si con eso queda pagada) y devuelven una promesa con la tarjeta ya al día.
+  function conPago(id, llamada, mensaje) {
+    enVuelo++;
+    return llamada.then(function (datos) {
+      var t = datos && datos.cotizacion ? sanearTarjeta(datos.cotizacion) : null;
+      var j = t ? indiceDe(t.id) : -1;
+      if (j >= 0) tarjetas[j] = t;
+      terminar();
+      notify();
+      return t;
+    }, function (error) {
+      terminar();
+      window.App.toast(mensaje + ': ' + error.message, 'error');
+      recargar();
+      throw error;
+    });
+  }
+
+  function agregarPago(id, pago) {
+    return conPago(id, window.Api.agregarPago(id, {
+      fecha: pago.fecha, monto: pago.monto, metodo: pago.metodo || null, nota: pago.nota || ''
+    }), 'No se pudo guardar el abono');
+  }
+
+  function editarPago(id, pagoId, cambios) {
+    var c = {};
+    Object.keys(cambios || {}).forEach(function (k) { c[k] = k === 'metodo' ? (cambios[k] || null) : cambios[k]; });
+    return conPago(id, window.Api.editarPago(pagoId, c), 'No se pudo cambiar el pago');
+  }
+
+  function borrarPago(id, pagoId) {
+    return conPago(id, window.Api.borrarPago(pagoId), 'No se pudo borrar el pago');
   }
 
   // Cambia el día en que se pagó (AAAA-MM-DD) de una tarjeta ya pagada: es la fecha que
@@ -548,6 +626,7 @@
       if (datos && datos.cotizacion) {
         var j = indiceDe(id);
         if (j >= 0) tarjetas[j] = sanearTarjeta(datos.cotizacion);
+        notify();   // trae sus pagos (el del saldo, con su forma)
       }
       terminar();
     }, function (error) {
@@ -759,6 +838,10 @@
     arrastrando: marcarArrastre,
     cambiarPagado: cambiarPagado,
     cambiarFechaPago: cambiarFechaPago,
+    cambiarMetodoPago: cambiarMetodoPago,
+    agregarPago: agregarPago,
+    editarPago: editarPago,
+    borrarPago: borrarPago,
     cambiarCliente: cambiarCliente,
     cambiarNotas: cambiarNotas,
     cambiarListas: cambiarListas,

@@ -29,6 +29,16 @@
  *                                     { teclasListas } (la combinación   del taller puestos o en otro
  *                                     que haga falta)                   lugar (arrastre)
  *   DELETE /api/cotizaciones/:id                                     -> { ok }
+ *   POST   /api/cotizaciones/:id/pagos { fecha, monto, metodo, nota } -> tarjeta con el abono
+ *   PATCH  /api/pagos/:id             { fecha?, monto?, metodo?, nota? } -> tarjeta
+ *   DELETE /api/pagos/:id                                            -> tarjeta
+ *          (el «Pagado» sale de los pagos: pagada cuando lo abonado llega al total;
+ *           PATCH de la cotización con { pagado:true, fechaPago?, metodoPago? } cobra
+ *           el saldo en un pago, y { pagado:false } borra sus pagos)
+ *   GET    /api/gastos                                               -> { gastos }
+ *   POST   /api/gastos                { fecha, monto, metodo, nota } -> { gasto }
+ *   PATCH  /api/gastos/:id            { fecha?, monto?, metodo?, nota? } -> { gasto }
+ *   DELETE /api/gastos/:id                                           -> { id }
  *
  * Orden del tablero: se lee por `columna, posicion, folio` (ver leerTablero). Una
  * cotización NUEVA entra arriba de «Cotización» —es la que se acaba de mandar y hay que
@@ -88,7 +98,10 @@ const DIAS_SESION = 30;
 const INTENTOS_MAX = 10;                                   // por correo...
 const INTENTOS_VENTANA_MS = 15 * 60 * 1000;                // ...cada 15 minutos
 const SCRYPT = { N: 16384, r: 8, p: 1, largo: 64, sal: 16 };
-const LIMITE = { cliente: 120, notas: 2000, titulo: 120, tipo: 40, descuentoNota: 200 };
+const LIMITE = { cliente: 120, notas: 2000, titulo: 120, tipo: 40, descuentoNota: 200, notaPago: 200 };
+// Formas de pago (de un pago o de un gasto). En un pago, null = «sin especificar».
+const METODOS_PAGO = ["efectivo", "tarjeta"];
+const MONTO_MAXIMO = 1e9;
 // Cada tarjeta guarda su lugar dentro de la columna con un número (`posicion`, ver
 // db/schema.sql). Se separan de a mil y el hueco se parte al medio entre las vecinas: así
 // reordenar NUNCA renumera la columna entera, sólo mueve una tarjeta de número.
@@ -171,6 +184,22 @@ function fechaValida(valor) {
   if (!m) return false;
   const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
   return d.getUTCFullYear() === +m[1] && d.getUTCMonth() === +m[2] - 1 && d.getUTCDate() === +m[3];
+}
+
+// La forma de pago que llega: 'efectivo' | 'tarjeta' | null (vacío o null = sin
+// especificar). `undefined` si no es ninguna de esas.
+function metodoValido(valor) {
+  if (valor === null || valor === "" || valor === undefined) return null;
+  const m = texto(valor).trim().toLowerCase();
+  return METODOS_PAGO.includes(m) ? m : undefined;
+}
+
+// Un monto en pesos, > 0 y con centavos; null si no sirve.
+function montoValido(valor) {
+  const n = Number(valor);
+  if (!isFinite(n) || n <= 0 || n > MONTO_MAXIMO) return null;
+  const r = Math.round(n * 100) / 100;
+  return r > 0 ? r : null;
 }
 
 async function leerJson(request) {
@@ -362,7 +391,12 @@ export function crearApp(opciones) {
     };
   }
 
-  function aTarjeta(fila, items, archivos) {
+  function aPago(p) {
+    return { id: p.id, fecha: p.fecha, monto: Number(p.monto), metodo: p.metodo || null, nota: p.nota || "" };
+  }
+
+  function aTarjeta(fila, items, archivos, pagos) {
+    const listaPagos = (pagos || []).map(aPago);
     return {
       id: fila.id,
       folio: Number(fila.folio),
@@ -378,6 +412,9 @@ export function crearApp(opciones) {
       posicion: Number(fila.posicion),
       pagado: !!fila.pagado,
       fechaPago: fila.pagado ? (fila.fecha_pago || null) : null,
+      // Los pagos (abonos) de la cotización, del más viejo al más nuevo, y cuánto suman.
+      pagos: listaPagos,
+      abonado: Math.round(listaPagos.reduce((suma, p) => suma + p.monto, 0) * 100) / 100,
       // Los tildes del taller: qué tandas del desglose ya están hechas (las bases
       // del clicker y las teclas con su letra). No salen en la hoja ni en el PDF:
       // son del tablero, para saber qué falta imprimir.
@@ -417,6 +454,17 @@ export function crearApp(opciones) {
       " where cotizacion_id in (select id from cotizaciones where borrada_en is null)" +
       " order by creado"
     );
+    const { rows: pags } = await query(
+      "select id, cotizacion_id, to_char(fecha, 'YYYY-MM-DD') as fecha, monto, metodo, nota from pagos" +
+      " where cotizacion_id in (select id from cotizaciones where borrada_en is null)" +
+      " order by fecha, creado"
+    );
+    const pagosPor = new Map();
+    pags.forEach((p) => {
+      const lista = pagosPor.get(p.cotizacion_id) || [];
+      lista.push(p);
+      pagosPor.set(p.cotizacion_id, lista);
+    });
     const archivosPor = new Map();
     arch.forEach((a) => {
       const lista = archivosPor.get(a.cotizacion_id) || [];
@@ -433,7 +481,8 @@ export function crearApp(opciones) {
 
     let actualizado = "";
     const cotizaciones = rows.map((fila) => {
-      const tarjeta = aTarjeta(fila, porCotizacion.get(fila.id) || [], archivosPor.get(fila.id) || []);
+      const tarjeta = aTarjeta(fila, porCotizacion.get(fila.id) || [], archivosPor.get(fila.id) || [],
+        pagosPor.get(fila.id) || []);
       if (tarjeta.movida > actualizado) actualizado = tarjeta.movida;
       return tarjeta;
     });
@@ -461,7 +510,168 @@ export function crearApp(opciones) {
     const { rows: arch } = await query(
       "select id, cotizacion_id, nombre, tipo, tamano from archivos where cotizacion_id = $1 order by creado", [id]
     );
-    return aTarjeta(rows[0], items.map(aItem), arch);
+    const { rows: pags } = await query(
+      "select id, cotizacion_id, to_char(fecha, 'YYYY-MM-DD') as fecha, monto, metodo, nota from pagos" +
+      " where cotizacion_id = $1 order by fecha, creado", [id]
+    );
+    return aTarjeta(rows[0], items.map(aItem), arch, pags);
+  }
+
+  /* ------------------------------- Pagos ------------------------------- */
+  // El «Pagado» de una cotización sale de sus pagos: está pagada cuando lo abonado llega
+  // a su total, y su fecha de pago es la del último pago. Se recalcula cada vez que cambia
+  // un pago o el total (editar la cotización). Una cotización en $0 no lleva pagos: ahí el
+  // tilde queda como lo pusieron.
+  const HOY_MX = "(now() at time zone 'America/Mexico_City')::date";
+
+  async function recalcularPago(id, usuario) {
+    const { rows } = await query("select total, pagado from cotizaciones where id = $1", [id]);
+    if (!rows[0]) return;
+    const { rows: suma } = await query(
+      "select coalesce(sum(monto), 0) as abonado, to_char(max(fecha), 'YYYY-MM-DD') as ultima" +
+      " from pagos where cotizacion_id = $1", [id]
+    );
+    const total = Number(rows[0].total);
+    const abonado = Number(suma[0].abonado);
+    const pagado = total > 0 ? abonado > 0 && abonado + 0.005 >= total : (abonado > 0 || !!rows[0].pagado);
+    await query(
+      "update cotizaciones set pagado = $2," +
+      " fecha_pago = case when $2::boolean then coalesce($3::date, fecha_pago, " + HOY_MX + ") else null end," +
+      " movida = now(), movida_por = $4 where id = $1",
+      [id, pagado, suma[0].ultima || null, usuario]
+    );
+  }
+
+  // Después de tildar «Pagado» (o de corregir su fecha): igual que recalcularPago, pero una
+  // cotización en $0 —que no lleva pagos— queda pagada.
+  async function recalcularPagoTildado(id, usuario) {
+    await query("update cotizaciones set pagado = true where id = $1", [id]);
+    await recalcularPago(id, usuario);
+  }
+
+  // Lo que falta por cobrar de una cotización (0 si ya está cubierta).
+  async function saldoDe(id) {
+    const { rows } = await query(
+      "select c.total - coalesce((select sum(monto) from pagos p where p.cotizacion_id = c.id), 0) as saldo" +
+      " from cotizaciones c where c.id = $1", [id]
+    );
+    return rows[0] ? Math.max(0, Math.round(Number(rows[0].saldo) * 100) / 100) : 0;
+  }
+
+  async function existeCotizacion(id) {
+    const { rows } = await query("select 1 from cotizaciones where id = $1 and borrada_en is null", [id]);
+    return !!rows[0];
+  }
+
+  // Los datos de un pago o un gasto que llegan en el cuerpo: sólo los que vienen. Con
+  // `completo` (al crear) la fecha, el monto y —en un gasto— la forma son obligatorios.
+  function datosDeMovimiento(cuerpo, { completo, metodoObligatorio }) {
+    const datos = {};
+    const tiene = (k) => Object.prototype.hasOwnProperty.call(cuerpo, k);
+    if (tiene("fecha") || completo) {
+      if (!fechaValida(cuerpo.fecha)) return { error: "«fecha» tiene que ser una fecha AAAA-MM-DD." };
+      datos.fecha = cuerpo.fecha;
+    }
+    if (tiene("monto") || completo) {
+      const monto = montoValido(cuerpo.monto);
+      if (monto === null) return { error: "«monto» tiene que ser un número mayor que 0." };
+      datos.monto = monto;
+    }
+    if (tiene("metodo") || (completo && metodoObligatorio)) {
+      const metodo = metodoValido(cuerpo.metodo);
+      if (metodo === undefined || (metodoObligatorio && metodo === null)) {
+        return { error: "«metodo» tiene que ser efectivo o tarjeta." };
+      }
+      datos.metodo = metodo;
+    }
+    if (tiene("nota")) datos.nota = recortar(cuerpo.nota, LIMITE.notaPago);
+    return { datos };
+  }
+
+  // POST /api/cotizaciones/:id/pagos  { fecha, monto, metodo, nota }: un abono más.
+  async function agregarPago(request, contexto) {
+    const cuerpo = (await leerJson(request)) || {};
+    const { datos, error } = datosDeMovimiento(cuerpo, { completo: true });
+    if (error) return fallo(error, 400, contexto.cabeceras);
+    if (!(await existeCotizacion(contexto.params.id))) {
+      return fallo("Esa cotización ya no está en el tablero.", 404, contexto.cabeceras);
+    }
+    await query(
+      "insert into pagos (cotizacion_id, fecha, monto, metodo, nota, creado_por) values ($1, $2, $3, $4, $5, $6)",
+      [contexto.params.id, datos.fecha, datos.monto, datos.metodo === undefined ? null : datos.metodo,
+        datos.nota || "", contexto.usuario.nombre]
+    );
+    await recalcularPago(contexto.params.id, contexto.usuario.nombre);
+    return ok({ cotizacion: await leerTarjeta(contexto.params.id) }, contexto.cabeceras);
+  }
+
+  // PATCH /api/pagos/:id  { fecha?, monto?, metodo?, nota? }
+  async function editarPago(request, contexto) {
+    const cuerpo = (await leerJson(request)) || {};
+    const { datos, error } = datosDeMovimiento(cuerpo, { completo: false });
+    if (error) return fallo(error, 400, contexto.cabeceras);
+    const campos = Object.keys(datos);
+    if (!campos.length) return fallo("No hay nada que cambiar.", 400, contexto.cabeceras);
+    const sets = campos.map((c, i) => c + " = $" + (i + 2));
+    const { rows } = await query(
+      "update pagos set " + sets.join(", ") + " where id = $1 returning cotizacion_id",
+      [contexto.params.id, ...campos.map((c) => datos[c])]
+    );
+    if (!rows[0]) return fallo("Ese pago ya no está.", 404, contexto.cabeceras);
+    await recalcularPago(rows[0].cotizacion_id, contexto.usuario.nombre);
+    return ok({ cotizacion: await leerTarjeta(rows[0].cotizacion_id) }, contexto.cabeceras);
+  }
+
+  // DELETE /api/pagos/:id
+  async function borrarPago(request, contexto) {
+    const { rows } = await query("delete from pagos where id = $1 returning cotizacion_id", [contexto.params.id]);
+    if (!rows[0]) return fallo("Ese pago ya no está.", 404, contexto.cabeceras);
+    await recalcularPago(rows[0].cotizacion_id, contexto.usuario.nombre);
+    return ok({ cotizacion: await leerTarjeta(rows[0].cotizacion_id) }, contexto.cabeceras);
+  }
+
+  /* ------------------------------- Gastos ------------------------------- */
+  const SQL_GASTO = "select id, to_char(fecha, 'YYYY-MM-DD') as fecha, monto, metodo, nota, creado_por from gastos";
+  const aGasto = (g) => ({ id: g.id, fecha: g.fecha, monto: Number(g.monto), metodo: g.metodo, nota: g.nota || "",
+    creadoPor: g.creado_por || "" });
+
+  async function listarGastos(request, contexto) {
+    const { rows } = await query(SQL_GASTO + " order by fecha desc, creado desc");
+    return ok({ gastos: rows.map(aGasto) }, contexto.cabeceras);
+  }
+
+  async function crearGasto(request, contexto) {
+    const cuerpo = (await leerJson(request)) || {};
+    const { datos, error } = datosDeMovimiento(cuerpo, { completo: true, metodoObligatorio: true });
+    if (error) return fallo(error, 400, contexto.cabeceras);
+    const { rows } = await query(
+      "insert into gastos (fecha, monto, metodo, nota, creado_por) values ($1, $2, $3, $4, $5) returning id",
+      [datos.fecha, datos.monto, datos.metodo, datos.nota || "", contexto.usuario.nombre]
+    );
+    const { rows: g } = await query(SQL_GASTO + " where id = $1", [rows[0].id]);
+    return ok({ gasto: aGasto(g[0]) }, contexto.cabeceras);
+  }
+
+  async function editarGasto(request, contexto) {
+    const cuerpo = (await leerJson(request)) || {};
+    const { datos, error } = datosDeMovimiento(cuerpo, { completo: false, metodoObligatorio: true });
+    if (error) return fallo(error, 400, contexto.cabeceras);
+    const campos = Object.keys(datos);
+    if (!campos.length) return fallo("No hay nada que cambiar.", 400, contexto.cabeceras);
+    const sets = campos.map((c, i) => c + " = $" + (i + 3));
+    const { rows } = await query(
+      "update gastos set " + sets.join(", ") + ", editado = now(), editado_por = $2 where id = $1 returning id",
+      [contexto.params.id, contexto.usuario.nombre, ...campos.map((c) => datos[c])]
+    );
+    if (!rows[0]) return fallo("Ese gasto ya no está.", 404, contexto.cabeceras);
+    const { rows: g } = await query(SQL_GASTO + " where id = $1", [contexto.params.id]);
+    return ok({ gasto: aGasto(g[0]) }, contexto.cabeceras);
+  }
+
+  async function borrarGasto(request, contexto) {
+    const { rows } = await query("delete from gastos where id = $1 returning id", [contexto.params.id]);
+    if (!rows[0]) return fallo("Ese gasto ya no está.", 404, contexto.cabeceras);
+    return ok({ id: contexto.params.id }, contexto.cabeceras);
   }
 
   /* ------------------------------ Manejadores ------------------------------ */
@@ -817,6 +1027,8 @@ export function crearApp(opciones) {
       cambioLoFabricado ? [] : (actual.itemsListos || [])
     ]);
     if (!rows[0]) return fallo("Esa cotización ya no está en el tablero.", 404, contexto.cabeceras);
+    // Con otro total puede quedar pagada o con saldo: el «Pagado» sale de sus pagos.
+    await recalcularPago(contexto.params.id, contexto.usuario.nombre);
     return ok({ cotizacion: await leerTarjeta(contexto.params.id) }, contexto.cabeceras);
   }
 
@@ -878,6 +1090,10 @@ export function crearApp(opciones) {
     const pidePosicion = Object.prototype.hasOwnProperty.call(cuerpo, "posicion");
     const pidePagado = Object.prototype.hasOwnProperty.call(cuerpo, "pagado");
     const pideFecha = Object.prototype.hasOwnProperty.call(cuerpo, "fechaPago");
+    // La forma del pago (efectivo / tarjeta / null) que va con el tilde, o la del último
+    // pago de una cotización que ya está pagada.
+    const pideMetodo = Object.prototype.hasOwnProperty.call(cuerpo, "metodoPago");
+    const metodoPago = pideMetodo ? metodoValido(cuerpo.metodoPago) : null;
     const pideCliente = Object.prototype.hasOwnProperty.call(cuerpo, "cliente");
     const pideNotas = Object.prototype.hasOwnProperty.call(cuerpo, "notas");
     const pideBases = Object.prototype.hasOwnProperty.call(cuerpo, "basesListas");
@@ -893,7 +1109,10 @@ export function crearApp(opciones) {
     if (pideFecha && !fechaValida(cuerpo.fechaPago)) {
       return fallo("«fechaPago» tiene que ser una fecha AAAA-MM-DD.", 400, contexto.cabeceras);
     }
-    if (!pideColumna && !pidePosicion && !pidePagado && !pideFecha && !pideCliente && !pideNotas && !pideBases && !pideTeclas && !pideItems) {
+    if (metodoPago === undefined) {
+      return fallo("«metodoPago» tiene que ser efectivo, tarjeta o null.", 400, contexto.cabeceras);
+    }
+    if (!pideColumna && !pidePosicion && !pidePagado && !pideFecha && !pideMetodo && !pideCliente && !pideNotas && !pideBases && !pideTeclas && !pideItems) {
       return fallo("No hay nada que cambiar.", 400, contexto.cabeceras);
     }
     if (pidePagado && typeof cuerpo.pagado !== "boolean") {
@@ -945,12 +1164,12 @@ export function crearApp(opciones) {
     const basesListas = pideBases ? cuerpo.basesListas : !!actual.bases_listas;
     const teclasListas = pideTeclas ? cuerpo.teclasListas : !!actual.teclas_listas;
     const tildaLotes = basesListas !== !!actual.bases_listas || teclasListas !== !!actual.teclas_listas;
-    if (pideFecha && !pagado) {
-      return fallo("Sólo una cotización pagada tiene fecha de pago.", 400, contexto.cabeceras);
+    if ((pideFecha || pideMetodo) && !pagado) {
+      return fallo("Sólo una cotización pagada tiene fecha y forma de pago.", 400, contexto.cabeceras);
     }
-    // El día del pago: al tildar toma el que mande el navegador (o hoy, hora de México);
-    // al destildar se borra; una cotización que llega a pagada sin fecha también la toma.
-    const cambiaFecha = pagado && (pideFecha ? cuerpo.fechaPago !== actual.fecha_pago : !actual.fecha_pago);
+    // El día y la forma del pago: al tildar van con el pago del saldo (o hoy, hora de
+    // México, y «sin especificar»); ya pagada, corrigen su ÚLTIMO pago.
+    const cambiaFecha = pagado && !tilda && (pideFecha || pideMetodo);
     if (!mueve && !reordena && !tilda && !renombra && !tildaLotes && !cambiaFecha && !cambiaNotas && !cambiaItems) {
       return ok({ cotizacion: await leerTarjeta(contexto.params.id), sinCambios: true }, contexto.cabeceras);
     }
@@ -1000,13 +1219,34 @@ export function crearApp(opciones) {
     if (cambiaNotas) {
       await query("update cotizaciones set notas = $2 where id = $1", [contexto.params.id, notas]);
     }
-    if (tilda || cambiaFecha) {
-      await query(
-        "update cotizaciones set fecha_pago = case when $2::boolean then" +
-        " coalesce($3::date, fecha_pago, (now() at time zone 'America/Mexico_City')::date)" +
-        " else null end where id = $1",
-        [contexto.params.id, pagado, pideFecha ? cuerpo.fechaPago : null]
+    // Los pagos detrás del tilde: tildar cobra lo que falta (un pago por el saldo);
+    // destildar borra los pagos de la cotización; ya pagada, la fecha y la forma corrigen
+    // su último pago. Después el «Pagado» y su fecha se recalculan de los pagos.
+    if (tilda && pagado) {
+      const saldo = await saldoDe(contexto.params.id);
+      if (saldo > 0) {
+        await query(
+          "insert into pagos (cotizacion_id, fecha, monto, metodo, creado_por)" +
+          " values ($1, coalesce($2::date, " + HOY_MX + "), $3, $4, $5)",
+          [contexto.params.id, pideFecha ? cuerpo.fechaPago : null, saldo, metodoPago, contexto.usuario.nombre]
+        );
+      }
+    } else if (tilda && !pagado) {
+      await query("delete from pagos where cotizacion_id = $1", [contexto.params.id]);
+    } else if (cambiaFecha) {
+      const { rows: ultimo } = await query(
+        "select id from pagos where cotizacion_id = $1 order by fecha desc, creado desc limit 1", [contexto.params.id]
       );
+      if (ultimo[0]) {
+        if (pideFecha) await query("update pagos set fecha = $2 where id = $1", [ultimo[0].id, cuerpo.fechaPago]);
+        if (pideMetodo) await query("update pagos set metodo = $2 where id = $1", [ultimo[0].id, metodoPago]);
+      } else if (pideFecha) {
+        await query("update cotizaciones set fecha_pago = $2 where id = $1", [contexto.params.id, cuerpo.fechaPago]);
+      }
+    }
+    if (tilda || cambiaFecha) {
+      if (!pagado) await query("update cotizaciones set pagado = false, fecha_pago = null where id = $1", [contexto.params.id]);
+      else await recalcularPagoTildado(contexto.params.id, contexto.usuario.nombre);
     }
     return ok({ cotizacion: await leerTarjeta(contexto.params.id) }, contexto.cabeceras);
   }
@@ -1144,6 +1384,13 @@ export function crearApp(opciones) {
     { metodo: "GET",    patron: /^\/api\/archivos\/([0-9a-fA-F-]{36})$/,                    fn: verArchivo },
     { metodo: "DELETE", patron: /^\/api\/archivos\/([0-9a-fA-F-]{36})$/,                    fn: borrarArchivo },
     { metodo: "POST",   patron: /^\/api\/impresion$/,                                       fn: impresion },
+    { metodo: "POST",   patron: /^\/api\/cotizaciones\/([0-9a-fA-F-]{36})\/pagos$/,          fn: agregarPago },
+    { metodo: "PATCH",  patron: /^\/api\/pagos\/([0-9a-fA-F-]{36})$/,                       fn: editarPago },
+    { metodo: "DELETE", patron: /^\/api\/pagos\/([0-9a-fA-F-]{36})$/,                       fn: borrarPago },
+    { metodo: "GET",    patron: /^\/api\/gastos$/,                                          fn: listarGastos },
+    { metodo: "POST",   patron: /^\/api\/gastos$/,                                          fn: crearGasto },
+    { metodo: "PATCH",  patron: /^\/api\/gastos\/([0-9a-fA-F-]{36})$/,                      fn: editarGasto },
+    { metodo: "DELETE", patron: /^\/api\/gastos\/([0-9a-fA-F-]{36})$/,                      fn: borrarGasto },
     { metodo: "PUT",    patron: /^\/api\/config$/,                                           fn: guardarConfig },
     { metodo: "POST",   patron: /^\/api\/cotizaciones$/,                                     fn: crearCotizacion },
     { metodo: "PUT",    patron: /^\/api\/cotizaciones\/([0-9a-fA-F-]{36})$/,                 fn: editarCotizacion },

@@ -285,11 +285,16 @@
 
     // Si nada cambió no se toca el DOM (si no, el desplegable se cerraría solo
     // cada vez que el sondeo del tablero avisa).
-    var firma = JSON.stringify(datos) + '#' + mesElegido + '#' + firmaColumnas(tarjetas);
+    var finanzas = window.Views && window.Views.finanzas;
+    var firma = JSON.stringify(datos) + '#' + mesElegido + '#' + firmaColumnas(tarjetas) +
+      '#' + (finanzas ? finanzas.firma() : '');
     if (firma === firmaPrevia && rootEl.firstChild) return;
     firmaPrevia = firma;
 
-    rootEl.innerHTML = headTemplate() + seccionProduccion(datos, tarjetas) + seccionVentas(datos);
+    rootEl.innerHTML = headTemplate() + seccionProduccion(datos, tarjetas) + seccionVentas(datos) +
+      '<div id="finanzas-slot"></div>';
+    // Finanzas se pinta sola en su lugar (pagos del tablero + gastos del API).
+    if (finanzas) finanzas.render(rootEl.querySelector('#finanzas-slot'), function () { render(); });
     enganchar();
   }
 
