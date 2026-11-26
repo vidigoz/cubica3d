@@ -2158,3 +2158,23 @@ body.con-pin { overflow: hidden; }
   .fin-cifras .fin-cifra--ventas { grid-column: 1 / -1; }
   .fin-cifras .estat-cifra { padding: 10px; }
 }
+
+/* Estadísticas: secciones que se pliegan tocando su título. */
+.colapsar-btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 0; border: 0; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer;
+}
+.colapsar-chev {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; border-radius: 999px; border: 1px solid var(--border);
+  background: var(--surface-2); font-size: .8rem; line-height: 1; transition: transform .15s;
+}
+.colapsable--cerrada .colapsar-chev { transform: rotate(-90deg); }
+.fin-area__titulo .colapsar-btn { width: 100%; }
+/* Plegada: sólo queda el título. */
+section.colapsable.colapsable--cerrada > :not(:first-child) { display: none; }
+section.colapsable.colapsable--cerrada .panel__hint,
+section.colapsable.colapsable--cerrada .estat-mes-sel { display: none; }
+.fin-area.colapsable--cerrada .fin-area__cuerpo { display: none; }
+.fin-area.colapsable--cerrada .fin-area__titulo { border-bottom: 0; }
+#finanzas-slot > section.colapsable.colapsable--cerrada > :not(.panel__title) { display: none; }

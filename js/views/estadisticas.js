@@ -26,6 +26,54 @@
   var firmaPrevia = null;     // lo último pintado: si no cambió, no se repinta
 
   var TODOS = 'todos';
+
+  // Secciones plegadas (Producción, Ventas, Finanzas y las cajas de Finanzas): se
+  // recuerdan en este navegador. Es una comodidad: si el almacenamiento no está, todo
+  // arranca desplegado.
+  var CLAVE_COLAPSADAS = 'cotizador.estadisticas.colapsadas';
+  var colapsadas = (function () {
+    try { return JSON.parse(window.localStorage.getItem(CLAVE_COLAPSADAS) || '{}') || {}; } catch (e) { return {}; }
+  })();
+  var delegadoEn = null;
+
+  function guardarColapsadas() {
+    try { window.localStorage.setItem(CLAVE_COLAPSADAS, JSON.stringify(colapsadas)); } catch (e) { /* sin almacenamiento */ }
+  }
+
+  // Convierte el título de cada sección (y de cada caja de Finanzas) en un botón que la
+  // pliega y despliega, y aplica lo que ya estaba plegado.
+  function decorarColapsables() {
+    var piezas = [];
+    rootEl.querySelectorAll('section.panel[id]').forEach(function (sec) {
+      piezas.push({ caja: sec, titulo: sec.querySelector('.panel__title'), clave: sec.id });
+    });
+    rootEl.querySelectorAll('.fin-area').forEach(function (area) {
+      var m = /fin-area--(\w+)/.exec(area.className);
+      if (m) piezas.push({ caja: area, titulo: area.querySelector('.fin-area__titulo'), clave: 'fin-' + m[1] });
+    });
+    piezas.forEach(function (p) {
+      if (!p.titulo || p.titulo.querySelector('[data-colapsar]')) return;
+      var cerrada = !!colapsadas[p.clave];
+      p.titulo.innerHTML = '<button class="colapsar-btn" type="button" data-colapsar="' + escapar(p.clave) + '" ' +
+        'aria-expanded="' + !cerrada + '" title="Plegar o desplegar">' +
+        '<span class="colapsar-chev" aria-hidden="true">\u25be</span><span>' + p.titulo.innerHTML + '</span></button>';
+      p.caja.classList.add('colapsable');
+      p.caja.classList.toggle('colapsable--cerrada', cerrada);
+    });
+    if (delegadoEn === rootEl) return;
+    delegadoEn = rootEl;
+    rootEl.addEventListener('click', function (e) {
+      var btn = e.target.closest && e.target.closest('[data-colapsar]');
+      if (!btn) return;
+      var clave = btn.getAttribute('data-colapsar');
+      var caja = btn.closest('.colapsable');
+      var cerrada = !caja.classList.contains('colapsable--cerrada');
+      caja.classList.toggle('colapsable--cerrada', cerrada);
+      btn.setAttribute('aria-expanded', String(!cerrada));
+      if (cerrada) colapsadas[clave] = true; else delete colapsadas[clave];
+      guardarColapsadas();
+    });
+  }
   var ETIQUETA_TODOS = 'Global (todos los meses)';
 
   /* ------------------------------ Ayudas ------------------------------ */
@@ -295,6 +343,7 @@
       '<div id="finanzas-slot"></div>';
     // Finanzas se pinta sola en su lugar (pagos del tablero + gastos del API).
     if (finanzas) finanzas.render(rootEl.querySelector('#finanzas-slot'), function () { render(); });
+    decorarColapsables();
     enganchar();
   }
 
