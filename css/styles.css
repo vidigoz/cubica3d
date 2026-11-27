@@ -2178,3 +2178,27 @@ section.colapsable.colapsable--cerrada .estat-mes-sel { display: none; }
 .fin-area.colapsable--cerrada .fin-area__cuerpo { display: none; }
 .fin-area.colapsable--cerrada .fin-area__titulo { border-bottom: 0; }
 #finanzas-slot > section.colapsable.colapsable--cerrada > :not(.panel__title) { display: none; }
+
+/* Buscador del tablero (Proceso): filtra las tarjetas de todas las columnas. */
+.kanban__buscar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 12px;
+}
+.kanban__buscar-input {
+  flex: 1;
+  min-width: 0;
+  max-width: 520px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+  font-size: 16px;   /* 16px: el iPhone no hace zoom al tocarlo */
+  box-shadow: var(--shadow);
+}
+.kanban__buscar-input:focus { outline: 2px solid var(--primary); outline-offset: 1px; border-color: var(--primary); }
+.kanban__buscar-cuenta { color: var(--muted); font-size: .85rem; font-weight: 600; white-space: nowrap; }
+.kanban--buscando .tarjeta { cursor: default; }

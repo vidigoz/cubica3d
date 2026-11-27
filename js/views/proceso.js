@@ -96,7 +96,62 @@
     return '' +
       '<div class="page__head">' +
         '<h2 class="page__title">Proceso</h2>' +
+      '</div>' +
+      '<div class="kanban__buscar">' +
+        '<input class="kanban__buscar-input" type="search" data-buscar autocomplete="off" ' +
+          'enterkeyhint="search" placeholder="Buscar: cliente, folio, nombre, color, nota\u2026" ' +
+          'aria-label="Buscar en el tablero" value="' + Utils.escapeHtml(busqueda) + '">' +
+        '<span class="kanban__buscar-cuenta" data-buscar-cuenta aria-live="polite">' +
+          cuentaBusqueda() + '</span>' +
       '</div>';
+  }
+
+  /* ------------------------------ Búsqueda ------------------------------
+     Un solo campo arriba del tablero que filtra las tarjetas de TODAS las columnas por
+     cualquier texto de la cotización: cliente, folio, el nombre del clicker / llavero /
+     charm, el producto, los colores, las notas, el motivo del descuento y las notas de
+     los pagos. Sin acentos ni mayúsculas («jose» encuentra «José») y con varias palabras
+     tienen que estar todas («pepe verde»). Es sólo una forma de mirar: mientras hay
+     búsqueda las tarjetas no se arrastran (como en una columna ordenada). */
+
+  var busqueda = '';
+
+  function normalizar(texto) {
+    return String(texto == null ? '' : texto).toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  }
+
+  function palabrasBusqueda() {
+    return normalizar(busqueda).split(/\s+/).filter(Boolean);
+  }
+
+  // Todo el texto buscable de una tarjeta, ya normalizado.
+  function textoDe(t) {
+    var partes = [t.cliente, t.notas, t.descuentoNota, '#' + t.folio, PDF.folioTexto(t.folio)];
+    (t.items || []).forEach(function (it) {
+      partes.push(it.tipo, it.titulo);
+      (it.detalles || []).forEach(function (d) { partes.push(d.label, d.nombre); });
+    });
+    (t.pagos || []).forEach(function (p) { partes.push(p.nota); });
+    return normalizar(partes.join(' \n '));
+  }
+
+  function coincide(t, palabras) {
+    if (!palabras.length) return true;
+    var texto = textoDe(t);
+    return palabras.every(function (w) { return texto.indexOf(w) >= 0; });
+  }
+
+  function tarjetasDe(columna) {
+    var palabras = palabrasBusqueda();
+    return Proceso.getTarjetas(columna).filter(function (t) { return coincide(t, palabras); });
+  }
+
+  function cuentaBusqueda() {
+    if (!palabrasBusqueda().length) return '';
+    var n = 0;
+    Proceso.COLUMNAS.forEach(function (col) { n += tarjetasDe(col.id).length; });
+    return n === 1 ? '1 tarjeta' : n + ' tarjetas';
   }
 
   // '2026-10-09T18:20:00.000Z' -> '09/10/2026 18:20'
@@ -613,6 +668,7 @@
     if (!t) { window.App.toast('Esa cotizaci\u00f3n ya no est\u00e1 en el tablero', 'error'); return; }
     columnaActiva = t.columna;
     tarjetaPendiente = id;
+    if (!coincide(t, palabrasBusqueda())) busqueda = '';   // que la búsqueda no la esconda
     window.App.navigate('proceso');
   }
 
@@ -745,7 +801,7 @@
 
   function columnaTemplate(col) {
     var orden = ordenDe(col.id);
-    var lista = ordenarTarjetas(Proceso.getTarjetas(col.id), orden);
+    var lista = ordenarTarjetas(tarjetasDe(col.id), orden);
     var unidades = 0;
     var dinero = 0;
     lista.forEach(function (t) { unidades += t.unidades; dinero += t.total; });
@@ -770,7 +826,9 @@
         '<div class="kanban__body">' +
           (lista.length
             ? lista.map(tarjetaTemplate).join('')
-            : '<p class="kanban__empty">' + vacioTemplate(col) + '</p>') +
+            : '<p class="kanban__empty">' + (palabrasBusqueda().length
+                ? 'Nada coincide con la b\u00fasqueda.'
+                : vacioTemplate(col)) + '</p>') +
         '</div>' +
       '</section>';
   }
@@ -785,7 +843,7 @@
           return '<button class="kanban__tab' + (activa ? ' kanban__tab--activa' : '') + '" type="button" ' +
             'role="tab" aria-selected="' + activa + '" data-tab="' + col.id + '">' +
             '<span class="kanban__tab-nombre">' + Utils.escapeHtml(col.nombre) + '</span>' +
-            '<b class="kanban__tab-cuenta">' + Proceso.getTarjetas(col.id).length + '</b>' +
+            '<b class="kanban__tab-cuenta">' + tarjetasDe(col.id).length + '</b>' +
           '</button>';
         }).join('') +
       '</div>';
@@ -1201,11 +1259,26 @@
     // arrastre— se baja sin tocar nada: el repintado la vuelve a poner en su lugar.
     if (arrastre) desarmarArrastre();
 
+    // Si el buscador ya está puesto (se está escribiendo, o llegó el sondeo) sólo se
+    // repintan las pestañas y las columnas: el campo no se toca y no pierde el foco.
+    var kanbanEl = rootEl.querySelector('#kanban');
+    var tabsEl = rootEl.querySelector('.kanban__tabs');
+    if (kanbanEl && tabsEl && rootEl.querySelector('[data-buscar]')) {
+      tabsEl.outerHTML = pestanasTemplate();
+      kanbanEl.innerHTML = Proceso.COLUMNAS.map(columnaTemplate).join('');
+      kanbanEl.classList.toggle('kanban--buscando', palabrasBusqueda().length > 0);
+      var cuentaEl = rootEl.querySelector('[data-buscar-cuenta]');
+      if (cuentaEl) cuentaEl.textContent = cuentaBusqueda();
+      bind();
+      enfocarPendiente();
+      return;
+    }
+
     rootEl.innerHTML =
       '<div class="page">' +
         headTemplate() +
         pestanasTemplate() +
-        '<div class="kanban" id="kanban">' +
+        '<div class="kanban' + (palabrasBusqueda().length ? ' kanban--buscando' : '') + '" id="kanban">' +
           Proceso.COLUMNAS.map(columnaTemplate).join('') +
         '</div>' +
       '</div>';
@@ -1680,8 +1753,29 @@
       // lo manda el orden (para acomodarlas a mano se vuelve a «manual»).
       var colEl = tarjetaEl.closest('.kanban__col');
       if (colEl && ordenDe(colEl.getAttribute('data-col')) !== 'manual') return;
+      // Con búsqueda tampoco: faltan tarjetas en la columna y el hueco mentiría.
+      if (palabrasBusqueda().length) return;
 
       empezarGesto(e, tarjetaEl);
+    });
+
+    // El buscador filtra mientras se escribe; Esc lo vacía.
+    rootEl.addEventListener('input', function (e) {
+      if (!e.target.matches('[data-buscar]')) return;
+      busqueda = e.target.value;
+      // En el celular se ve una columna: si en la que está no hay nada, salta a la
+      // primera que sí tenga resultados.
+      if (palabrasBusqueda().length && !tarjetasDe(columnaActiva).length) {
+        var conAlgo = Proceso.COLUMNAS.filter(function (c) { return tarjetasDe(c.id).length; })[0];
+        if (conAlgo) columnaActiva = conAlgo.id;
+      }
+      render();
+    });
+    rootEl.addEventListener('keydown', function (e) {
+      if (e.key !== 'Escape' || !e.target.matches('[data-buscar]') || !e.target.value) return;
+      e.target.value = '';
+      busqueda = '';
+      render();
     });
 
     // Los tildes de la tarjeta: el de «Pagado» y los del taller (qué tandas del
